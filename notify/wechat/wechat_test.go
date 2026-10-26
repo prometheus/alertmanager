@@ -14,18 +14,25 @@
 package wechat
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
@@ -35,7 +42,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 
 	secret := "secret_key"
 	notifier, err := New(
-		&config.WechatConfig{
+		&WechatConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
@@ -57,7 +64,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.WechatConfig{
+		&WechatConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
@@ -79,7 +86,7 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.WechatConfig{
+		&WechatConfig{
 			APIURL:      &amcommoncfg.URL{URL: u},
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 			CorpID:      "corpid",
@@ -94,8 +101,63 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret, token)
 }
 
+func TestWechatTokenRequestTemplateError(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		corpID    string
+		apiSecret commoncfg.Secret
+	}{
+		{
+			name:      "corp id",
+			corpID:    `{{ template "missing" . }}`,
+			apiSecret: commoncfg.Secret("secret"),
+		},
+		{
+			name:      "api secret",
+			corpID:    "corpid",
+			apiSecret: commoncfg.Secret(`{{ template "missing" . }}`),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requests atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				fmt.Fprint(w, `{"errcode":40013,"errmsg":"invalid corpid"}`)
+			}))
+			defer srv.Close()
+			u, err := url.Parse(srv.URL + "/")
+			require.NoError(t, err)
+
+			notifier, err := New(
+				&WechatConfig{
+					APIURL:     &amcommoncfg.URL{URL: u},
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+					CorpID:     tc.corpID,
+					APISecret:  tc.apiSecret,
+				},
+				test.CreateTmpl(t),
+				promslog.NewNopLogger(),
+			)
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
+			require.False(t, verdict.ShouldRetry())
+			require.ErrorContains(t, verdict.Err(), "templating error")
+			require.Zero(t, requests.Load(), "no token request should be sent when templating fails")
+		})
+	}
+}
+
 func TestGetApiSecretFromSecret(t *testing.T) {
-	n := &Notifier{conf: &config.WechatConfig{APISecret: commoncfg.Secret("shhh")}}
+	n := &Notifier{conf: &WechatConfig{APISecret: commoncfg.Secret("shhh")}}
 	s, err := n.getApiSecret()
 	require.NoError(t, err)
 	require.Equal(t, "shhh", s)
@@ -109,14 +171,14 @@ func TestGetApiSecretFromFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tmpFile.Close())
 
-	n := &Notifier{conf: &config.WechatConfig{APISecretFile: tmpFile.Name()}}
+	n := &Notifier{conf: &WechatConfig{APISecretFile: tmpFile.Name()}}
 	s, err := n.getApiSecret()
 	require.NoError(t, err)
 	require.Equal(t, "file-secret", s)
 }
 
 func TestGetApiSecretFromMissingFile(t *testing.T) {
-	n := &Notifier{conf: &config.WechatConfig{APISecretFile: "/non/existent/wechat-secret.txt"}}
+	n := &Notifier{conf: &WechatConfig{APISecretFile: "/non/existent/wechat-secret.txt"}}
 	s, err := n.getApiSecret()
 	var pathErr *os.PathError
 	require.ErrorAs(t, err, &pathErr)

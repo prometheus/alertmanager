@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 )
 
@@ -112,8 +113,11 @@ func benchmarkMutes(b *testing.B, totalSilences, matchingSilences int) {
 
 	s := NewSilencer(silences, promslog.NewNopLogger(), eventrecorder.NopRecorder())
 
+	// Built once: in production the MuteStage passes the alert's precomputed
+	// fingerprint along with its labels, so hashing is not part of Mutes.
+	lset := labelset.FromModel(model.LabelSet{"foo": "bar"})
 	for b.Loop() {
-		s.Mutes(context.Background(), model.LabelSet{"foo": "bar"})
+		s.Mutes(context.Background(), lset)
 	}
 	b.StopTimer()
 }
@@ -180,7 +184,7 @@ func BenchmarkMutesIncremental(b *testing.B) {
 
 			// Warm up: Establish cache state (cachedEntry.version = current version)
 			// This simulates a system that has been running for a while
-			lset := model.LabelSet{"service": "test", "instance": "instance1"}
+			lset := labelset.FromModel(model.LabelSet{"service": "test", "instance": "instance1"})
 			silencer.Mutes(context.Background(), lset)
 
 			// Benchmark: Measure Mutes() performance with incremental additions
@@ -517,10 +521,12 @@ func benchmarkMutesParallel(b *testing.B, numSilences int) {
 
 	b.ResetTimer()
 
+	lset := labelset.FromModel(model.LabelSet{"foo": "bar"})
+
 	// Run Mutes in parallel
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			silencer.Mutes(b.Context(), model.LabelSet{"foo": "bar"})
+			silencer.Mutes(b.Context(), lset)
 		}
 	})
 }

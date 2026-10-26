@@ -45,7 +45,7 @@ func (a *App) Start() error {
 	if a.stopped {
 		return errors.New("alertmanager/app: App.Start called after Stop")
 	}
-	if a.server == nil || len(a.listeners) == 0 {
+	if len(a.servers) == 0 || len(a.listeners) == 0 {
 		a.startErr = errors.New("alertmanager/app: App.Start called before successful New")
 		return a.startErr
 	}
@@ -62,10 +62,22 @@ func (a *App) Start() error {
 	go a.reloadRouter()
 
 	go func() {
-		err := web.ServeMultiple(a.listeners, a.server, a.opts.WebConfig, a.logger)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			a.logger.Error("Listen error", "err", err)
-			a.serveErrc <- err
+		errCh := make(chan error, len(a.listeners))
+		for idx, listener := range a.listeners {
+			server := a.servers[idx]
+			go func() {
+				errCh <- web.Serve(listener, server, a.opts.WebConfig, a.logger)
+			}()
+		}
+		reported := false
+		for range a.listeners {
+			if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+				a.logger.Error("Listen error", "err", err)
+				if !reported {
+					a.serveErrc <- err
+					reported = true
+				}
+			}
 		}
 		close(a.serveErrc)
 	}()
@@ -206,13 +218,20 @@ func (a *App) Stop(ctx context.Context) error {
 	// reload router is still running at this point so any in-flight
 	// /-/reload handler can complete its send/receive cycle and unblock
 	// Shutdown.
-	if a.server != nil {
-		if err := a.server.Shutdown(shutdownCtx); err != nil {
-			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
-			stopErr = err
-			if closeErr := a.server.Close(); closeErr != nil {
-				stopErr = errors.Join(stopErr, closeErr)
+	shutdownErrCh := make(chan error, len(a.servers))
+	for _, server := range a.servers {
+		go func() {
+			err := server.Shutdown(shutdownCtx)
+			if err != nil {
+				err = errors.Join(err, server.Close())
 			}
+			shutdownErrCh <- err
+		}()
+	}
+	for range a.servers {
+		if err := <-shutdownErrCh; err != nil {
+			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
+			stopErr = errors.Join(stopErr, err)
 		}
 	}
 	// HTTP is fully drained; no new /-/reload requests can arrive.
@@ -233,7 +252,7 @@ func (a *App) Stop(ctx context.Context) error {
 		}
 	}
 	// Drain serveErrc so the listen goroutine, if any, exits before we
-	// release listener resources. ServeMultiple returns once all
+	// release listener resources. The serve goroutine exits once all
 	// per-listener Serve calls return (which happens once Shutdown
 	// completes), so this drain is bounded — but, as above, we also cap
 	// it with shutdownCtx so Stop can't hang here either.

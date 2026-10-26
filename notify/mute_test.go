@@ -32,16 +32,37 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/silence"
 	"github.com/prometheus/alertmanager/silence/silencepb"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
 
+func TestMuteStagePassesAlertFingerprint(t *testing.T) {
+	// The muter must receive the alert's fingerprint rather than rehash the
+	// labels. Modifying the labels after construction violates the alert.New
+	// contract, but it is the only way to tell the two apart.
+	var got model.Fingerprint
+	muter := MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		got = lset.Fingerprint()
+		return false
+	})
+	stage := NewMuteStage(muter, NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
+
+	a := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false)
+	want := a.Fingerprint()
+	a.Labels["alertname"] = "changed"
+
+	_, _, err := stage.Exec(context.Background(), promslog.NewNopLogger(), a)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
 func TestMuteStage(t *testing.T) {
 	// Mute all label sets that have a "mute" key.
-	muter := MuteFunc(func(ctx context.Context, lset model.LabelSet) bool {
-		_, ok := lset["mute"]
+	muter := MuteFunc(func(ctx context.Context, lset labelset.LabelSet) bool {
+		_, ok := lset.LabelSet["mute"]
 		return ok
 	})
 
@@ -67,9 +88,7 @@ func TestMuteStage(t *testing.T) {
 
 	var inAlerts []*alert.Alert
 	for _, lset := range in {
-		inAlerts = append(inAlerts, &alert.Alert{
-			Alert: model.Alert{Labels: lset},
-		})
+		inAlerts = append(inAlerts, alert.New(model.Alert{Labels: lset}, time.Time{}, false))
 	}
 
 	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), inAlerts...)
@@ -93,15 +112,15 @@ func TestMuteStage(t *testing.T) {
 
 func TestMuteStageAccumulatesMutedAlertDetails(t *testing.T) {
 	metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
-	firstStage := NewMuteStage(MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		return lset["muted_by"] == "first"
+	firstStage := NewMuteStage(MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		return lset.LabelSet["muted_by"] == "first"
 	}), metrics)
-	secondStage := NewMuteStage(MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		return lset["muted_by"] == "second"
+	secondStage := NewMuteStage(MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		return lset.LabelSet["muted_by"] == "second"
 	}), metrics)
-	first := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "First", "muted_by": "first"}}}
-	second := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Second", "muted_by": "second"}}}
-	active := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Active"}}}
+	first := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "First", "muted_by": "first"}}, time.Time{}, false)
+	second := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Second", "muted_by": "second"}}, time.Time{}, false)
+	active := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Active"}}, time.Time{}, false)
 
 	ctx, alerts, err := firstStage.Exec(context.Background(), promslog.NewNopLogger(), first, second, active)
 	require.NoError(t, err)
@@ -155,9 +174,7 @@ func TestMuteStageWithSilences(t *testing.T) {
 
 	var inAlerts []*alert.Alert
 	for _, lset := range in {
-		inAlerts = append(inAlerts, &alert.Alert{
-			Alert: model.Alert{Labels: lset},
-		})
+		inAlerts = append(inAlerts, alert.New(model.Alert{Labels: lset}, time.Time{}, false))
 	}
 
 	// Set the second alert as previously silenced with an old version
@@ -261,41 +278,40 @@ func TestTimeMuteStage(t *testing.T) {
 		name:      "Should be muted outside working hours",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"evenings"},
 	}, {
 		name:      "Should not be muted during workings hours",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   nil,
 	}, {
 		name:      "Should be muted during weekends",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekends"},
 	}, {
 		name:      "Should be muted at 12pm UTC on a weekday",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"evenings"},
 	}, {
 		name:      "Should be muted at 12pm UTC on a weekend",
 		intervals: eveningsAndWeekends,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"evenings", "weekends"},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
-			marker := marker.NewGroupMarker()
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeMuteStage(intervener, marker, metrics)
+			st := NewTimeMuteStage(intervener, metrics)
 
 			// Get the names of all time intervals for the context.
 			muteTimeIntervalNames := make([]string, 0, len(test.intervals))
@@ -310,17 +326,20 @@ func TestTimeMuteStage(t *testing.T) {
 			ctx = WithGroupKey(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, nil)
 			ctx = WithMuteTimeIntervals(ctx, muteTimeIntervalNames)
-			ctx = WithRouteID(ctx, "route1")
 
 			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
 
+			// The query-time computation used by the API must agree with
+			// the stage.
+			mutedByActive, mutedBy, err := MutedByTimeIntervals(intervener, nil, muteTimeIntervalNames, test.now)
+			require.NoError(t, err)
+			require.Empty(t, mutedByActive)
+
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
 				require.Len(t, active, len(test.alerts))
-				// The group should not be marked.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.False(t, isMuted)
+				// The group should not be muted.
 				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
@@ -328,9 +347,7 @@ func TestTimeMuteStage(t *testing.T) {
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
-				// The group should be marked as muted.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.True(t, isMuted)
+				// The group should be muted.
 				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`
@@ -339,6 +356,126 @@ func TestTimeMuteStage(t *testing.T) {
 alertmanager_notifications_suppressed_total{reason="mute_time_interval"} %d
 `, len(test.alerts)))))
 			}
+		})
+	}
+}
+
+func TestMutedByTimeIntervals(t *testing.T) {
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	require.NoError(t, err)
+	intervener := timeinterval.NewIntervener(map[string][]timeinterval.TimeInterval{
+		"weekdays": {{
+			Weekdays: []timeinterval.WeekdayRange{{
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 1, End: 5}, // Monday to Friday
+			}},
+			Times: []timeinterval.TimeRange{{
+				StartMinute: 540,  // 09:00
+				EndMinute:   1020, // 17:00
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+		"evenings": {{
+			Times: []timeinterval.TimeRange{{
+				StartMinute: 1020, // 17:00
+				EndMinute:   1440, // 24:00
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+		"weekends": {{
+			Weekdays: []timeinterval.WeekdayRange{{
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 6, End: 6}, // Saturday
+			}, {
+				InclusiveRange: timeinterval.InclusiveRange{Begin: 0, End: 0}, // Sunday
+			}},
+			Location: &timeinterval.Location{Location: sydney},
+		}},
+	})
+	// Monday 2024-01-01 and Saturday 2024-01-06.
+	mondayNoon := time.Date(2024, 1, 1, 12, 0, 0, 0, sydney)
+	mondayEvening := time.Date(2024, 1, 1, 18, 0, 0, 0, sydney)
+	saturdayNoon := time.Date(2024, 1, 6, 12, 0, 0, 0, sydney)
+	saturdayEvening := time.Date(2024, 1, 6, 18, 0, 0, 0, sydney)
+
+	tests := []struct {
+		name          string
+		active        []string
+		mute          []string
+		now           time.Time
+		mutedByActive []string
+		mutedByMute   []string
+		err           string
+	}{{
+		name: "no intervals",
+		now:  mondayEvening,
+	}, {
+		name:   "inside active, outside mute",
+		active: []string{"weekdays"},
+		mute:   []string{"evenings", "weekends"},
+		now:    mondayNoon,
+	}, {
+		name:          "outside active, outside mute",
+		active:        []string{"weekdays"},
+		mute:          []string{"weekends"},
+		now:           mondayEvening,
+		mutedByActive: []string{"weekdays"},
+	}, {
+		name:        "inside active, inside mute",
+		active:      []string{"weekdays", "evenings"},
+		mute:        []string{"evenings"},
+		now:         mondayEvening,
+		mutedByMute: []string{"evenings"},
+	}, {
+		name:          "outside active, inside one mute",
+		active:        []string{"weekdays"},
+		mute:          []string{"evenings", "weekends"},
+		now:           mondayEvening,
+		mutedByActive: []string{"weekdays"},
+		mutedByMute:   []string{"evenings"},
+	}, {
+		name:          "outside active, inside every mute",
+		active:        []string{"weekdays"},
+		mute:          []string{"evenings", "weekends"},
+		now:           saturdayEvening,
+		mutedByActive: []string{"weekdays"},
+		mutedByMute:   []string{"evenings", "weekends"},
+	}, {
+		name:        "only mute intervals",
+		mute:        []string{"evenings", "weekends"},
+		now:         saturdayNoon,
+		mutedByMute: []string{"weekends"},
+	}, {
+		name:          "only active intervals",
+		active:        []string{"weekdays"},
+		now:           saturdayNoon,
+		mutedByActive: []string{"weekdays"},
+	}, {
+		name:   "unknown active interval",
+		active: []string{"holidays"},
+		mute:   []string{"evenings"},
+		now:    mondayEvening,
+		err:    "time interval holidays doesn't exist in config",
+	}, {
+		// Mute intervals are resolved even when the active ones already
+		// mute the group.
+		name:   "unknown mute interval while outside active",
+		active: []string{"weekdays"},
+		mute:   []string{"holidays"},
+		now:    mondayEvening,
+		err:    "time interval holidays doesn't exist in config",
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mutedByActive, mutedByMute, err := MutedByTimeIntervals(intervener, test.active, test.mute, test.now)
+			if test.err != "" {
+				require.EqualError(t, err, test.err)
+				require.Nil(t, mutedByActive)
+				require.Nil(t, mutedByMute)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.mutedByActive, mutedByActive)
+			require.Equal(t, test.mutedByMute, mutedByMute)
 		})
 	}
 }
@@ -374,35 +511,34 @@ func TestTimeActiveStage(t *testing.T) {
 		name:      "Should be muted outside working hours",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 1, 0, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekdays"},
 	}, {
 		name:      "Should not be muted during workings hours",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 1, 9, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   nil,
 	}, {
 		name:      "Should be muted during weekends",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, sydney),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekdays"},
 	}, {
 		name:      "Should be muted at 12pm UTC",
 		intervals: weekdays,
 		now:       time.Date(2024, 1, 6, 10, 0, 0, 0, time.UTC),
-		alerts:    []*alert.Alert{{Alert: model.Alert{Labels: model.LabelSet{"foo": "bar"}}}},
+		alerts:    []*alert.Alert{alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}}, time.Time{}, false)},
 		mutedBy:   []string{"weekdays"},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
-			marker := marker.NewGroupMarker()
 			metrics := NewMetrics(r, featurecontrol.NoopFlags{})
 			intervener := timeinterval.NewIntervener(test.intervals)
-			st := NewTimeActiveStage(intervener, marker, metrics)
+			st := NewTimeActiveStage(intervener, metrics)
 
 			// Get the names of all time intervals for the context.
 			activeTimeIntervalNames := make([]string, 0, len(test.intervals))
@@ -417,17 +553,20 @@ func TestTimeActiveStage(t *testing.T) {
 			ctx = WithGroupKey(ctx, "group1")
 			ctx = WithActiveTimeIntervals(ctx, activeTimeIntervalNames)
 			ctx = WithMuteTimeIntervals(ctx, nil)
-			ctx = WithRouteID(ctx, "route1")
 
 			_, active, err := st.Exec(ctx, promslog.NewNopLogger(), test.alerts...)
 			require.NoError(t, err)
 
+			// The query-time computation used by the API must agree with
+			// the stage.
+			mutedBy, mutedByMute, err := MutedByTimeIntervals(intervener, activeTimeIntervalNames, nil, test.now)
+			require.NoError(t, err)
+			require.Empty(t, mutedByMute)
+
 			if len(test.mutedBy) == 0 {
 				// All alerts should be active.
 				require.Len(t, active, len(test.alerts))
-				// The group should not be marked.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.False(t, isMuted)
+				// The group should not be muted.
 				require.Empty(t, mutedBy)
 				// The metric for total suppressed notifications should not
 				// have been incremented, which means it will not be collected.
@@ -435,9 +574,7 @@ func TestTimeActiveStage(t *testing.T) {
 			} else {
 				// All alerts should be muted.
 				require.Empty(t, active)
-				// The group should be marked as muted.
-				mutedBy, isMuted := marker.Muted("route1", "group1")
-				require.True(t, isMuted)
+				// The group should be muted.
 				require.Equal(t, test.mutedBy, mutedBy)
 				// Gets the metric for total suppressed notifications.
 				require.NoError(t, prom_testutil.GatherAndCompare(r, strings.NewReader(fmt.Sprintf(`

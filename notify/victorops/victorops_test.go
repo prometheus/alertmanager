@@ -30,10 +30,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestVictorOpsCustomFields(t *testing.T) {
@@ -44,7 +43,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 
 	require.NoError(t, err, "unexpected error parsing mock url")
 
-	conf := &config.VictorOpsConfig{
+	conf := &VictorOpsConfig{
 		APIKey:            `12345`,
 		APIURL:            &amcommoncfg.URL{URL: url},
 		EntityDisplayName: `{{ .CommonLabels.Message }}`,
@@ -64,17 +63,15 @@ func TestVictorOpsCustomFields(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"Message": "message",
-			},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
+	alrt := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"Message": "message",
 		},
-	}
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
-	msg, err := notifier.createVictorOpsPayload(ctx, alert)
+	msg, err := notifier.createVictorOpsPayload(ctx, alrt)
 	require.NoError(t, err)
 
 	var m map[string]string
@@ -88,7 +85,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 
 func TestVictorOpsRetry(t *testing.T) {
 	notifier, err := New(
-		&config.VictorOpsConfig{
+		&VictorOpsConfig{
 			APIKey:     commoncfg.Secret("secret"),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
@@ -108,7 +105,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 
 	secret := "secret"
 	notifier, err := New(
-		&config.VictorOpsConfig{
+		&VictorOpsConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			APIKey:     commoncfg.Secret(secret),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -132,7 +129,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 	defer fn()
 
 	notifier, err := New(
-		&config.VictorOpsConfig{
+		&VictorOpsConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
 			APIKeyFile: f.Name(),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
@@ -159,44 +156,44 @@ func TestVictorOpsTemplating(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		cfg    *config.VictorOpsConfig
+		cfg    *VictorOpsConfig
 		errMsg string
 	}{
 		{
 			name: "default valid templates",
-			cfg:  &config.VictorOpsConfig{},
+			cfg:  &VictorOpsConfig{},
 		},
 		{
 			name: "invalid message_type",
-			cfg: &config.VictorOpsConfig{
+			cfg: &VictorOpsConfig{
 				MessageType: "{{ .CommonLabels.alertname }",
 			},
 			errMsg: "templating error",
 		},
 		{
 			name: "invalid entity_display_name",
-			cfg: &config.VictorOpsConfig{
+			cfg: &VictorOpsConfig{
 				EntityDisplayName: "{{ .CommonLabels.alertname }",
 			},
 			errMsg: "templating error",
 		},
 		{
 			name: "invalid state_message",
-			cfg: &config.VictorOpsConfig{
+			cfg: &VictorOpsConfig{
 				StateMessage: "{{ .CommonLabels.alertname }",
 			},
 			errMsg: "templating error",
 		},
 		{
 			name: "invalid monitoring tool",
-			cfg: &config.VictorOpsConfig{
+			cfg: &VictorOpsConfig{
 				MonitoringTool: "{{ .CommonLabels.alertname }",
 			},
 			errMsg: "templating error",
 		},
 		{
 			name: "invalid routing_key",
-			cfg: &config.VictorOpsConfig{
+			cfg: &VictorOpsConfig{
 				RoutingKey: "{{ .CommonLabels.alertname }",
 			},
 			errMsg: "templating error",
@@ -213,21 +210,19 @@ func TestVictorOpsTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			_, err = vo.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := vo.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
 		})
 	}

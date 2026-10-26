@@ -28,12 +28,12 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const alertChannelLength = 200
@@ -68,13 +68,13 @@ type AlertStoreCallback interface {
 	// alert is not stored.
 	// Existing flag indicates whether alert has existed before (and is only updated) or not.
 	// If alert has existed before, then alert passed to PreStore is result of merging existing alert with new alert.
-	PreStore(alert *types.Alert, existing bool) error
+	PreStore(alrt *alert.Alert, existing bool) error
 
 	// PostStore is called after alert has been put into store.
-	PostStore(alert *types.Alert, existing bool)
+	PostStore(alrt *alert.Alert, existing bool)
 
 	// PostDelete is called after alert have been removed from the store due to alert garbage collection.
-	PostDelete(alert *types.Alert)
+	PostDelete(alrt *alert.Alert)
 
 	// PostGC is called after alerts have been removed from the store due to alert garbage collection.
 	PostGC(fingerprints model.Fingerprints)
@@ -186,14 +186,14 @@ func (a *Alerts) gc() {
 	}
 
 	ff := make(model.Fingerprints, len(deleted))
-	for i, alert := range deleted {
-		ff[i] = alert.Fingerprint()
-		a.callback.PostDelete(alert)
+	for i, alrt := range deleted {
+		ff[i] = alrt.Fingerprint()
+		a.callback.PostDelete(alrt)
 	}
 	a.callback.PostGC(ff)
 }
 
-func (a *Alerts) gcAlerts() []*types.Alert {
+func (a *Alerts) gcAlerts() []*alert.Alert {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	return a.alerts.GC()
@@ -246,7 +246,7 @@ func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 	return provider.NewAlertIterator(ch, done, nil)
 }
 
-func (a *Alerts) SlurpAndSubscribe(name string) ([]*types.Alert, provider.AlertIterator) {
+func (a *Alerts) SlurpAndSubscribe(name string) ([]*alert.Alert, provider.AlertIterator) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -291,14 +291,14 @@ func (a *Alerts) GetPending() provider.AlertIterator {
 }
 
 // Get returns the alert for a given fingerprint.
-func (a *Alerts) Get(fp model.Fingerprint) (*types.Alert, error) {
+func (a *Alerts) Get(fp model.Fingerprint) (*alert.Alert, error) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	return a.alerts.Get(fp)
 }
 
 // Put adds the given alert to the set.
-func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
+func (a *Alerts) Put(ctx context.Context, alerts ...*alert.Alert) error {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
@@ -310,8 +310,8 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 	)
 	defer span.End()
 
-	for _, alert := range alerts {
-		fp := alert.Fingerprint()
+	for _, alrt := range alerts {
+		fp := alrt.Fingerprint()
 
 		existing := false
 
@@ -321,41 +321,41 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 			existing = true
 
 			// Merge alerts if there is an overlap in activity range.
-			if (alert.EndsAt.After(old.StartsAt) && alert.EndsAt.Before(old.EndsAt)) ||
-				(alert.StartsAt.After(old.StartsAt) && alert.StartsAt.Before(old.EndsAt)) {
-				alert = old.Merge(alert)
+			if (alrt.EndsAt.After(old.StartsAt) && alrt.EndsAt.Before(old.EndsAt)) ||
+				(alrt.StartsAt.After(old.StartsAt) && alrt.StartsAt.Before(old.EndsAt)) {
+				alrt = old.Merge(alrt)
 			}
 		}
 
-		if err := a.callback.PreStore(alert, existing); err != nil {
+		if err := a.callback.PreStore(alrt, existing); err != nil {
 			a.logger.Error("pre-store callback returned error on set alert", "err", err)
 			continue
 		}
 
-		if err := a.alerts.Set(alert); err != nil {
-			a.logger.Warn("error on set alert", "alertname", alert.Name(), "err", err)
+		if err := a.alerts.Set(alrt); err != nil {
+			a.logger.Warn("error on set alert", "alertname", alrt.Name(), "err", err)
 			if errors.Is(err, store.ErrLimited) {
 				labels := []string{}
 				if a.flagger.EnableAlertNamesInMetrics() {
-					labels = append(labels, alert.Name())
+					labels = append(labels, alrt.Name())
 				}
 				a.alertsLimitedTotal.WithLabelValues(labels...).Inc()
 			}
 			continue
 		}
 
-		a.callback.PostStore(alert, existing)
+		a.callback.PostStore(alrt, existing)
 
 		if !existing {
 			a.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
-				return eventrecorder.NewAlertCreatedEvent(alert)
+				return eventrecorder.NewAlertCreatedEvent(alrt)
 			})
 		}
 
 		metadata := map[string]string{}
 		a.propagator.Inject(ctx, propagation.MapCarrier(metadata))
 		msg := &provider.Alert{
-			Data:   alert,
+			Data:   alrt,
 			Header: metadata,
 		}
 
@@ -373,7 +373,7 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*types.Alert) error {
 
 type noopCallback struct{}
 
-func (n noopCallback) PreStore(_ *types.Alert, _ bool) error { return nil }
-func (n noopCallback) PostStore(_ *types.Alert, _ bool)      {}
-func (n noopCallback) PostDelete(_ *types.Alert)             {}
+func (n noopCallback) PreStore(_ *alert.Alert, _ bool) error { return nil }
+func (n noopCallback) PostStore(_ *alert.Alert, _ bool)      {}
+func (n noopCallback) PostDelete(_ *alert.Alert)             {}
 func (n noopCallback) PostGC(_ model.Fingerprints)           {}

@@ -29,21 +29,24 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/inhibit"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/timeinterval"
 )
 
 // firingAlert returns a firing alert identified by the given alertname.
 func firingAlert(name string) *alert.Alert {
-	return &alert.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": model.LabelValue(name)},
-			StartsAt: utcNow().Add(-time.Hour),
-			EndsAt:   utcNow().Add(time.Hour),
-		},
-	}
+	return alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": model.LabelValue(name)},
+		StartsAt: utcNow().Add(-time.Hour),
+		EndsAt:   utcNow().Add(time.Hour),
+	}, time.Time{}, false)
 }
 
 // resolvedAlert returns the alert that firingAlert returns for the same name,
@@ -84,8 +87,8 @@ func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
 		muted: map[model.LabelValue]struct{}{},
 	}
 
-	muter := MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		_, ok := p.muted[lset["alertname"]]
+	muter := MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		_, ok := p.muted[lset.LabelSet["alertname"]]
 		return ok
 	})
 
@@ -143,8 +146,8 @@ func (p *mutedPipeline) flush(now time.Time, alerts ...*alert.Alert) ([]*alert.A
 // hashes of the alerts it drops in the context, keyed by the same hash the
 // dedup stage uses. Only the event recorder reads them.
 func TestMuteStage_RecordsMutedAlerts(t *testing.T) {
-	muter := MuteFunc(func(_ context.Context, lset model.LabelSet) bool {
-		return lset["alertname"] == "muted"
+	muter := MuteFunc(func(_ context.Context, lset labelset.LabelSet) bool {
+		return lset.LabelSet["alertname"] == "muted"
 	})
 	stage := NewMuteStage(muter, NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{}))
 
@@ -170,6 +173,11 @@ func (m stubTimeMuter) Mutes(_ []string, _ time.Time) (bool, []string, error) {
 	return m.mutes, m.names, nil
 }
 
+// ContainsTime implements the TimeMuter interface.
+func (m stubTimeMuter) ContainsTime(_ []string, _ time.Time) (bool, error) {
+	return m.mutes, nil
+}
+
 // TestTimeStagesRecordMutedAlerts asserts that the time interval stages record
 // the alerts they mute in the context, in the same way MuteStage does for
 // silences and inhibitions.
@@ -177,33 +185,32 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 	tests := []struct {
 		name  string
 		muter TimeMuter
-		stage func(TimeMuter, marker.GroupMarker, *Metrics) Stage
+		stage func(TimeMuter, *Metrics) Stage
 	}{{
 		// The mute stage mutes when the time is inside a mute time interval.
 		name:  "TimeMuteStage",
 		muter: stubTimeMuter{mutes: true, names: []string{"evenings"}},
-		stage: func(m TimeMuter, gm marker.GroupMarker, metrics *Metrics) Stage {
-			return NewTimeMuteStage(m, gm, metrics)
+		stage: func(m TimeMuter, metrics *Metrics) Stage {
+			return NewTimeMuteStage(m, metrics)
 		},
 	}, {
 		// The active stage mutes when the time is outside every active time
 		// interval.
 		name:  "TimeActiveStage",
 		muter: stubTimeMuter{mutes: false},
-		stage: func(m TimeMuter, gm marker.GroupMarker, metrics *Metrics) Stage {
-			return NewTimeActiveStage(m, gm, metrics)
+		stage: func(m TimeMuter, metrics *Metrics) Stage {
+			return NewTimeActiveStage(m, metrics)
 		},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			metrics := NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})
-			st := test.stage(test.muter, marker.NewGroupMarker(), metrics)
+			st := test.stage(test.muter, metrics)
 
 			ctx := context.Background()
 			ctx = WithNow(ctx, utcNow())
 			ctx = WithGroupKey(ctx, "group1")
-			ctx = WithRouteID(ctx, "route1")
 			ctx = WithMuteTimeIntervals(ctx, []string{"evenings"})
 			ctx = WithActiveTimeIntervals(ctx, []string{"weekdays"})
 
@@ -221,12 +228,130 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 	}
 }
 
+func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
+	t.Parallel()
+
+	for _, feature := range []struct {
+		name  string
+		flags featurecontrol.Flagger
+	}{
+		{name: "feature disabled", flags: featurecontrol.NoopFlags{}},
+		{name: "feature enabled", flags: mutedAlertsFlags{}},
+	} {
+		for _, test := range []struct {
+			name                     string
+			active, mute             []string
+			wantMutedByActive        []string
+			wantMutedByMuteIntervals []string
+		}{
+			{name: "active interval only", active: []string{"business_hours"}, wantMutedByActive: []string{"business_hours"}},
+			{name: "nonmatching mute interval", active: []string{"business_hours"}, mute: []string{"lunch"}, wantMutedByActive: []string{"business_hours"}},
+			{name: "matching mute interval", active: []string{"business_hours"}, mute: []string{"night"}, wantMutedByActive: []string{"business_hours"}, wantMutedByMuteIntervals: []string{"night"}},
+			{name: "overlapping active and mute intervals", active: []string{"business_hours", "night"}, mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
+			{name: "mute interval only", mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
+		} {
+			t.Run(feature.name+"/"+test.name, func(t *testing.T) {
+				t.Parallel()
+				logger := promslog.NewNopLogger()
+				reg := prometheus.NewRegistry()
+				recorder := eventrecorder.NopRecorder()
+				silences, err := silence.New(silence.Options{Logger: logger, Metrics: reg})
+				require.NoError(t, err)
+				intervener := timeinterval.NewIntervener(map[string][]timeinterval.TimeInterval{
+					"business_hours": {{Times: []timeinterval.TimeRange{{StartMinute: 9 * 60, EndMinute: 17 * 60}}}},
+					"lunch":          {{Times: []timeinterval.TimeRange{{StartMinute: 12 * 60, EndMinute: 13 * 60}}}},
+					"night":          {{Times: []timeinterval.TimeRange{{StartMinute: 20 * 60, EndMinute: 21 * 60}}}},
+				})
+
+				var (
+					now      time.Time
+					logged   bool
+					notified []*alert.Alert
+				)
+				notificationLog := &testNflog{qerr: nflog.ErrNotFound}
+				notificationLog.logFunc = func(_ *nflogpb.Receiver, _ string, firing, resolved, muted []uint64, _ *nflog.Store, _ time.Duration) error {
+					logged = true
+					notificationLog.qerr = nil
+					notificationLog.qres = []*nflogpb.Entry{{
+						FiringAlerts: firing, ResolvedAlerts: resolved, MutedAlerts: muted, Timestamp: timestamppb.New(now),
+					}}
+					return nil
+				}
+				integration := NewIntegration(notifierFunc(func(_ context.Context, alerts ...*alert.Alert) NotifyVerdict {
+					notified = append(notified, alerts...)
+					return Success()
+				}), sendResolved(true), "test", 0, "test")
+				pipeline := NewPipelineBuilder(reg, feature.flags, recorder).New(
+					map[string][]Integration{"test": {integration}},
+					func() time.Duration { return 0 },
+					inhibit.NewInhibitor(nil, nil, logger, recorder),
+					silence.NewSilencer(silences, logger, recorder),
+					intervener, notificationLog, nil,
+				)
+				a := firingAlert("test")
+				am := marker.NewAlertMarker()
+
+				// Flush through two muted/unmuted cycles. Query-time reasons
+				// and delivery must agree regardless of the feature flag.
+				for _, flush := range []struct {
+					day, hour int
+					muted     bool
+				}{
+					{day: 1, hour: 20, muted: true},
+					{day: 2, hour: 10},
+					{day: 2, hour: 20, muted: true},
+					{day: 3, hour: 10},
+				} {
+					now = time.Date(2026, time.January, flush.day, flush.hour, 30, 0, 0, time.UTC)
+					logged = false
+					notified = nil
+					ctx := marker.WithContext(context.Background(), am)
+					ctx = WithNow(ctx, now)
+					ctx = WithReceiverName(ctx, "test")
+					ctx = WithGroupKey(ctx, "group")
+					// Short enough that the unmuted flush on day 3 repeats the
+					// notification even when the feature-disabled pipeline did not
+					// touch nflog the night before.
+					ctx = WithRepeatInterval(ctx, time.Hour)
+					ctx = WithActiveTimeIntervals(ctx, test.active)
+					ctx = WithMuteTimeIntervals(ctx, test.mute)
+
+					_, remaining, err := pipeline.Exec(ctx, logger, a)
+					require.NoError(t, err)
+					mutedByActive, mutedByMute, err := MutedByTimeIntervals(intervener, test.active, test.mute, now)
+					require.NoError(t, err)
+					require.Equal(t, flush.muted, len(mutedByActive)+len(mutedByMute) > 0)
+					// Muted flushes only reach nflog with the feature enabled.
+					wantLogged := !flush.muted || feature.flags.EnableMutedAlertsInNflog()
+					require.Equal(t, wantLogged, logged)
+					if flush.muted {
+						require.Equal(t, test.wantMutedByActive, mutedByActive)
+						require.Equal(t, test.wantMutedByMuteIntervals, mutedByMute)
+						require.Empty(t, remaining)
+						require.Empty(t, notified)
+						if logged {
+							require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].MutedAlerts)
+							require.Empty(t, notificationLog.qres[0].FiringAlerts)
+						}
+					} else {
+						require.Empty(t, mutedByActive)
+						require.Empty(t, mutedByMute)
+						require.Equal(t, []*alert.Alert{a}, notified)
+						require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
+						require.Empty(t, notificationLog.qres[0].MutedAlerts)
+					}
+				}
+			})
+		}
+	}
+}
+
 // TestMultiStage_ShortCircuitsWhenAllAlertsMuted asserts that once the mute
 // stage has removed every alert from the group, MultiStage stops and the
 // stages after it, including the dedup stage, never run. "All alerts are
 // muted" is therefore invisible to the notification log.
 func TestMultiStage_ShortCircuitsWhenAllAlertsMuted(t *testing.T) {
-	muter := MuteFunc(func(context.Context, model.LabelSet) bool { return true })
+	muter := MuteFunc(func(context.Context, labelset.LabelSet) bool { return true })
 
 	var reached bool
 	stage := MultiStage{

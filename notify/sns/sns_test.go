@@ -32,9 +32,9 @@ import (
 	"github.com/prometheus/sigv4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 var logger = promslog.NewNopLogger()
@@ -141,8 +141,8 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 				logger,
 			)
 			require.NoError(t, err)
-			var alerts []*types.Alert
-			_, err = notifier.Notify(context.Background(), alerts...)
+			var alerts []*alert.Alert
+			err = notifier.Notify(context.Background(), alerts...).Err()
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "template \"unknown_template\" not defined")
 			require.Contains(t, err.Error(), tc.errMsg)
@@ -203,15 +203,11 @@ func TestClassifyClientError(t *testing.T) {
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			classifyNotifier := &Notifier{retrier: &notify.Retrier{}}
-			retry, err := classifyNotifier.classifyClientError(tc.err)
-			require.Error(t, err)
-			require.Equal(t, tc.retry, retry)
-			reason := notify.DefaultReason
-			if e, ok := errors.AsType[*notify.ErrorWithReason](err); ok {
-				reason = e.Reason
-			}
-			require.Equal(t, tc.reason, reason)
-			require.Contains(t, err.Error(), tc.errMsg)
+			verdict := classifyNotifier.classifyClientError(tc.err)
+			require.Error(t, verdict.Err())
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
+			require.Equal(t, tc.reason, verdict.Reason())
+			require.Contains(t, verdict.Err().Error(), tc.errMsg)
 		})
 	}
 }
@@ -279,15 +275,11 @@ func TestClassifyPublishError(t *testing.T) {
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			classifyNotifier := &Notifier{retrier: &notify.Retrier{}}
-			retry, err := classifyNotifier.classifyPublishError(tc.err)
-			require.Error(t, err)
-			require.Equal(t, tc.retry, retry)
-			reason := notify.DefaultReason
-			if e, ok := errors.AsType[*notify.ErrorWithReason](err); ok {
-				reason = e.Reason
-			}
-			require.Equal(t, tc.reason, reason)
-			require.Contains(t, err.Error(), tc.errMsg)
+			verdict := classifyNotifier.classifyPublishError(tc.err)
+			require.Error(t, verdict.Err())
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
+			require.Equal(t, tc.reason, verdict.Reason())
+			require.Contains(t, verdict.Err().Error(), tc.errMsg)
 		})
 	}
 }

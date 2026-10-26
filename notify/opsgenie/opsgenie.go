@@ -27,9 +27,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // https://docs.opsgenie.com/docs/alert-api - 130 characters meaning runes.
@@ -93,25 +93,32 @@ type opsGenieUpdateDescriptionMessage struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	requests, retry, err := n.createRequests(ctx, as...)
 	if err != nil {
-		return retry, err
+		if retry {
+			return notify.Retry(0, err, notify.DefaultReason)
+		}
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	for _, req := range requests {
 		req.Header.Set("User-Agent", notify.UserAgentHeader)
 		resp, err := n.client.Do(req)
 		if err != nil {
-			return true, err
+			return notify.Retry(0, err, notify.DefaultReason)
 		}
 		shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 		notify.Drain(resp)
 		if err != nil {
-			return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+			reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+			if shouldRetry {
+				return notify.Retry(0, err, reason)
+			}
+			return notify.Unrecoverable(err, reason)
 		}
 	}
-	return false, nil
+	return notify.Success()
 }
 
 // Like Split but filter out empty strings.
@@ -127,7 +134,7 @@ func safeSplit(s, sep string) []string {
 }
 
 // Create requests for a list of alerts.
-func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*http.Request, bool, error) {
+func (n *Notifier) createRequests(ctx context.Context, as ...*alert.Alert) ([]*http.Request, bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
 		return nil, false, err
@@ -151,7 +158,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 	var (
 		alias  = key.Hash()
-		alerts = types.Alerts(as...)
+		alerts = alert.Alerts(as...)
 	)
 	switch alerts.Status() {
 	case model.AlertResolved:

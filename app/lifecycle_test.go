@@ -17,10 +17,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -102,8 +104,8 @@ func waitHealthy(t *testing.T, addr string) {
 func TestApp_StartStop(t *testing.T) {
 	a, err := New(testOptions(t))
 	require.NoError(t, err)
-	require.Equal(t, 10*time.Second, a.server.ReadHeaderTimeout)
-	require.Equal(t, 90*time.Second, a.server.IdleTimeout)
+	require.Equal(t, 10*time.Second, a.servers[0].ReadHeaderTimeout)
+	require.Equal(t, 90*time.Second, a.servers[0].IdleTimeout)
 	require.NoError(t, a.Start())
 
 	addr := a.Addr()
@@ -115,6 +117,43 @@ func TestApp_StartStop(t *testing.T) {
 
 	// Stop is idempotent.
 	require.NoError(t, a.Stop(t.Context()))
+}
+
+func TestApp_StartReportsFirstListenerFailure(t *testing.T) {
+	opts := testOptions(t)
+	opts.WebConfig.WebListenAddresses = &[]string{"127.0.0.1:0", "127.0.0.1:0", "127.0.0.1:0"}
+	logFile, err := os.CreateTemp(t.TempDir(), "listener-*.log")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, logFile.Close()) })
+	opts.Logger = slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelError}))
+	a, err := New(opts)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, a.Stop(context.Background())) })
+	require.Len(t, a.listeners, 3)
+	require.NoError(t, a.listeners[0].Close())
+	require.NoError(t, a.listeners[1].Close())
+	require.NoError(t, a.Start())
+
+	done := make(chan error, 1)
+	go func() { done <- a.serveLoop(context.Background()) }()
+	select {
+	case err := <-done:
+		require.ErrorContains(t, err, "HTTP listener failed")
+	case <-time.After(time.Second):
+		t.Fatal("listener failure was not reported while another listener was active")
+	}
+	require.Eventually(t, func() bool {
+		logs, err := os.ReadFile(logFile.Name())
+		return err == nil && strings.Count(string(logs), `msg="Listen error"`) == 2
+	}, time.Second, 10*time.Millisecond, "all listener failures must be logged")
+
+	require.NoError(t, a.servers[2].Shutdown(t.Context()))
+	select {
+	case err, ok := <-a.serveErrc:
+		require.False(t, ok, "unexpected additional listener failure: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("listener error channel was not closed after all listeners stopped")
+	}
 }
 
 func TestApp_ClusteredStartStop(t *testing.T) {

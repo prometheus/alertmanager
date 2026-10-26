@@ -32,11 +32,11 @@ import (
 
 	commonTemplates "github.com/prometheus/common/helpers/templates"
 	"github.com/prometheus/common/model"
+	"go.yaml.in/yaml/v2"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"gopkg.in/yaml.v2"
 
-	"github.com/prometheus/alertmanager/types"
+	"github.com/prometheus/alertmanager/alert"
 )
 
 //go:embed default.tmpl email.tmpl
@@ -355,6 +355,14 @@ var DefaultFuncs = FuncMap{
 	"mustToDate": func(layout, s string) (time.Time, error) {
 		return time.ParseInLocation(layout, s, time.UTC)
 	},
+	// addDuration parses ds as a Go duration, adds it to t, and returns the resulting Unix milliseconds.
+	"addDuration": func(ds string, t time.Time) (int64, error) {
+		d, err := time.ParseDuration(ds)
+		if err != nil {
+			return 0, err
+		}
+		return t.Add(d).UnixMilli(), nil
+	},
 	"toJson": func(v any) (string, error) {
 		bytes, err := json.Marshal(v)
 		if err != nil {
@@ -575,8 +583,8 @@ func (as Alerts) Resolved() []Alert {
 }
 
 // Data assembles data for template expansion.
-func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, notificationReason string, alerts ...*types.Alert) *Data {
-	typedAlerts := types.Alerts(alerts...)
+func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, notificationReason string, alerts ...*alert.Alert) *Data {
+	typedAlerts := alert.Alerts(alerts...)
 
 	data := &Data{
 		Receiver:           regexp.QuoteMeta(recv),
@@ -590,10 +598,10 @@ func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, no
 		ExternalURL:        t.ExternalURL.String(),
 	}
 
-	// The call to types.Alert is necessary to correctly resolve the internal
+	// The call to alert.Alert is necessary to correctly resolve the internal
 	// representation to the user representation.
 	for _, a := range typedAlerts {
-		alert := Alert{
+		alrt := Alert{
 			Status:       string(a.Status()),
 			Labels:       make(KV, len(a.Labels)),
 			Annotations:  make(KV, len(a.Annotations)),
@@ -603,12 +611,12 @@ func (t *Template) Data(recv string, groupLabels, routeLabels model.LabelSet, no
 			Fingerprint:  a.Fingerprint().String(),
 		}
 		for k, v := range a.Labels {
-			alert.Labels[string(k)] = string(v)
+			alrt.Labels[string(k)] = string(v)
 		}
 		for k, v := range a.Annotations {
-			alert.Annotations[string(k)] = string(v)
+			alrt.Annotations[string(k)] = string(v)
 		}
-		data.Alerts = append(data.Alerts, alert)
+		data.Alerts = append(data.Alerts, alrt)
 	}
 
 	for k, v := range groupLabels {

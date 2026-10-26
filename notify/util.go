@@ -30,9 +30,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/version"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/tracing"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // truncationMarker is the character used to represent a truncation.
@@ -200,7 +200,7 @@ func (k Key) String() string {
 }
 
 // GetTemplateData creates the template data from the context and the alerts.
-func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*types.Alert, l *slog.Logger) *template.Data {
+func GetTemplateData(ctx context.Context, tmpl *template.Template, alerts []*alert.Alert, l *slog.Logger) *template.Data {
 	recv, ok := ReceiverName(ctx)
 	if !ok {
 		l.Error("Missing receiver")
@@ -293,23 +293,6 @@ func (r *Retrier) Check(statusCode int, body io.Reader) (bool, error) {
 	return retry, errors.New(s)
 }
 
-type ErrorWithReason struct {
-	Err error
-
-	Reason Reason
-}
-
-func NewErrorWithReason(reason Reason, err error) *ErrorWithReason {
-	return &ErrorWithReason{
-		Err:    err,
-		Reason: reason,
-	}
-}
-
-func (e *ErrorWithReason) Error() string {
-	return e.Err.Error()
-}
-
 // Reason is the failure reason.
 type Reason int
 
@@ -321,6 +304,12 @@ const (
 	ContextDeadlineExceededReason
 	AuthErrorReason
 	RateLimitedReason
+	TemplateErrorReason
+	FileReadErrorReason
+	ConfigErrorReason
+	EncodingErrorReason
+	RequestErrorReason
+	MissingContextReason
 )
 
 func (s Reason) String() string {
@@ -339,6 +328,18 @@ func (s Reason) String() string {
 		return "authError"
 	case RateLimitedReason:
 		return "rateLimited"
+	case TemplateErrorReason:
+		return "templateError"
+	case FileReadErrorReason:
+		return "fileReadError"
+	case ConfigErrorReason:
+		return "configError"
+	case EncodingErrorReason:
+		return "encodingError"
+	case RequestErrorReason:
+		return "requestError"
+	case MissingContextReason:
+		return "missingContext"
 	default:
 		panic(fmt.Sprintf("unknown Reason: %d", s))
 	}
@@ -353,6 +354,12 @@ var possibleFailureReasonCategory = []string{
 	ContextDeadlineExceededReason.String(),
 	AuthErrorReason.String(),
 	RateLimitedReason.String(),
+	TemplateErrorReason.String(),
+	FileReadErrorReason.String(),
+	ConfigErrorReason.String(),
+	EncodingErrorReason.String(),
+	RequestErrorReason.String(),
+	MissingContextReason.String(),
 }
 
 // GetFailureReasonFromStatusCode returns the reason for the failure based on the status code provided.

@@ -31,10 +31,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestWebexRetry(t *testing.T) {
@@ -42,7 +41,7 @@ func TestWebexRetry(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier, err := New(
-		&config.WebexConfig{
+		&WebexConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			APIURL:     &amcommoncfg.URL{URL: testWebhookURL},
 		},
@@ -62,7 +61,7 @@ func TestWebexTemplating(t *testing.T) {
 	tc := []struct {
 		name string
 
-		cfg       *config.WebexConfig
+		cfg       *WebexConfig
 		Message   string
 		expJSON   string
 		commonCfg *commoncfg.HTTPClientConfig
@@ -73,7 +72,7 @@ func TestWebexTemplating(t *testing.T) {
 	}{
 		{
 			name: "with a valid message and a set http_config.authorization, it is formatted as expected",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				Message: `{{ template "webex.default.message" . }}`,
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{
@@ -86,7 +85,7 @@ func TestWebexTemplating(t *testing.T) {
 		},
 		{
 			name: "with message templating errors, it fails.",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				Message: "{{ ",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
@@ -94,7 +93,7 @@ func TestWebexTemplating(t *testing.T) {
 		},
 		{
 			name: "with a valid roomID set, the roomID is used accordingly.",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				RoomID: "my-room-id",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
@@ -103,7 +102,7 @@ func TestWebexTemplating(t *testing.T) {
 		},
 		{
 			name: "with a valid roomID template, the roomID is used accordingly.",
-			cfg: &config.WebexConfig{
+			cfg: &WebexConfig{
 				RoomID: "{{.GroupLabels.webex_room_id}}",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
@@ -135,44 +134,39 @@ func TestWebexTemplating(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"webex_room_id": "group-label-room-id"})
 
-			ok, err := notifierWebex.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-							"lbl3": "val3",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := notifierWebex.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+						"lbl3": "val3",
 					},
-				},
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-							"lbl2": "val2",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+						"lbl2": "val2",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
-
 			if tt.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 				require.Equal(t, tt.expHeader, header.Get("Authorization"))
 				require.JSONEq(t, tt.expJSON, string(out))
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tt.errMsg)
 			}
 
-			require.Equal(t, tt.retry, ok)
+			require.Equal(t, tt.retry, verdict.ShouldRetry())
 		})
 	}
 }
 
-func TestWebexRetryAfterSleep(t *testing.T) {
+func TestWebexRetryAfterDelay(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", "1")
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -182,7 +176,7 @@ func TestWebexRetryAfterSleep(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier, err := New(
-		&config.WebexConfig{
+		&WebexConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			APIURL:     &amcommoncfg.URL{URL: u},
 		},
@@ -192,66 +186,17 @@ func TestWebexRetryAfterSleep(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := notify.WithGroupKey(context.Background(), "1")
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"lbl1": "val1"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"lbl1": "val1"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
-	start := time.Now()
-	retry, err := notifier.Notify(ctx, alert)
-	elapsed := time.Since(start)
+	verdict := notifier.Notify(ctx, alrt)
 
-	require.True(t, retry)
-	require.Error(t, err)
-	require.GreaterOrEqual(t, elapsed, 1*time.Second, "should have waited at least 1 second for Retry-After")
-}
-
-func TestWebexRetryAfterContextCancelled(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Retry-After", "2")
-		w.WriteHeader(http.StatusTooManyRequests)
-	}))
-	defer srv.Close()
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-
-	notifier, err := New(
-		&config.WebexConfig{
-			HTTPConfig: &commoncfg.HTTPClientConfig{},
-			APIURL:     &amcommoncfg.URL{URL: u},
-		},
-		test.CreateTmpl(t),
-		promslog.NewNopLogger(),
-	)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = notify.WithGroupKey(ctx, "1")
-
-	// Cancel context after a short delay to interrupt the Retry-After sleep.
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		cancel()
-	}()
-
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"lbl1": "val1"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
-
-	start := time.Now()
-	retry, err := notifier.Notify(ctx, alert)
-	elapsed := time.Since(start)
-
-	require.True(t, retry)
-	require.Error(t, err)
-	require.Less(t, elapsed, 2*time.Second, "should not have waited the full Retry-After duration")
+	require.True(t, verdict.ShouldRetry())
+	require.Error(t, verdict.Err())
+	require.Equal(t, 1*time.Second, verdict.Delay())
 }
 
 func TestWebexFailureReason(t *testing.T) {
@@ -280,7 +225,7 @@ func TestWebexFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			notifier, err := New(
-				&config.WebexConfig{
+				&WebexConfig{
 					HTTPConfig: &commoncfg.HTTPClientConfig{},
 					APIURL:     &amcommoncfg.URL{URL: u},
 				},
@@ -290,18 +235,15 @@ func TestWebexFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := notify.WithGroupKey(context.Background(), "1")
-			alert := &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"lbl1": "val1"},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alrt := alert.New(model.Alert{
+				Labels:   model.LabelSet{"lbl1": "val1"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
-			_, err = notifier.Notify(ctx, alert)
-			var reasonError *notify.ErrorWithReason
-			require.ErrorAs(t, err, &reasonError)
-			require.Equal(t, tc.expectedReason, reasonError.Reason)
+			verdict := notifier.Notify(ctx, alrt)
+			require.Error(t, verdict.Err())
+			require.Equal(t, tc.expectedReason, verdict.Reason())
 		})
 	}
 }

@@ -26,26 +26,25 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // https://help.victorops.com/knowledge-base/incident-fields-glossary/ - 20480 characters.
 const maxMessageLenRunes = 20480
 
-// Notifier implements a Notifier for VictorOps notifications.
+// Notifier implements a Notifier for Splunk On-Call notifications.
 type Notifier struct {
-	conf    *config.VictorOpsConfig
+	conf    *VictorOpsConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
 	retrier *notify.Retrier
 }
 
-// New returns a new VictorOps notifier.
-func New(c *config.VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+// New returns a new Splunk On-Call notifier.
+func New(c *VictorOpsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "victorops", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -67,7 +66,7 @@ const (
 )
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var err error
 	var (
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
@@ -81,36 +80,40 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, fileErr := os.ReadFile(n.conf.APIKeyFile)
 		if fileErr != nil {
-			return false, fmt.Errorf("failed to read API key from file: %w", fileErr)
+			return notify.Unrecoverable(fmt.Errorf("failed to read API key from file: %w", fileErr), notify.DefaultReason)
 		}
 		apiKey = strings.TrimSpace(string(content))
 	}
 
 	apiURL.Path += fmt.Sprintf("%s/%s", apiKey, tmpl(n.conf.RoutingKey))
 	if err != nil {
-		return false, fmt.Errorf("templating error: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("templating error: %w", err), notify.DefaultReason)
 	}
 
 	buf, err := n.createVictorOpsPayload(ctx, as...)
 	if err != nil {
-		return true, err
+		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, apiURL.String(), buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
-	return shouldRetry, err
+	return notify.Success()
 }
 
-// Create the JSON payload to be sent to the VictorOps API.
-func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Alert) (*bytes.Buffer, error) {
+// createVictorOpsPayload creates the JSON payload sent to the Splunk On-Call API.
+func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*alert.Alert) (*bytes.Buffer, error) {
 	victorOpsAllowedEvents := map[string]bool{
 		"INFO":     true,
 		"WARNING":  true,
@@ -123,7 +126,7 @@ func (n *Notifier) createVictorOpsPayload(ctx context.Context, as ...*types.Aler
 	}
 
 	var (
-		alerts = types.Alerts(as...)
+		alerts = alert.Alerts(as...)
 		data   = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
 		tmpl   = notify.TmplText(n.tmpl, data, &err)
 

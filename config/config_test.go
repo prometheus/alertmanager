@@ -26,9 +26,10 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+	"github.com/prometheus/alertmanager/notify/email"
 )
 
 func TestLoadEmptyString(t *testing.T) {
@@ -782,7 +783,7 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				EnableHTTP2:     true,
 			},
 			ResolveTimeout: model.Duration(5 * time.Minute),
-			SMTPSmarthost:  HostPort{Host: "localhost", Port: "25"},
+			SMTPSmarthost:  amcommoncfg.HostPort{Host: "localhost", Port: "25"},
 			SMTPFrom:       "alertmanager@example.org",
 			SMTPTLSConfig: &commoncfg.TLSConfig{
 				InsecureSkipVerify: false,
@@ -828,11 +829,11 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 			{
 				Name:   "team-X-mails",
 				Labels: map[string]string{"name": "team-X-mails"},
-				EmailConfigs: []*EmailConfig{
+				EmailConfigs: []*email.EmailConfig{
 					{
 						To:         "team-X+alerts@example.org",
 						From:       "alertmanager@example.org",
-						Smarthost:  HostPort{Host: "localhost", Port: "25"},
+						Smarthost:  amcommoncfg.HostPort{Host: "localhost", Port: "25"},
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
 						TLSConfig: &commoncfg.TLSConfig{
@@ -1317,8 +1318,84 @@ func TestSlackUpdateMessageWebhookURL(t *testing.T) {
 		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.slack-update-message-and-webhook", err)
 	}
 	if err.Error() != "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage" {
-		t.Errorf("Expected: %s\nGot: %s", "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage", err.Error())
+		t.Errorf("Expected update_message validation error, got: %s", err.Error())
 	}
+}
+
+func TestSlackUpdateMessageWithGlobalAPIURL(t *testing.T) {
+	in := `
+global:
+  slack_api_url: "https://slack.com/api/chat.postMessage"
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        update_message: true
+`
+
+	conf, err := Load(in)
+	require.NoError(t, err)
+	require.True(t, conf.Receivers[0].SlackConfigs[0].UpdateMessage)
+	require.Equal(t, "https://slack.com/api/chat.postMessage", conf.Receivers[0].SlackConfigs[0].APIURL.String())
+}
+
+func TestSlackUpdateMessageWithGlobalWebhookURL(t *testing.T) {
+	in := `
+global:
+  slack_api_url: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        update_message: true
+`
+
+	_, err := Load(in)
+	require.EqualError(t, err, "update_message can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
+}
+
+func TestSlackUpdateMessageWithGlobalAPIURLFile(t *testing.T) {
+	in := `
+global:
+  slack_api_url_file: /nonexistent
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        update_message: true
+`
+
+	_, err := Load(in)
+	require.EqualError(t, err, "update_message can't be used with api_url_file")
+}
+
+func TestSlackUpdateMessageWithAppTokenAndGlobalAPIURLFile(t *testing.T) {
+	in := `
+global:
+  slack_api_url_file: /nonexistent
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: bar-channel
+        app_token: xoxb-token
+        update_message: true
+`
+
+	_, err := Load(in)
+	require.NoError(t, err)
+}
+
+func TestSlackPostUpdatesToThreadWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.slack-post-updates-to-thread-and-webhook.yml")
+	require.EqualError(t, err, "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 }
 
 func TestSlackGlobalAppToken(t *testing.T) {
@@ -1584,73 +1661,6 @@ func TestRocketchatNoToken(t *testing.T) {
 	}
 	if err.Error() != "no global Rocketchat Token set either inline or in a file" {
 		t.Errorf("Expected: %s\nGot: %s", "no global Rocketchat Token set either inline or in a file", err.Error())
-	}
-}
-
-func TestUnmarshalHostPort(t *testing.T) {
-	for _, tc := range []struct {
-		in string
-
-		exp     HostPort
-		jsonOut string
-		yamlOut string
-		err     bool
-	}{
-		{
-			in:  `""`,
-			exp: HostPort{},
-			yamlOut: `""
-`,
-			jsonOut: `""`,
-		},
-		{
-			in:  `"localhost:25"`,
-			exp: HostPort{Host: "localhost", Port: "25"},
-			yamlOut: `localhost:25
-`,
-			jsonOut: `"localhost:25"`,
-		},
-		{
-			in:  `":25"`,
-			exp: HostPort{Host: "", Port: "25"},
-			yamlOut: `:25
-`,
-			jsonOut: `":25"`,
-		},
-		{
-			in:  `"localhost"`,
-			err: true,
-		},
-		{
-			in:  `"localhost:"`,
-			err: true,
-		},
-		{
-			in:  `"[fd12:3456:789a::1]:25"`,
-			exp: HostPort{Host: "fd12:3456:789a::1", Port: "25"},
-			yamlOut: `'[fd12:3456:789a::1]:25'
-`,
-			jsonOut: `"[fd12:3456:789a::1]:25"`,
-		},
-	} {
-		t.Run(tc.in, func(t *testing.T) {
-			hp := HostPort{}
-			err := yaml.Unmarshal([]byte(tc.in), &hp)
-			if tc.err {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.exp, hp)
-
-			b, err := yaml.Marshal(&hp)
-			require.NoError(t, err)
-			require.Equal(t, tc.yamlOut, string(b))
-
-			b, err = json.Marshal(&hp)
-			require.NoError(t, err)
-			require.Equal(t, tc.jsonOut, string(b))
-		})
 	}
 }
 

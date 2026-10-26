@@ -92,7 +92,7 @@ func (m *alertMarker) Delete(alerts ...model.Fingerprint) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	for _, alert := range alerts {
-		delete(m.status, alert)
+	for _, alrt := range alerts {
+		delete(m.status, alrt)
 	}
 }

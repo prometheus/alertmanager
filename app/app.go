@@ -33,14 +33,12 @@ import (
 	"github.com/prometheus/common/route"
 	"github.com/prometheus/common/version"
 
-	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/httpserver"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider/mem"
@@ -106,7 +104,7 @@ type App struct {
 	// Lifecycle dependencies retained for use by Start, Reload, and Stop.
 	coordinator *config.Coordinator
 	tracingMgr  *tracing.Manager
-	server      *http.Server
+	servers     []*http.Server
 	listeners   []net.Listener
 
 	// webReload is the channel exposed by httpserver.Register for the
@@ -168,7 +166,7 @@ type App struct {
 // What remains here is the construction of the long-lived singletons.
 // It is deliberately one straight-line function rather than a chain of
 // helpers: nearly every step depends on locals produced by earlier ones
-// (peer, eventRec, silences, alerts, groupMarker, silencer,
+// (peer, eventRec, silences, alerts, silencer,
 // notificationLog, waitFunc, timeoutFunc, ...), so splitting it up would
 // only force us to thread a wide state struct between helpers or promote
 // those locals to App fields, obscuring the dataflow without simplifying
@@ -306,8 +304,6 @@ func (a *App) setup() error {
 		return nil
 	})
 
-	groupMarker := marker.NewGroupMarker()
-
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(opts.DataDir, "silences"),
 		Retention:    opts.Retention,
@@ -370,7 +366,7 @@ func (a *App) setup() error {
 	// the API's GroupFunc closes over the r variable: it is only invoked
 	// once the server is serving, long after r is assigned.
 	var r *reloader
-	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+	groupFn := func(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 		return r.groups(ctx, routeFilter, alertFilter)
 	}
 
@@ -385,7 +381,6 @@ func (a *App) setup() error {
 	apih, err := api.New(api.Options{
 		Alerts:                     alerts,
 		Silences:                   silences,
-		GroupMutedFunc:             groupMarker.Muted,
 		Peer:                       clusterPeer,
 		Timeout:                    opts.HTTPTimeout,
 		Concurrency:                opts.GetConcurrency,
@@ -397,6 +392,7 @@ func (a *App) setup() error {
 		ConnectReadMaxBytes:        opts.ConnectReadMaxBytes,
 		ConnectSendMaxBytes:        opts.ConnectSendMaxBytes,
 		ConnectMaxRequestBodyBytes: opts.ConnectMaxRequestBodyBytes,
+		CORSHandler:                opts.CORSHandler,
 		Logger:                     logger.With("component", "api"),
 		Registry:                   reg,
 		RequestDuration:            m.requestDuration,
@@ -473,7 +469,6 @@ func (a *App) setup() error {
 		dispatchStartDelay:          opts.DispatchStartDelay,
 		eventRecorder:               eventRec,
 		externalURL:                 amURL,
-		groupMarker:                 groupMarker,
 		logger:                      logger,
 		metrics:                     m,
 		notificationLog:             notificationLog,
@@ -523,18 +518,27 @@ func (a *App) setup() error {
 
 	mux := apih.Register(router, routePrefix)
 
-	protocols := new(http.Protocols)
-	protocols.SetHTTP1(true)
-	protocols.SetHTTP2(true)
-	protocols.SetUnencryptedHTTP2(true)
-	a.server = &http.Server{
-		// Instrument all handlers with tracing.
-		Handler:           tracing.Middleware(mux),
-		Protocols:         protocols,
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       90 * time.Second,
+	newServer := func() *http.Server {
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetHTTP2(true)
+		protocols.SetUnencryptedHTTP2(true)
+		server := &http.Server{
+			// Instrument all handlers with tracing.
+			Handler:           tracing.Middleware(mux),
+			Protocols:         protocols,
+			ReadHeaderTimeout: 10 * time.Second,
+			IdleTimeout:       90 * time.Second,
+		}
+		server.RegisterOnShutdown(apih.Shutdown)
+		return server
 	}
-	a.server.RegisterOnShutdown(apih.Shutdown)
+	// TODO: Share one server after upgrading exporter-toolkit to a release that
+	// includes https://github.com/prometheus/exporter-toolkit/pull/454.
+	a.servers = make([]*http.Server, 0, len(a.listeners))
+	for range a.listeners {
+		a.servers = append(a.servers, newServer())
+	}
 
 	return nil
 }

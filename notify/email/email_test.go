@@ -49,12 +49,12 @@ import (
 	// nolint:depguard // require cannot be called outside the main goroutine: https://pkg.go.dev/testing#T.FailNow
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/alert"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -147,10 +147,10 @@ func (m *mailDev) doEmailRequest(method, path string) (int, []byte, error) {
 
 // emailTestConfig is the configuration for the tests.
 type emailTestConfig struct {
-	Smarthost config.HostPort `yaml:"smarthost"`
-	Username  string          `yaml:"username"`
-	Password  string          `yaml:"password"`
-	Server    *mailDev        `yaml:"server"`
+	Smarthost amcommoncfg.HostPort `yaml:"smarthost"`
+	Username  string               `yaml:"username"`
+	Password  string               `yaml:"password"`
+	Server    *mailDev             `yaml:"server"`
 }
 
 func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
@@ -168,13 +168,13 @@ func loadEmailTestConfiguration(f string) (emailTestConfig, error) {
 	return c, nil
 }
 
-func notifyEmail(t *testing.T, cfg *config.EmailConfig, server *mailDev) (*email, bool, error) {
+func notifyEmail(t *testing.T, cfg *EmailConfig, server *mailDev) (*email, bool, error) {
 	return notifyEmailWithContext(context.Background(), t, cfg, server)
 }
 
 // notifyEmailWithContext sends a notification with one firing alert and retrieves the
 // email from the SMTP server if the notification has been successfully delivered.
-func notifyEmailWithContext(ctx context.Context, t *testing.T, cfg *config.EmailConfig, server *mailDev) (*email, bool, error) {
+func notifyEmailWithContext(ctx context.Context, t *testing.T, cfg *EmailConfig, server *mailDev) (*email, bool, error) {
 	tmpl, firingAlert, err := prepare(cfg)
 	if err != nil {
 		return nil, false, err
@@ -187,21 +187,21 @@ func notifyEmailWithContext(ctx context.Context, t *testing.T, cfg *config.Email
 
 	email := New(cfg, tmpl, promslog.NewNopLogger())
 
-	retry, err := email.Notify(ctx, firingAlert)
-	if err != nil {
-		return nil, retry, err
+	verdict := email.Notify(ctx, firingAlert)
+	if verdict.Err() != nil {
+		return nil, verdict.ShouldRetry(), verdict.Err()
 	}
 
 	e, err := server.getLastEmail(t)
 	if err != nil {
-		return nil, retry, err
+		return nil, verdict.ShouldRetry(), err
 	} else if e == nil {
-		return nil, retry, fmt.Errorf("email not found")
+		return nil, verdict.ShouldRetry(), fmt.Errorf("email not found")
 	}
-	return e, retry, nil
+	return e, verdict.ShouldRetry(), nil
 }
 
-func prepare(cfg *config.EmailConfig) (*template.Template, *types.Alert, error) {
+func prepare(cfg *EmailConfig) (*template.Template, *alert.Alert, error) {
 	if cfg == nil {
 		panic("nil config passed")
 	}
@@ -219,13 +219,11 @@ func prepare(cfg *config.EmailConfig) (*template.Template, *types.Alert, error) 
 	}
 	tmpl.ExternalURL, _ = url.Parse("http://am")
 
-	firingAlert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	firingAlert := alert.New(model.Alert{
+		Labels:   model.LabelSet{},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 	return tmpl, firingAlert, nil
 }
 
@@ -243,42 +241,42 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 
 	for _, tc := range []struct {
 		title     string
-		updateCfg func(*config.EmailConfig)
+		updateCfg func(*EmailConfig)
 
 		errMsg   string
 		hasEmail bool
 	}{
 		{
 			title: "invalid 'from' template",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.From = `{{ template "invalid" }}`
 			},
 			errMsg: "execute 'from' template:",
 		},
 		{
 			title: "invalid 'from' address",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.From = `xxx`
 			},
 			errMsg: "parse 'from' addresses:",
 		},
 		{
 			title: "invalid 'to' template",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.To = `{{ template "invalid" }}`
 			},
 			errMsg: "execute 'to' template:",
 		},
 		{
 			title: "invalid 'to' address",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.To = `xxx`
 			},
 			errMsg: "parse 'to' addresses:",
 		},
 		{
 			title: "invalid 'subject' template",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.Headers["subject"] = `{{ template "invalid" }}`
 			},
 			errMsg:   `execute "subject" header template:`,
@@ -286,7 +284,7 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 		},
 		{
 			title: "invalid 'text' template",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.Text = `{{ template "invalid" }}`
 			},
 			errMsg:   `execute text template:`,
@@ -294,7 +292,7 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 		},
 		{
 			title: "invalid 'html' template",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.HTML = `{{ template "invalid" }}`
 			},
 			errMsg:   `execute html template:`,
@@ -307,7 +305,7 @@ func TestEmailNotifyWithErrors(t *testing.T) {
 				return
 			}
 
-			emailCfg := &config.EmailConfig{
+			emailCfg := &EmailConfig{
 				Smarthost: c.Smarthost,
 				To:        emailTo,
 				From:      emailFrom,
@@ -354,7 +352,7 @@ func TestEmailNotifyWithDoneContext(t *testing.T) {
 	_, _, err = notifyEmailWithContext(
 		ctx,
 		t,
-		&config.EmailConfig{
+		&EmailConfig{
 			Smarthost: c.Smarthost,
 			To:        emailTo,
 			From:      emailFrom,
@@ -383,7 +381,7 @@ func TestEmailNotifyWithoutAuthentication(t *testing.T) {
 
 	mail, _, err := notifyEmail(
 		t,
-		&config.EmailConfig{
+		&EmailConfig{
 			Smarthost: c.Smarthost,
 			To:        emailTo,
 			From:      emailFrom,
@@ -427,7 +425,7 @@ func TestEmailNotifyWithSTARTTLS(t *testing.T) {
 	trueVar := true
 	_, _, err = notifyEmail(
 		t,
-		&config.EmailConfig{
+		&EmailConfig{
 			Smarthost:  c.Smarthost,
 			To:         emailTo,
 			From:       emailFrom,
@@ -468,28 +466,28 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 
 	for _, tc := range []struct {
 		title     string
-		updateCfg func(*config.EmailConfig)
+		updateCfg func(*EmailConfig)
 
 		errMsg string
 		retry  bool
 	}{
 		{
 			title: "email with authentication",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = commoncfg.Secret(c.Password)
 			},
 		},
 		{
 			title: "email with authentication (password from file)",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPasswordFile = fileWithCorrectPassword.Name()
 			},
 		},
 		{
 			title: "HTML-only email",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.Text = ""
@@ -497,7 +495,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "text-only email",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.HTML = ""
@@ -505,7 +503,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "multiple To addresses",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.To = strings.Join([]string{emailTo, emailFrom}, ",")
@@ -513,7 +511,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "no more than one From address",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.From = strings.Join([]string{emailFrom, emailTo}, ",")
@@ -524,7 +522,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "wrong credentials",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = commoncfg.Secret(c.Password + "wrong")
 			},
@@ -534,7 +532,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "wrong credentials (password from file)",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPasswordFile = fileWithIncorrectPassword.Name()
 			},
@@ -544,7 +542,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "wrong credentials (missing password file)",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPasswordFile = "/does/not/exist"
 			},
@@ -559,7 +557,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "try to enable STARTTLS",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.RequireTLS = new(bool)
 				*cfg.RequireTLS = true
 			},
@@ -569,7 +567,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 		{
 			title: "invalid Hello string",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthUsername = c.Username
 				cfg.AuthPassword = commoncfg.Secret(c.Password)
 				cfg.Hello = "invalid hello string"
@@ -580,7 +578,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
-			emailCfg := &config.EmailConfig{
+			emailCfg := &EmailConfig{
 				Smarthost: c.Smarthost,
 				To:        emailTo,
 				From:      emailFrom,
@@ -634,7 +632,7 @@ func TestEmailNotifyWithAuthentication(t *testing.T) {
 
 func TestEmailConfigNoAuthMechs(t *testing.T) {
 	email := &Email{
-		conf: &config.EmailConfig{AuthUsername: "test"}, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
+		conf: &EmailConfig{AuthUsername: "test"}, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
 	}
 	_, err := email.auth("")
 	require.Error(t, err)
@@ -642,7 +640,7 @@ func TestEmailConfigNoAuthMechs(t *testing.T) {
 }
 
 func TestEmailConfigMissingAuthParam(t *testing.T) {
-	conf := &config.EmailConfig{AuthUsername: "test"}
+	conf := &EmailConfig{AuthUsername: "test"}
 	email := &Email{
 		conf: conf, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
 	}
@@ -665,7 +663,7 @@ func TestEmailConfigMissingAuthParam(t *testing.T) {
 
 func TestEmailNoUsernameStillOk(t *testing.T) {
 	email := &Email{
-		conf: &config.EmailConfig{}, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
+		conf: &EmailConfig{}, tmpl: &template.Template{}, logger: promslog.NewNopLogger(),
 	}
 	a, err := email.auth("CRAM-MD5")
 	require.NoError(t, err)
@@ -719,8 +717,8 @@ func TestEmailRejected(t *testing.T) {
 	// Use mock SMTP server and prepare alert to be sent.
 	require.IsType(t, &net.TCPAddr{}, l.Addr())
 	addr := l.Addr().(*net.TCPAddr)
-	cfg := &config.EmailConfig{
-		Smarthost: config.HostPort{Host: addr.IP.String(), Port: strconv.Itoa(addr.Port)},
+	cfg := &EmailConfig{
+		Smarthost: amcommoncfg.HostPort{Host: addr.IP.String(), Port: strconv.Itoa(addr.Port)},
 		Hello:     "localhost",
 		Headers:   make(map[string]string),
 		From:      "alertmanager@system",
@@ -732,10 +730,10 @@ func TestEmailRejected(t *testing.T) {
 	e := New(cfg, tmpl, promslog.NewNopLogger())
 
 	// Send the alert to mock SMTP server.
-	retry, err := e.Notify(context.Background(), firingAlert)
-	require.ErrorContains(t, err, "501")
-	require.ErrorContains(t, err, "5.5.4")
-	require.True(t, retry)
+	verdict := e.Notify(context.Background(), firingAlert)
+	require.ErrorContains(t, verdict.Err(), "501")
+	require.ErrorContains(t, verdict.Err(), "5.5.4")
+	require.True(t, verdict.ShouldRetry())
 	require.NoError(t, srv.Shutdown(ctx))
 
 	require.Eventuallyf(t, func() bool {
@@ -833,13 +831,13 @@ func TestEmailNotifyWithThreading(t *testing.T) {
 			// Create context with group key (required for threading).
 			ctx := notify.WithGroupKey(context.Background(), "test-group-key")
 
-			emailCfg := &config.EmailConfig{
+			emailCfg := &EmailConfig{
 				Smarthost: c.Smarthost,
 				To:        emailTo,
 				From:      emailFrom,
 				HTML:      "HTML body",
 				Text:      "Text body",
-				Threading: config.ThreadingConfig{
+				Threading: ThreadingConfig{
 					Enabled:      true,
 					ThreadByDate: tc.threadByDate,
 				},
@@ -880,27 +878,27 @@ func TestEmailGetPassword(t *testing.T) {
 
 	for _, tc := range []struct {
 		title     string
-		updateCfg func(*config.EmailConfig)
+		updateCfg func(*EmailConfig)
 
 		errMsg string
 	}{
 		{
 			title: "password from field",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthPassword = "secret"
 				cfg.AuthPasswordFile = ""
 			},
 		},
 		{
 			title: "password from file field",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthPassword = ""
 				cfg.AuthPasswordFile = passwordFile.Name()
 			},
 		},
 		{
 			title: "password file path incorrect",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthPassword = ""
 				cfg.AuthPasswordFile = "/does/not/exist"
 			},
@@ -909,7 +907,7 @@ func TestEmailGetPassword(t *testing.T) {
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			email := &Email{
-				conf: &config.EmailConfig{},
+				conf: &EmailConfig{},
 			}
 
 			tc.updateCfg(email.conf)
@@ -935,27 +933,27 @@ func TestEmailGetSecret(t *testing.T) {
 
 	for _, tc := range []struct {
 		title     string
-		updateCfg func(*config.EmailConfig)
+		updateCfg func(*EmailConfig)
 
 		errMsg string
 	}{
 		{
 			title: "secret from field",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthSecret = "secret"
 				cfg.AuthSecretFile = ""
 			},
 		},
 		{
 			title: "secret from file field",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthSecret = ""
 				cfg.AuthSecretFile = secretFile.Name()
 			},
 		},
 		{
 			title: "secret file path incorrect",
-			updateCfg: func(cfg *config.EmailConfig) {
+			updateCfg: func(cfg *EmailConfig) {
 				cfg.AuthSecret = ""
 				cfg.AuthSecretFile = "/does/not/exist"
 			},
@@ -964,7 +962,7 @@ func TestEmailGetSecret(t *testing.T) {
 	} {
 		t.Run(tc.title, func(t *testing.T) {
 			email := &Email{
-				conf: &config.EmailConfig{},
+				conf: &EmailConfig{},
 			}
 
 			tc.updateCfg(email.conf)
@@ -1029,8 +1027,8 @@ func TestEmailImplicitTLS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.EmailConfig{
-				Smarthost:        config.HostPort{Host: "localhost", Port: tt.port},
+			cfg := &EmailConfig{
+				Smarthost:        amcommoncfg.HostPort{Host: "localhost", Port: tt.port},
 				ForceImplicitTLS: tt.forceImplicitTLS,
 			}
 

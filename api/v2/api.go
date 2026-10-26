@@ -34,7 +34,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
-	"github.com/rs/cors"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/alert"
@@ -51,6 +50,7 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/eventrecorder"
+	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/pkg/labels"
@@ -64,12 +64,11 @@ var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/api/v2")
 
 // API represents an Alertmanager API v2.
 type API struct {
-	peer           cluster.ClusterPeer
-	silences       *silence.Silences
-	alerts         provider.Alerts
-	alertGroups    groupsFn
-	groupMutedFunc groupMutedFunc
-	uptime         time.Time
+	peer        cluster.ClusterPeer
+	silences    *silence.Silences
+	alerts      provider.Alerts
+	alertGroups groupsFn
+	uptime      time.Time
 
 	// mtx protects alertmanagerConfig, setAlertStatus and route.
 	mtx sync.RWMutex
@@ -86,30 +85,27 @@ type API struct {
 }
 
 type (
-	groupsFn         func(context.Context, func(*dispatch.Route) bool, func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
-	groupMutedFunc   func(routeID, groupKey string) ([]string, bool)
-	setAlertStatusFn func(ctx context.Context, labels prometheus_model.LabelSet)
+	groupsFn         func(context.Context, func(*dispatch.Route) bool, dispatch.AlertFilter) (dispatch.AlertGroups, map[prometheus_model.Fingerprint][]string, error)
+	setAlertStatusFn func(ctx context.Context, labels labelset.LabelSet)
 )
 
 // NewAPI returns a new Alertmanager API v2.
 func NewAPI(
 	alerts provider.Alerts,
 	gf groupsFn,
-	gmf groupMutedFunc,
 	silences *silence.Silences,
 	peer cluster.ClusterPeer,
 	l *slog.Logger,
 	r prometheus.Registerer,
 ) (*API, error) {
 	api := API{
-		alerts:         alerts,
-		alertGroups:    gf,
-		groupMutedFunc: gmf,
-		peer:           peer,
-		silences:       silences,
-		logger:         l,
-		m:              metrics.NewAlerts(r),
-		uptime:         time.Now(),
+		alerts:      alerts,
+		alertGroups: gf,
+		peer:        peer,
+		silences:    silences,
+		logger:      l,
+		m:           metrics.NewAlerts(r),
+		uptime:      time.Now(),
 	}
 
 	// Load embedded swagger file.
@@ -140,8 +136,7 @@ func NewAPI(
 	openAPI.SilenceGetSilencesHandler = silence_ops.GetSilencesHandlerFunc(api.getSilencesHandler)
 	openAPI.SilencePostSilencesHandler = silence_ops.PostSilencesHandlerFunc(api.postSilencesHandler)
 
-	handleCORS := cors.Default().Handler
-	api.Handler = handleCORS(setResponseHeaders(openAPI.Serve(nil)))
+	api.Handler = setResponseHeaders(openAPI.Serve(nil))
 
 	return &api, nil
 }
@@ -300,14 +295,13 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
 
-	tempMarker := marker.NewAlertMarker()
-	alertFilter := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, tempMarker)
+	alertFilter := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	now := time.Now()
 
 	api.mtx.RLock()
 	rcvLabels := api.receiverLabelsMap()
 	for a := range alerts.Next() {
-		alert := a.Data
+		alrt := a.Data
 		if err = alerts.Err(); err != nil {
 			break
 		}
@@ -315,7 +309,7 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			break
 		}
 
-		routes := api.route.Match(alert.Labels)
+		routes := api.route.Match(alrt.Labels)
 		receivers := make([]string, 0, len(routes))
 		for _, r := range routes {
 			receivers = append(receivers, r.RouteOpts.Receiver)
@@ -329,11 +323,12 @@ func (api *API) getAlertsHandler(params alert_ops.GetAlertsParams) middleware.Re
 			continue
 		}
 
-		if !alertFilter(alert, now) {
+		status, ok := alertFilter(alrt, now)
+		if !ok {
 			continue
 		}
 
-		openAlert := AlertToOpenAPIAlert(alert, tempMarker.Status(alert.Fingerprint()), receivers, nil)
+		openAlert := AlertToOpenAPIAlert(alrt, status, receivers, nil)
 
 		res = append(res, openAlert)
 	}
@@ -364,44 +359,44 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	resolveTimeout := time.Duration(api.alertmanagerConfig.Global.ResolveTimeout)
 	api.mtx.RUnlock()
 
-	for _, alert := range alerts {
-		alert.UpdatedAt = now
-
-		// Ensure StartsAt is set.
-		if alert.StartsAt.IsZero() {
-			if alert.EndsAt.IsZero() {
-				alert.StartsAt = now
-			} else {
-				alert.StartsAt = alert.EndsAt
-			}
-		}
-		// If no end time is defined, set a timeout after which an alert
-		// is marked resolved if it is not updated.
-		if alert.EndsAt.IsZero() {
-			alert.Timeout = true
-			alert.EndsAt = now.Add(resolveTimeout)
-		}
-		if alert.EndsAt.After(time.Now()) {
-			api.m.Firing().Inc()
-		} else {
-			api.m.Resolved().Inc()
-		}
-	}
-
 	// Make a best effort to insert all alerts that are valid.
 	var (
 		validAlerts    = make([]*alert.Alert, 0, len(alerts))
 		validationErrs error
 	)
-	for _, a := range alerts {
-		removeEmptyLabels(a.Labels)
+	for i := range alerts {
+		alrt := &alerts[i]
+		// Ensure StartsAt is set.
+		if alrt.StartsAt.IsZero() {
+			if alrt.EndsAt.IsZero() {
+				alrt.StartsAt = now
+			} else {
+				alrt.StartsAt = alrt.EndsAt
+			}
+		}
+		// If no end time is defined, set a timeout after which an alert
+		// is marked resolved if it is not updated.
+		timeout := false
+		if alrt.EndsAt.IsZero() {
+			timeout = true
+			alrt.EndsAt = now.Add(resolveTimeout)
+		}
+		if alrt.EndsAt.After(time.Now()) {
+			api.m.Firing().Inc()
+		} else {
+			api.m.Resolved().Inc()
+		}
 
-		if err := a.Validate(); err != nil {
+		removeEmptyLabels(alrt.Labels)
+
+		if err := alert.Validate(alrt); err != nil {
 			validationErrs = errors.Join(validationErrs, err)
 			api.m.Invalid().Inc()
 			continue
 		}
-		validAlerts = append(validAlerts, a)
+		// Labels are final at this point, so the alert can be fingerprinted
+		// and become an internal alert.
+		validAlerts = append(validAlerts, alert.New(*alrt, now, timeout))
 	}
 	if err := api.alerts.Put(ctx, validAlerts...); err != nil {
 		message := "Failed to create alerts"
@@ -478,13 +473,13 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 		}
 	}(receiverFilter, receiverMatchers, rcvLabels)
 
-	// The alertFilter runs the inhibitor/silencer pipeline per alert to
-	// decide whether the alert should be included based on the
-	// silenced/inhibited/active query params. Passing a nil marker makes
-	// the filter use a fresh marker per alert, so the prediction for one
-	// alert does not leak into another (the same fingerprint may appear
-	// in multiple aggregation groups).
-	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active, nil)
+	// The filter runs the inhibitor/silencer pipeline once per alert per
+	// group to apply the silenced/inhibited/active query params. Groups
+	// records the status it returns in AlertStatuses, so the response below
+	// reuses it instead of running the pipeline a second time. Evaluation is
+	// deliberately per group rather than per alert: an alert may end up with
+	// a different status in different groups.
+	af := api.alertFilter(ctx, matchers, *params.Silenced, *params.Inhibited, *params.Active)
 	alertGroups, allReceivers, err := api.alertGroups(ctx, rf, af)
 	if err != nil {
 		message := "Failed to get alert groups"
@@ -496,20 +491,11 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 
 	res := make(open_api_models.AlertGroups, 0, len(alertGroups))
 
-	// Snapshot setAlertStatus under the lock so we can predict the status
-	// for each alert without holding api.mtx. We predict at query time
-	// rather than reading the group's actual marker, so the response is
-	// stable across calls regardless of whether the notification pipeline
-	// has run in between (assuming no new alerts/silences/inhibits).
-	api.mtx.RLock()
-	setAlertStatus := api.setAlertStatus
-	api.mtx.RUnlock()
-
 	for _, alertGroup := range alertGroups {
-		mutedBy, isMuted := api.groupMutedFunc(alertGroup.RouteID, alertGroup.GroupKey)
-		if !*params.Muted && isMuted {
+		if !*params.Muted && (len(alertGroup.MutedByActiveTimeIntervals) > 0 || len(alertGroup.MutedByMuteTimeIntervals) > 0) {
 			continue
 		}
+		mutedBy := alertGroup.MutedBy()
 
 		ag := &open_api_models.AlertGroup{
 			Receiver:    &open_api_models.ReceiverReference{Name: &alertGroup.Receiver},
@@ -518,13 +504,14 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 			Alerts:      make([]*open_api_models.GettableAlert, 0, len(alertGroup.Alerts)),
 		}
 
-		for _, alert := range alertGroup.Alerts {
-			fp := alert.Fingerprint()
+		for _, alrt := range alertGroup.Alerts {
+			fp := alrt.Fingerprint()
 			receivers := allReceivers[fp]
-			// Predict status per (alert, group) using a fresh marker so
-			// writes don't leak across alerts or groups.
-			status := predictAlertStatus(ctx, setAlertStatus, alert)
-			apiAlert := AlertToOpenAPIAlert(alert, status, receivers, mutedBy)
+			status, ok := alertGroup.AlertStatuses[fp]
+			if !ok {
+				status = unprocessedStatus()
+			}
+			apiAlert := AlertToOpenAPIAlert(alrt, status, receivers, mutedBy)
 			ag.Alerts = append(ag.Alerts, apiAlert)
 		}
 		res = append(res, ag)
@@ -533,68 +520,122 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	return alertgroup_ops.NewGetAlertGroupsOK().WithPayload(res)
 }
 
-// predictAlertStatus runs the silencer/inhibitor pipeline against a fresh
-// AlertMarker to compute the alert's current status at query time. Using
-// a fresh marker per call isolates the prediction so it does not leak
-// across alerts or aggregation groups.
+// predictAlertStatus runs the inhibitor/silencer pipeline against the
+// alert's label set and returns the resulting status. Predicting at query
+// time instead of reading the dispatcher's per-group markers keeps the
+// response current regardless of whether the notification pipeline has run
+// since the last silence or inhibition change, and avoids writing to markers
+// from the read path.
 func predictAlertStatus(ctx context.Context, setAlertStatus setAlertStatusFn, a *alert.Alert) alert.AlertStatus {
-	m := marker.NewAlertMarker()
-	ctx = marker.WithContext(ctx, m)
-	setAlertStatus(ctx, a.Labels)
-	return m.Status(a.Fingerprint())
+	var c statusCollector
+	setAlertStatus(marker.WithContext(ctx, &c), a.LabelSet())
+	return c.status()
 }
 
-func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool, m marker.AlertMarker) func(a *alert.Alert, now time.Time) bool {
-	// Snapshot the function pointer under the lock so the closure is safe
-	// to call without holding api.mtx (e.g. in getAlertGroupsHandler).
+// alertFilter returns a dispatch.AlertFilter that drops expired alerts,
+// alerts whose labels do not match matchers, and alerts excluded by the
+// silenced, inhibited and active query parameters. For alerts it keeps, it
+// returns the predicted status so callers do not run the pipeline again.
+func (api *API) alertFilter(parent context.Context, matchers []*labels.Matcher, silenced, inhibited, active bool) dispatch.AlertFilter {
+	// Snapshot the function pointer under the lock so the filter is safe to
+	// call without holding api.mtx (e.g. from within Groups).
 	api.mtx.RLock()
 	setAlertStatus := api.setAlertStatus
 	api.mtx.RUnlock()
 
-	return func(a *alert.Alert, now time.Time) bool {
+	return func(a *alert.Alert, now time.Time) (alert.AlertStatus, bool) {
 		ctx, span := tracer.Start(parent, "alertFilter")
 		defer span.End()
 
 		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
-			return false
+			return alert.AlertStatus{}, false
 		}
 
 		// Short-circuit on label matchers before the expensive
 		// silencer/inhibitor pipeline.
 		if !alertMatchesFilterLabels(&a.Alert, matchers) {
-			return false
+			return alert.AlertStatus{}, false
 		}
 
-		// Set alert's current status based on its label set.
-		// The inhibitor and silencer write to the marker via the context.
-		// When the caller does not provide a marker, use a fresh per-alert
-		// marker to avoid cross-alert contamination (e.g. the same
-		// fingerprint may appear in multiple aggregation groups for
-		// /alerts/groups).
-		predict := m
-		if predict == nil {
-			predict = marker.NewAlertMarker()
-		}
-		ctx = marker.WithContext(ctx, predict)
-		setAlertStatus(ctx, a.Labels)
-
-		// Get alert's current status after seeing if it is suppressed.
-		status := predict.Status(a.Fingerprint())
+		status := predictAlertStatus(ctx, setAlertStatus, a)
 
 		if !active && status.State == alert.AlertStateActive {
-			return false
+			return status, false
 		}
 
 		if !silenced && len(status.SilencedBy) != 0 {
-			return false
+			return status, false
 		}
 
 		if !inhibited && len(status.InhibitedBy) != 0 {
-			return false
+			return status, false
 		}
 
-		return true
+		return status, true
 	}
+}
+
+// unprocessedStatus is the status of an alert the pipeline has not reported
+// on, matching marker.AlertMarker.Status for an unknown fingerprint.
+func unprocessedStatus() alert.AlertStatus {
+	return alert.AlertStatus{
+		State:       alert.AlertStateUnprocessed,
+		SilencedBy:  []string{},
+		InhibitedBy: []string{},
+	}
+}
+
+// statusCollector is a marker.AlertMarker that captures the outcome of a
+// single pipeline run for a single alert. The inhibitor and silencer report
+// the IDs muting an alert only through the marker found in the context, so
+// predictAlertStatus hands them this throwaway collector instead of a
+// map-backed, mutex-guarded marker. It is not goroutine-safe.
+type statusCollector struct {
+	processed   bool
+	silencedBy  []string
+	inhibitedBy []string
+}
+
+// SetSilenced implements marker.AlertMarker.
+func (c *statusCollector) SetSilenced(_ prometheus_model.Fingerprint, silencedBy []string) {
+	c.processed = true
+	c.silencedBy = silencedBy
+}
+
+// SetInhibited implements marker.AlertMarker.
+func (c *statusCollector) SetInhibited(_ prometheus_model.Fingerprint, inhibitedBy []string) {
+	c.processed = true
+	c.inhibitedBy = inhibitedBy
+}
+
+// Status implements marker.AlertMarker.
+func (c *statusCollector) Status(prometheus_model.Fingerprint) alert.AlertStatus {
+	return c.status()
+}
+
+// Delete implements marker.AlertMarker.
+func (c *statusCollector) Delete(...prometheus_model.Fingerprint) {
+	*c = statusCollector{}
+}
+
+// status converts the collected IDs into an AlertStatus. An alert the
+// pipeline never reported on is unprocessed, matching marker.AlertMarker.
+func (c *statusCollector) status() alert.AlertStatus {
+	s := unprocessedStatus()
+	if !c.processed {
+		return s
+	}
+	s.State = alert.AlertStateActive
+	if len(c.silencedBy) > 0 || len(c.inhibitedBy) > 0 {
+		s.State = alert.AlertStateSuppressed
+	}
+	if c.silencedBy != nil {
+		s.SilencedBy = c.silencedBy
+	}
+	if c.inhibitedBy != nil {
+		s.InhibitedBy = c.inhibitedBy
+	}
+	return s
 }
 
 func removeEmptyLabels(ls prometheus_model.LabelSet) {
@@ -696,7 +737,8 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		states = append(states, silence.SilenceStatePending)
 	}
 
-	psils, _, err := api.silences.Query(ctx, silence.QState(states...))
+	now := time.Now()
+	psils, _, err := api.silences.QueryAt(ctx, now, silence.QState(states...))
 	if err != nil {
 		logger.Error("Failed to get silences", "err", err)
 		return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())
@@ -707,7 +749,7 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		if !CheckSilenceMatchesFilterLabels(ps, matchers) {
 			continue
 		}
-		sil, err := GettableSilenceFromProto(ps)
+		sil, err := gettableSilenceFromProtoAt(ps, now)
 		if err != nil {
 			logger.Error("Failed to unmarshal silence from proto", "err", err)
 			return silence_ops.NewGetSilencesInternalServerError().WithPayload(err.Error())

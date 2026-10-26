@@ -17,11 +17,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
+	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/config"
@@ -31,34 +30,37 @@ import (
 // mounted and reports SERVING for both the overall server ("") and the
 // registered StatusService. The Health service is queried over the Connect
 // protocol with JSON, which needs only an HTTP/1.1 client.
-var _ = Describe("gRPC health", func() {
-	It("reports serving for the server and StatusService", func() {
-		api := newTestAPI(Options{})
-		api.Update(&config.Config{})
+func TestGRPCHealth(t *testing.T) {
+	t.Parallel()
 
-		srv := httptest.NewServer(api.Handler())
-		DeferCleanup(srv.Close)
-		client := srv.Client()
-		client.Timeout = 5 * time.Second
+	api := NewAPI(Options{})
+	api.Update(&config.Config{})
 
-		for _, service := range []string{"", statusv3alphaconnect.StatusServiceName} {
+	srv := newTestServer(t, api.Handler(), false)
+	client := srv.Client()
+	client.Timeout = 5 * time.Second
+
+	for _, service := range []string{"", statusv3alphaconnect.StatusServiceName} {
+		t.Run("service="+service, func(t *testing.T) {
+			t.Parallel()
+
 			reqBody, err := json.Marshal(map[string]string{"service": service})
-			Expect(err).NotTo(HaveOccurred())
+			require.NoError(t, err)
 
 			resp, err := client.Post(
 				srv.URL+"/grpc.health.v1.Health/Check",
 				"application/json",
 				bytes.NewReader(reqBody),
 			)
-			Expect(err).NotTo(HaveOccurred())
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = resp.Body.Close() })
 
 			var out struct {
 				Status string `json:"status"`
 			}
-			Expect(json.NewDecoder(resp.Body).Decode(&out)).To(Succeed())
-			Expect(resp.Body.Close()).To(Succeed())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			Expect(out.Status).To(Equal("SERVING_STATUS_SERVING"))
-		}
-	})
-})
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "SERVING_STATUS_SERVING", out.Status)
+		})
+	}
+}

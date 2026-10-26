@@ -30,7 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
@@ -262,21 +262,18 @@ func TestTelegramNotify(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*alert.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-							"lbl3": "val3",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := notifier.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
+						"lbl3": "val3",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
-
-			require.False(t, retry)
-			require.NoError(t, err)
+			require.False(t, verdict.ShouldRetry())
+			require.NoError(t, verdict.Err())
 
 			req := map[string]string{}
 			err = json.Unmarshal(out, &req)
@@ -373,22 +370,16 @@ func TestTelegramNotifyFailureReason(t *testing.T) {
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			retry, err := notifier.Notify(ctx, []*alert.Alert{
-				{
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"lbl1": "val1"},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
-					},
-				},
+			verdict := notifier.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels:   model.LabelSet{"lbl1": "val1"},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
-
-			require.True(t, retry)
-			require.Error(t, err)
-
-			var reasonError *notify.ErrorWithReason
-			require.ErrorAs(t, err, &reasonError)
-			require.Equal(t, tc.expectedReason, reasonError.Reason)
+			require.True(t, verdict.ShouldRetry())
+			require.Error(t, verdict.Err())
+			require.Equal(t, tc.expectedReason, verdict.Reason())
 		})
 	}
 }
@@ -419,15 +410,13 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 		defer cancel()
 		ctx = notify.WithGroupKey(ctx, "1")
 
-		retry, err := notifier.Notify(ctx, &alert.Alert{
-			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
-		})
-		require.True(t, retry)
-		require.Error(t, err)
+		verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
+		require.True(t, verdict.ShouldRetry())
+		require.Error(t, verdict.Err())
 		// The token must not appear in the error string.
-		require.NotContains(t, err.Error(), token, "bot token leaked in transport error")
+		require.NotContains(t, verdict.Err().Error(), token, "bot token leaked in transport error")
 		// The URL should be redacted.
-		require.Contains(t, err.Error(), "<redacted>")
+		require.Contains(t, verdict.Err().Error(), "<redacted>")
 	})
 
 	t.Run("Telegram API error passes through without token", func(t *testing.T) {
@@ -456,12 +445,10 @@ func TestTelegramNotifyRedactURL(t *testing.T) {
 		defer cancel()
 		ctx = notify.WithGroupKey(ctx, "1")
 
-		retry, err := notifier.Notify(ctx, &alert.Alert{
-			Alert: model.Alert{Labels: model.LabelSet{"alertname": "test"}},
-		})
-		require.True(t, retry)
-		require.Error(t, err)
-		require.NotContains(t, err.Error(), token, "bot token leaked in API error")
+		verdict := notifier.Notify(ctx, alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false))
+		require.True(t, verdict.ShouldRetry())
+		require.Error(t, verdict.Err())
+		require.NotContains(t, verdict.Err().Error(), token, "bot token leaked in API error")
 	})
 }
 
@@ -514,14 +501,12 @@ func TestTelegramTimeout(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			testAlert := &alert.Alert{
-				Alert: model.Alert{
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			testAlert := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
-			_, err = notifier.Notify(ctx, testAlert)
+			err = notifier.Notify(ctx, testAlert).Err()
 			require.Equal(t, tc.wantErr, err != nil)
 			if tc.wantErr {
 				require.EqualError(t, err, fmt.Sprintf("configured telegram timeout reached (%s)", tc.timeout))

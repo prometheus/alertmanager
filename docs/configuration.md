@@ -110,10 +110,10 @@ global:
   [ slack_app_token_file: <filepath> ]
   [ slack_app_url: <string> ]
 
-  # The default API key to use when talking to the VictorOps API.
+  # The default API key to use when talking to the Splunk On-Call API.
   # It is mutually exclusive with `victorops_api_key_file`.
   [ victorops_api_key: <secret> ]
-  # Reads the default API key to use when talking to the VictorOps API from a file.
+  # Reads the default API key to use when talking to the Splunk On-Call API from a file.
   # It is mutually exclusive with `victorops_api_key`.
   [ victorops_api_key_file: <filepath> ]
   [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
@@ -464,6 +464,8 @@ times:
 Days should be specified by name (e.g. 'Sunday'). For convenience, ranges are also accepted
 of the form `<start_day>:<end_day>` and are inclusive on both ends. For example:
 `['monday:wednesday','saturday', 'sunday']`
+The range may also wrap around the end of the week, e.g. `friday:monday` covers Friday, Saturday,
+Sunday, and Monday.
 
 `days_of_month_range`: A list of numerical days in the month. Days begin at 1.
 Negative values are also accepted which begin at the end of the month,
@@ -1375,9 +1377,13 @@ fields:
   [ <string>: <jira_field> ... ]
 
 
-# The HTTP client's configuration. You must use this configuration to supply the personal access token (PAT) as part of the HTTP `Authorization` header.
-# For Jira Cloud, use basic_auth with the email address as the username and the PAT as the password.
-# For Jira Data Center, use the 'authorization' field with 'credentials: <PAT value>'.
+# The HTTP client's configuration. Personal access tokens (PAT) are supported
+# via basic_auth (Jira Cloud: email address as the username, PAT as the
+# password) or the 'authorization' field (Jira Data Center: 'credentials:
+# <PAT value>'). OAuth2 client_credentials against an external identity
+# provider is also supported via the standard http_config above; Jira's own
+# OAuth2 requires interactive browser consent and cannot be used for
+# Alertmanager's automated notifications.
 [ http_config: <http_config> | default = global.http_config ]
 ```
 
@@ -1640,9 +1646,9 @@ Rocketchat notifications are sent via the [Rocketchat REST API](https://develope
 
 ```yaml
 # Whether to notify about resolved alerts.
-[ send_resolved: <boolean> | default = true ]
+[ send_resolved: <boolean> | default = false ]
 [ api_url: <string> | default = global.rocketchat_api_url ]
-[ channel: <tmpl_string> | default = global.rocketchat_api_url ]
+[ channel: <tmpl_string> ]
 
 # The sender token and token_id
 # See https://docs.rocket.chat/use-rocket.chat/user-guides/user-panel/my-account#personal-access-tokens
@@ -1655,16 +1661,20 @@ token_id_file: <filepath>
 
 
 [ color: <tmpl_string | default '{{ if eq .Status "firing" }}red{{ else }}green{{ end }}' ]
-[ emoji <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}'
-[ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
-[ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
-[ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
-[ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
+[ emoji: <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}' ]
+[ icon_url: <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}' ]
+# Top-level message text, shown above the attachment and used in desktop
+# and push notifications. If unset, notifications show only a generic placeholder.
+[ message_text: <tmpl_string> ]
+# The text of the attachment used to display the main notification content.
+[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}' ]
+[ title_link: <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}' ]
+[ title: <tmpl_string | default = '{{ template "rocketchat.default.title" . }}' ]
 fields:
   [ <rocketchat_field_config> ... ]
-[ image_url <tmpl_string> ]
-[ thumb_url <tmpl_string> ]
-[ link_names <tmpl_string> ]
+[ image_url: <tmpl_string> ]
+[ thumb_url: <tmpl_string> ]
+[ link_names: <boolean> | default = false ]
 [ short_fields: <boolean> | default = false ]
 actions:
   [ <rocketchat_action_config> ... ]
@@ -1759,6 +1769,12 @@ fields:
 # Enables updating existing Slack messages instead of creating new ones on alert state change.
 # Webhook URLs do not support updates.
 [ update_message: <boolean> | default = false ]
+
+# Posts subsequent notifications for an alert group as replies in the thread of the
+# initial message instead of new channel messages. When combined with update_message,
+# the initial message is updated in place and a reply is also posted to its thread.
+# Webhook URLs do not support threads.
+[ post_updates_to_thread: <boolean> | default = false ]
 ```
 
 #### `<action_config>` (Slack)
@@ -1922,21 +1938,25 @@ attributes:
 
 ### `<victorops_config>`
 
-VictorOps notifications are sent out via the [VictorOps API](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/)
+Splunk On-Call (formerly VictorOps) notifications are sent through the
+[Splunk On-Call REST endpoint integration](https://help.victorops.com/knowledge-base/rest-endpoint-integration-guide/).
+The `victorops_config` name and related `victorops_*` global fields are retained
+for backward compatibility. Metrics, logs, traces, and validation errors also
+continue to use the VictorOps identifier so existing integrations remain stable.
 
 ```yaml
 # Whether to notify about resolved alerts.
 [ send_resolved: <boolean> | default = true ]
 
-# The API key to use when talking to the VictorOps API.
+# The API key to use when talking to the Splunk On-Call API.
 # It is mutually exclusive with `api_key_file`.
 [ api_key: <secret> | default = global.victorops_api_key ]
 
-# Reads the API key to use when talking to the VictorOps API from a file.
+# Reads the API key to use when talking to the Splunk On-Call API from a file.
 # It is mutually exclusive with `api_key`.
 [ api_key_file: <filepath> | default = global.victorops_api_key_file ]
 
-# The VictorOps API URL.
+# The Splunk On-Call API URL.
 [ api_url: <string> | default = global.victorops_api_url ]
 
 # A key used to map the alert to a team.

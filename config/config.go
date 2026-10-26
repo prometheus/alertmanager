@@ -18,21 +18,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/matcher/compat"
 	"github.com/prometheus/alertmanager/notify/discord"
+	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
 	"github.com/prometheus/alertmanager/notify/mattermost"
@@ -42,9 +43,14 @@ import (
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/pushover"
 	"github.com/prometheus/alertmanager/notify/rocketchat"
+	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/sns"
 	"github.com/prometheus/alertmanager/notify/telegram"
+	"github.com/prometheus/alertmanager/notify/victorops"
+	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
+	"github.com/prometheus/alertmanager/notify/wechat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
@@ -426,7 +432,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc == nil {
-				sc = &SlackConfig{}
+				sc = &slack.SlackConfig{}
 			}
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
 			if sc.AppURL == nil {
@@ -459,6 +465,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 					CredentialsFile: sc.AppTokenFile,
 				}
 				sc.APIURL = (*amcommoncfg.SecretURL)(sc.AppURL)
+			}
+			if err := slack.ValidateUpdateMessageAPIURL(sc.UpdateMessage, sc.APIURL, sc.APIURLFile); err != nil {
+				return err
+			}
+			if err := slack.ValidatePostUpdatesToThreadAPIURL(sc.PostUpdatesToThread, sc.APIURL, sc.APIURLFile); err != nil {
+				return err
 			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
@@ -505,7 +517,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc == nil {
-				wcc = &WechatConfig{}
+				wcc = &wechat.WechatConfig{}
 			}
 			wcc.HTTPConfig = cmp.Or(wcc.HTTPConfig, c.Global.HTTPConfig)
 			wcc.APIURL = cmp.Or(wcc.APIURL, c.Global.WeChatAPIURL)
@@ -550,80 +562,80 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				voc.APIKeyFile = c.Global.VictorOpsAPIKeyFile
 			}
 		}
-		for _, sns := range rcv.SNSConfigs {
-			if sns == nil {
+		for _, snsCfg := range rcv.SNSConfigs {
+			if snsCfg == nil {
 				return errors.New("missing sns config")
 			}
-			sns.HTTPConfig = cmp.Or(sns.HTTPConfig, c.Global.HTTPConfig)
+			snsCfg.HTTPConfig = cmp.Or(snsCfg.HTTPConfig, c.Global.HTTPConfig)
 		}
 
-		for _, telegram := range rcv.TelegramConfigs {
-			if telegram == nil {
+		for _, telegramCfg := range rcv.TelegramConfigs {
+			if telegramCfg == nil {
 				return errors.New("missing telegram config")
 			}
-			telegram.HTTPConfig = cmp.Or(telegram.HTTPConfig, c.Global.HTTPConfig)
-			telegram.APIUrl = cmp.Or(telegram.APIUrl, c.Global.TelegramAPIUrl)
-			if telegram.BotToken == "" && len(telegram.BotTokenFile) == 0 {
+			telegramCfg.HTTPConfig = cmp.Or(telegramCfg.HTTPConfig, c.Global.HTTPConfig)
+			telegramCfg.APIUrl = cmp.Or(telegramCfg.APIUrl, c.Global.TelegramAPIUrl)
+			if telegramCfg.BotToken == "" && len(telegramCfg.BotTokenFile) == 0 {
 				if c.Global.TelegramBotToken == "" && len(c.Global.TelegramBotTokenFile) == 0 {
 					return errors.New("missing bot_token or bot_token_file on telegram_config")
 				}
-				telegram.BotToken = c.Global.TelegramBotToken
-				telegram.BotTokenFile = c.Global.TelegramBotTokenFile
+				telegramCfg.BotToken = c.Global.TelegramBotToken
+				telegramCfg.BotTokenFile = c.Global.TelegramBotTokenFile
 			}
 		}
-		for _, discord := range rcv.DiscordConfigs {
-			if discord == nil {
+		for _, discordCfg := range rcv.DiscordConfigs {
+			if discordCfg == nil {
 				return errors.New("missing discord config")
 			}
-			discord.HTTPConfig = cmp.Or(discord.HTTPConfig, c.Global.HTTPConfig)
-			if discord.WebhookURL == nil && len(discord.WebhookURLFile) == 0 {
+			discordCfg.HTTPConfig = cmp.Or(discordCfg.HTTPConfig, c.Global.HTTPConfig)
+			if discordCfg.WebhookURL == nil && len(discordCfg.WebhookURLFile) == 0 {
 				return errors.New("no discord webhook URL or URLFile provided")
 			}
 		}
-		for _, webex := range rcv.WebexConfigs {
-			if webex == nil {
+		for _, webexCfg := range rcv.WebexConfigs {
+			if webexCfg == nil {
 				return errors.New("missing webex config")
 			}
-			webex.HTTPConfig = cmp.Or(webex.HTTPConfig, c.Global.HTTPConfig)
-			webex.APIURL = cmp.Or(webex.APIURL, c.Global.WebexAPIURL)
-			if webex.APIURL == nil {
+			webexCfg.HTTPConfig = cmp.Or(webexCfg.HTTPConfig, c.Global.HTTPConfig)
+			webexCfg.APIURL = cmp.Or(webexCfg.APIURL, c.Global.WebexAPIURL)
+			if webexCfg.APIURL == nil {
 				return errors.New("no global Webex URL set")
 			}
 		}
-		for _, msteams := range rcv.MSTeamsConfigs {
-			if msteams == nil {
+		for _, msteamsCfg := range rcv.MSTeamsConfigs {
+			if msteamsCfg == nil {
 				return errors.New("missing msteams config")
 			}
-			msteams.HTTPConfig = cmp.Or(msteams.HTTPConfig, c.Global.HTTPConfig)
-			if msteams.WebhookURL == nil && len(msteams.WebhookURLFile) == 0 {
+			msteamsCfg.HTTPConfig = cmp.Or(msteamsCfg.HTTPConfig, c.Global.HTTPConfig)
+			if msteamsCfg.WebhookURL == nil && len(msteamsCfg.WebhookURLFile) == 0 {
 				return errors.New("no msteams webhook URL or URLFile provided")
 			}
 		}
-		for _, msteamsv2 := range rcv.MSTeamsV2Configs {
-			if msteamsv2 == nil {
+		for _, msteamsv2Cfg := range rcv.MSTeamsV2Configs {
+			if msteamsv2Cfg == nil {
 				return errors.New("missing msteamsv2 config")
 			}
-			if msteamsv2.HTTPConfig == nil {
+			if msteamsv2Cfg.HTTPConfig == nil {
 				// copy the global config so receiver-level mutations don't affect it
 				httpCfg := *c.Global.HTTPConfig
-				msteamsv2.HTTPConfig = &httpCfg
-			} else if msteamsv2.HTTPConfig.ProxyURL.URL == nil {
+				msteamsv2Cfg.HTTPConfig = &httpCfg
+			} else if msteamsv2Cfg.HTTPConfig.ProxyURL.URL == nil {
 				// receiver has a partial http_config but no proxy_url set,
 				// so inherit only the proxy_url from global, leaving any
 				// other proxy fields the receiver set (NoProxy, etc.) intact
-				msteamsv2.HTTPConfig.ProxyURL = c.Global.HTTPConfig.ProxyURL
+				msteamsv2Cfg.HTTPConfig.ProxyURL = c.Global.HTTPConfig.ProxyURL
 			}
-			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
+			if msteamsv2Cfg.WebhookURL == nil && len(msteamsv2Cfg.WebhookURLFile) == 0 {
 				return errors.New("no msteamsv2 webhook URL or URLFile provided")
 			}
 		}
-		for _, jira := range rcv.JiraConfigs {
-			if jira == nil {
+		for _, jiraCfg := range rcv.JiraConfigs {
+			if jiraCfg == nil {
 				return errors.New("missing jira config")
 			}
-			jira.HTTPConfig = cmp.Or(jira.HTTPConfig, c.Global.HTTPConfig)
-			jira.APIURL = cmp.Or(jira.APIURL, c.Global.JiraAPIURL)
-			if jira.APIURL == nil {
+			jiraCfg.HTTPConfig = cmp.Or(jiraCfg.HTTPConfig, c.Global.HTTPConfig)
+			jiraCfg.APIURL = cmp.Or(jiraCfg.APIURL, c.Global.JiraAPIURL)
+			if jiraCfg.APIURL == nil {
 				return errors.New("no global Jira Cloud URL set")
 			}
 		}
@@ -648,17 +660,17 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				rocketchatcfg.TokenFile = c.Global.RocketchatTokenFile
 			}
 		}
-		for _, mattermost := range rcv.MattermostConfigs {
-			if mattermost == nil {
+		for _, mattermostCfg := range rcv.MattermostConfigs {
+			if mattermostCfg == nil {
 				return errors.New("missing mattermost config")
 			}
-			mattermost.HTTPConfig = cmp.Or(mattermost.HTTPConfig, c.Global.HTTPConfig)
-			if mattermost.WebhookURL == nil && len(mattermost.WebhookURLFile) == 0 {
+			mattermostCfg.HTTPConfig = cmp.Or(mattermostCfg.HTTPConfig, c.Global.HTTPConfig)
+			if mattermostCfg.WebhookURL == nil && len(mattermostCfg.WebhookURLFile) == 0 {
 				if c.Global.MattermostWebhookURL == nil && len(c.Global.MattermostWebhookURLFile) == 0 {
 					return errors.New("missing webhook_url or webhook_url_file on mattermost_config")
 				}
-				mattermost.WebhookURL = c.Global.MattermostWebhookURL
-				mattermost.WebhookURLFile = c.Global.MattermostWebhookURLFile
+				mattermostCfg.WebhookURL = c.Global.MattermostWebhookURL
+				mattermostCfg.WebhookURLFile = c.Global.MattermostWebhookURLFile
 			}
 		}
 
@@ -765,75 +777,8 @@ func DefaultGlobalConfig() GlobalConfig {
 		TelegramAPIUrl:   amcommoncfg.MustParseURL("https://api.telegram.org"),
 		WebexAPIURL:      amcommoncfg.MustParseURL("https://webexapis.com/v1/messages"),
 		RocketchatAPIURL: amcommoncfg.MustParseURL("https://open.rocket.chat/"),
-		SlackAppURL:      amcommoncfg.MustParseURL("https://slack.com/api/chat.postMessage"),
+		SlackAppURL:      amcommoncfg.MustParseURL(slack.PostMessageURL),
 	}
-}
-
-// HostPort represents a "host:port" network address.
-type HostPort struct {
-	Host string
-	Port string
-}
-
-// UnmarshalYAML implements the yaml.Unmarshaler interface for HostPort.
-func (hp *HostPort) UnmarshalYAML(unmarshal func(any) error) error {
-	var (
-		s   string
-		err error
-	)
-	if err = unmarshal(&s); err != nil {
-		return err
-	}
-	if s == "" {
-		return nil
-	}
-	hp.Host, hp.Port, err = net.SplitHostPort(s)
-	if err != nil {
-		return err
-	}
-	if hp.Port == "" {
-		return fmt.Errorf("address %q: port cannot be empty", s)
-	}
-	return nil
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface for HostPort.
-func (hp *HostPort) UnmarshalJSON(data []byte) error {
-	var (
-		s   string
-		err error
-	)
-	if err = json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	if s == "" {
-		return nil
-	}
-	hp.Host, hp.Port, err = net.SplitHostPort(s)
-	if err != nil {
-		return err
-	}
-	if hp.Port == "" {
-		return fmt.Errorf("address %q: port cannot be empty", s)
-	}
-	return nil
-}
-
-// MarshalYAML implements the yaml.Marshaler interface for HostPort.
-func (hp HostPort) MarshalYAML() (any, error) {
-	return hp.String(), nil
-}
-
-// MarshalJSON implements the json.Marshaler interface for HostPort.
-func (hp HostPort) MarshalJSON() ([]byte, error) {
-	return json.Marshal(hp.String())
-}
-
-func (hp HostPort) String() string {
-	if hp.Host == "" && hp.Port == "" {
-		return ""
-	}
-	return net.JoinHostPort(hp.Host, hp.Port)
 }
 
 // GlobalConfig defines configuration parameters that are valid globally
@@ -848,7 +793,7 @@ type GlobalConfig struct {
 	JiraAPIURL               *amcommoncfg.URL       `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
 	SMTPFrom                 string                 `yaml:"smtp_from,omitempty" json:"smtp_from,omitempty"`
 	SMTPHello                string                 `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
-	SMTPSmarthost            HostPort               `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
+	SMTPSmarthost            amcommoncfg.HostPort   `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername         string                 `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
 	SMTPAuthPassword         commoncfg.Secret       `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthPasswordFile     string                 `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
@@ -922,6 +867,38 @@ type Route struct {
 	Labels model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
+// AllMatchers returns the route's matchers from match, match_re and matchers,
+// sorted.
+func (r *Route) AllMatchers() labels.Matchers {
+	var matchers labels.Matchers
+
+	// r.Match will be deprecated. This for loop appends matchers.
+	for ln, lv := range r.Match {
+		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	// r.MatchRE will be deprecated. This for loop appends regex matchers.
+	for ln, lv := range r.MatchRE {
+		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
+	matchers = append(matchers, r.Matchers...)
+
+	sort.Sort(matchers)
+	return matchers
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.
 func (r *Route) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain Route
@@ -988,18 +965,18 @@ type Receiver struct {
 	Labels map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
 
 	DiscordConfigs    []*discord.DiscordConfig       `yaml:"discord_configs,omitempty" json:"discord_configs,omitempty"`
-	EmailConfigs      []*EmailConfig                 `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
+	EmailConfigs      []*email.EmailConfig           `yaml:"email_configs,omitempty" json:"email_configs,omitempty"`
 	IncidentioConfigs []*incidentio.IncidentioConfig `yaml:"incidentio_configs,omitempty" json:"incidentio_configs,omitempty"`
 	PagerdutyConfigs  []*pagerduty.PagerdutyConfig   `yaml:"pagerduty_configs,omitempty" json:"pagerduty_configs,omitempty"`
-	SlackConfigs      []*SlackConfig                 `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
+	SlackConfigs      []*slack.SlackConfig           `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs    []*webhook.WebhookConfig       `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs   []*opsgenie.OpsGenieConfig     `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
-	WechatConfigs     []*WechatConfig                `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
+	WechatConfigs     []*wechat.WechatConfig         `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs   []*pushover.PushoverConfig     `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
-	VictorOpsConfigs  []*VictorOpsConfig             `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	VictorOpsConfigs  []*victorops.VictorOpsConfig   `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs        []*sns.SNSConfig               `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
 	TelegramConfigs   []*telegram.TelegramConfig     `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
-	WebexConfigs      []*WebexConfig                 `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
+	WebexConfigs      []*webex.WebexConfig           `yaml:"webex_configs,omitempty" json:"webex_configs,omitempty"`
 	MSTeamsConfigs    []*msteams.MSTeamsConfig       `yaml:"msteams_configs,omitempty" json:"msteams_configs,omitempty"`
 	MSTeamsV2Configs  []*msteamsv2.MSTeamsV2Config   `yaml:"msteamsv2_configs,omitempty" json:"msteamsv2_configs,omitempty"`
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`

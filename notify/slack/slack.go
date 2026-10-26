@@ -27,18 +27,17 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
 const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
-func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -55,11 +54,11 @@ func New(c *config.SlackConfig, t *template.Template, l *slog.Logger, httpOpts .
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var err error
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	logger := n.logger.With("group_key", key)
 	logger.Debug("extracted group key")
@@ -96,7 +95,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numFields := len(n.conf.Fields)
 	if numFields > 0 {
-		fields := make([]config.SlackField, numFields)
+		fields := make([]SlackField, numFields)
 		for index, field := range n.conf.Fields {
 			// Check if short was defined for the field otherwise fallback to the global setting
 			var short bool
@@ -107,7 +106,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			// Rebuild the field by executing any templates and setting the new value for short
-			fields[index] = config.SlackField{
+			fields[index] = SlackField{
 				Title: tmplText(field.Title),
 				Value: tmplText(field.Value),
 				Short: &short,
@@ -118,9 +117,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	numActions := len(n.conf.Actions)
 	if numActions > 0 {
-		actions := make([]config.SlackAction, numActions)
+		actions := make([]SlackAction, numActions)
 		for index, action := range n.conf.Actions {
-			slackAction := config.SlackAction{
+			slackAction := SlackAction{
 				Type:  tmplText(action.Type),
 				Text:  tmplText(action.Text),
 				URL:   tmplText(action.URL),
@@ -130,7 +129,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 			}
 
 			if action.ConfirmField != nil {
-				slackAction.ConfirmField = &config.SlackConfirmationField{
+				slackAction.ConfirmField = &SlackConfirmationField{
 					Title:       tmplText(action.ConfirmField.Title),
 					Text:        tmplText(action.ConfirmField.Text),
 					OkText:      tmplText(action.ConfirmField.OkText),
@@ -149,7 +148,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		content, err := os.ReadFile(n.conf.APIURLFile)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		u = strings.TrimSpace(string(content))
 	}
@@ -160,8 +159,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		ctx = postCtx
 	}
 
-	req := &request{
-		Channel:     tmplText(n.conf.Channel),
+	msg := message{
 		Username:    tmplText(n.conf.Username),
 		IconEmoji:   tmplText(n.conf.IconEmoji),
 		IconURL:     tmplText(n.conf.IconURL),
@@ -170,30 +168,51 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		Attachments: []attachment{*att},
 	}
 
-	// If a notification for this alert group has already been sent and `update_message` config is set
-	// edit API endpoint and payload to update notification instead of sending a new one.
+	// If a notification for this alert group has already been sent, `update_message`
+	// edits the initial message instead of sending a new one and `post_updates_to_thread`
+	// posts the notification as a reply in the initial message's thread.
 	var store *nflog.Store
+	var threadTs, channelId string
 
-	if n.conf.UpdateMessage {
+	if n.conf.UpdateMessage || n.conf.PostUpdatesToThread {
 		var ok bool
 		store, ok = notify.NflogStore(ctx)
 		if !ok {
-			logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
+			logger.Warn("cannot create NflogStore, updatable and threaded messages will be disabled.")
 		} else {
-			threadTs, _ := store.GetStr("threadTs")
-			channelId, _ := store.GetStr("channelId")
-			logger.Debug("attempt recovering threadTs and channelId to update an existing message", "threadTs", threadTs, "channelId", channelId)
-			if threadTs != "" && channelId != "" {
-				u = "https://slack.com/api/chat.update"
-				req.Timestamp = threadTs
-				req.Channel = channelId
-				logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
-			}
+			threadTs, _ = store.GetStr("threadTs")
+			channelId, _ = store.GetStr("channelId")
+			logger.Debug("attempt recovering threadTs and channelId of the initial message", "threadTs", threadTs, "channelId", channelId)
 		}
 	}
+
+	if threadTs == "" || channelId == "" {
+		return n.postRequest(ctx, u, &request{message: msg, Channel: tmplText(n.conf.Channel)}, store)
+	}
+
+	// Requests targeting the initial message get no store, so its identifiers are never overwritten.
+	if n.conf.UpdateMessage {
+		logger.Debug("updating previously sent message", "threadTs", threadTs, "channelId", channelId)
+		updateReq := &request{message: msg, Channel: channelId, Timestamp: threadTs}
+		if verdict := n.postRequest(ctx, "https://slack.com/api/chat.update", updateReq, nil); verdict.Err() != nil {
+			return verdict
+		}
+	}
+	if n.conf.PostUpdatesToThread {
+		logger.Debug("posting to thread of previously sent message", "threadTs", threadTs, "channelId", channelId)
+		threadReq := &request{message: msg, Channel: channelId, ThreadTimestamp: threadTs}
+		return n.postRequest(ctx, u, threadReq, nil)
+	}
+
+	return notify.Success()
+}
+
+// postRequest encodes and sends a single request to the Slack API, classifies
+// errors as retriable or not, and hands the response to slackResponseHandler.
+func (n *Notifier) postRequest(ctx context.Context, u string, req *request, store *nflog.Store) notify.NotifyVerdict {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, u, &buf)
@@ -202,7 +221,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
 		}
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
@@ -210,25 +229,27 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	// classify them as retriable or not.
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		if resp.StatusCode == http.StatusTooManyRequests {
-			if d := notify.ParseRetryAfter(resp.Header, received); d > 0 {
-				n.logger.Warn("Rate limited by Slack, waiting before retry", "retry_after_secs", d.Seconds())
-				select {
-				case <-time.After(d):
-				case <-ctx.Done():
-				}
-			}
-		}
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if retry {
+			retryAfter := notify.ParseRetryAfter(resp.Header, received)
+			if retryAfter > 0 {
+				n.logger.Warn("Rate limited by Slack, delaying retry", "retry_after_secs", retryAfter.Seconds())
+			}
+			return notify.Retry(retryAfter, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
 
 	retry, err = n.slackResponseHandler(resp, store)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.ClientErrorReason, err)
+		if retry {
+			return notify.Retry(0, err, notify.ClientErrorReason)
+		}
+		return notify.Unrecoverable(err, notify.ClientErrorReason)
 	}
-	return retry, nil
+	return notify.Success()
 }
 
 // slackResponseHandler parses the response body of the request, handles retryable errors

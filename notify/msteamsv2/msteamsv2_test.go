@@ -31,9 +31,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // This is a test URL that has been modified to not be valid.
@@ -92,19 +92,16 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert1 := &types.Alert{
-				Alert: model.Alert{
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
-			_, err = notifier.Notify(ctx, alert1)
+			alert1 := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
+			verdict := notifier.Notify(ctx, alert1)
 			if tt.noError {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				var reasonError *notify.ErrorWithReason
-				require.ErrorAs(t, err, &reasonError)
-				require.Equal(t, tt.expectedReason, reasonError.Reason)
+				require.Error(t, verdict.Err())
+				require.Equal(t, tt.expectedReason, verdict.Reason())
 			}
 		})
 	}
@@ -162,24 +159,22 @@ func TestMSTeamsV2Templating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
 		})
 	}
 }

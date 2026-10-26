@@ -11,21 +11,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apiconnect
+package wechat
 
-import (
-	"testing"
+import "testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-)
-
-func TestConnectAPI(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Connect API Suite")
-}
-
-func newTestAPI(opts Options) *API {
-	GinkgoHelper()
-	return NewAPI(opts)
+func TestWeChatTypeMatcher(t *testing.T) {
+	good := []string{"text", "markdown"}
+	for _, g := range good {
+		if !wechatTypeMatcher.MatchString(g) {
+			t.Fatalf("failed to match with %s", g)
+		}
+	}
+	bad := []string{"TEXT", "MarkDOwn"}
+	for _, b := range bad {
+		if wechatTypeMatcher.MatchString(b) {
+			t.Errorf("mistakenly match with %s", b)
+		}
+	}
 }

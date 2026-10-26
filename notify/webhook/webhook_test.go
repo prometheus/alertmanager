@@ -30,12 +30,12 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
+	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestWebhookRetry(t *testing.T) {
@@ -88,7 +88,7 @@ func TestWebhookRetry(t *testing.T) {
 }
 
 func TestWebhookTruncateAlerts(t *testing.T) {
-	alerts := make([]*types.Alert, 10)
+	alerts := make([]*alert.Alert, 10)
 
 	truncatedAlerts, numTruncated := truncateAlerts(0, alerts)
 	require.Len(t, truncatedAlerts, 10)
@@ -206,23 +206,21 @@ func TestWebhookURLTemplating(t *testing.T) {
 				ctx = notify.WithGroupLabels(ctx, tc.groupLabels)
 			}
 
-			alerts := []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels:   tc.alertLabels,
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
-					},
-				},
+			alerts := []*alert.Alert{
+				alert.New(model.Alert{
+					Labels:   tc.alertLabels,
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}
 
-			_, err = notifier.Notify(ctx, alerts...)
+			verdict := notifier.Notify(ctx, alerts...)
 
 			if tc.expectError {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.expectedErrMsg)
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 				require.Equal(t, tc.expectedPath, calledURL)
 			}
 		})
@@ -260,16 +258,14 @@ func TestWebhookDefaultPayload(t *testing.T) {
 		HTTPConfig: &commoncfg.HTTPClientConfig{},
 	}
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels:       model.LabelSet{"alertname": "TestAlert"},
-				Annotations:  model.LabelSet{"summary": "Test summary"},
-				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
-				GeneratorURL: "http://generator.url",
-			},
-		},
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels:       model.LabelSet{"alertname": "TestAlert"},
+			Annotations:  model.LabelSet{"summary": "Test summary"},
+			StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+			GeneratorURL: "http://generator.url",
+		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
 	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
@@ -287,8 +283,7 @@ func TestWebhookDefaultPayload(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t, buf.String(), string(capturedPayload))
@@ -321,16 +316,14 @@ func TestWebhookCustomPayloadMap(t *testing.T) {
 		},
 	}
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels:       model.LabelSet{"alertname": "TestAlert"},
-				Annotations:  model.LabelSet{"summary": "Test summary"},
-				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
-				GeneratorURL: "http://generator.url",
-			},
-		},
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels:       model.LabelSet{"alertname": "TestAlert"},
+			Annotations:  model.LabelSet{"summary": "Test summary"},
+			StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+			GeneratorURL: "http://generator.url",
+		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
 	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
@@ -346,8 +339,7 @@ func TestWebhookCustomPayloadMap(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t, expected.String(), string(capturedPayload))
@@ -386,16 +378,14 @@ func TestWebhookCustomPayloadList(t *testing.T) {
 		Payload:    payload,
 	}
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels:       model.LabelSet{"alertname": "TestAlert"},
-				Annotations:  model.LabelSet{"summary": "Test summary"},
-				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
-				GeneratorURL: "http://generator.url",
-			},
-		},
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels:       model.LabelSet{"alertname": "TestAlert"},
+			Annotations:  model.LabelSet{"summary": "Test summary"},
+			StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+			GeneratorURL: "http://generator.url",
+		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
 	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
@@ -404,8 +394,7 @@ func TestWebhookCustomPayloadList(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,
@@ -443,16 +432,14 @@ func TestWebhookCustomPayloadStringList(t *testing.T) {
 		Payload:    payload,
 	}
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels:       model.LabelSet{"alertname": "TestAlert"},
-				Annotations:  model.LabelSet{"summary": "Test summary"},
-				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
-				GeneratorURL: "http://generator.url",
-			},
-		},
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels:       model.LabelSet{"alertname": "TestAlert"},
+			Annotations:  model.LabelSet{"summary": "Test summary"},
+			StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+			GeneratorURL: "http://generator.url",
+		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
 	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
@@ -461,8 +448,7 @@ func TestWebhookCustomPayloadStringList(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,
@@ -505,16 +491,14 @@ func TestWebhookCustomPayloadString(t *testing.T) {
 		Payload:    payload,
 	}
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels:       model.LabelSet{"alertname": "TestAlert"},
-				Annotations:  model.LabelSet{"summary": "Test summary"},
-				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
-				GeneratorURL: "http://generator.url",
-			},
-		},
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels:       model.LabelSet{"alertname": "TestAlert"},
+			Annotations:  model.LabelSet{"summary": "Test summary"},
+			StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+			GeneratorURL: "http://generator.url",
+		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
 	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
@@ -523,8 +507,7 @@ func TestWebhookCustomPayloadString(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,
@@ -568,21 +551,19 @@ func TestWebhookCustomPayloadPreservesYAMLLikeStrings(t *testing.T) {
 		Payload:    payload,
 	}
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "test1",
-					"id":        "value1:",
-					"num":       "123",
-					"truthy":    "true",
-					"empty":     "null",
-				},
-				StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-				EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
-				GeneratorURL: "http://generator.url",
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "test1",
+				"id":        "value1:",
+				"num":       "123",
+				"truthy":    "true",
+				"empty":     "null",
 			},
-		},
+			StartsAt:     time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndsAt:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
+			GeneratorURL: "http://generator.url",
+		}, time.Time{}, false),
 	}
 	tmpl := test.CreateTmpl(t)
 	ctx := notify.WithGroupKey(context.Background(), "{}:{alertname=\"test1\"}")
@@ -591,8 +572,7 @@ func TestWebhookCustomPayloadPreservesYAMLLikeStrings(t *testing.T) {
 	n, err := New(conf, tmpl, promslog.NewNopLogger())
 	require.NoError(t, err)
 	n.client.Transport = mockTransport
-	_, err = n.Notify(ctx, alerts...)
-	require.NoError(t, err)
+	require.NoError(t, n.Notify(ctx, alerts...).Err())
 
 	require.NotEmpty(t, capturedPayload)
 	require.JSONEq(t,

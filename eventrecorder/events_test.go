@@ -28,10 +28,10 @@ import (
 )
 
 func TestAlertEventSnapshotsLabels(t *testing.T) {
-	a := &alert.Alert{Alert: model.Alert{
+	a := alert.New(model.Alert{
 		Labels: model.LabelSet{"alertname": "Down", "severity": "warning"}, Annotations: model.LabelSet{"summary": "test"},
 		StartsAt: time.Now(), EndsAt: time.Now().Add(time.Hour),
-	}}
+	}, time.Time{}, false)
 	fingerprint := a.Fingerprint()
 	event := NewAlertCreatedEvent(a)
 
@@ -45,7 +45,7 @@ func TestAlertEventSnapshotsLabels(t *testing.T) {
 }
 
 func TestGroupedAlertUsesAlertFingerprint(t *testing.T) {
-	a := &alert.Alert{Alert: model.Alert{Labels: model.LabelSet{"alertname": "Down", "instance": "api-1"}}}
+	a := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "Down", "instance": "api-1"}}, time.Time{}, false)
 	fingerprint := a.Fingerprint()
 
 	grouped := NewGroupedAlert(a)

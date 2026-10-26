@@ -27,9 +27,9 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // Mattermost supports 16383 chars max.
@@ -98,11 +98,11 @@ type attachment struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.NotifyVerdict {
 	var (
 		err  error
 		url  string
-		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
+		data = notify.GetTemplateData(ctx, n.tmpl, alrt, n.logger)
 	)
 
 	if n.conf.WebhookURL != nil {
@@ -110,31 +110,31 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	} else {
 		content, err := os.ReadFile(n.conf.WebhookURLFile)
 		if err != nil {
-			return false, err
+			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
 		url = strings.TrimSpace(string(content))
 	}
 	if url == "" {
-		return false, errors.New("webhook url missing")
+		return notify.Unrecoverable(errors.New("webhook url missing"), notify.DefaultReason)
 	}
 
 	req := n.createRequest(notify.TmplText(n.tmpl, data, &err))
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	err = n.sanitizeRequest(ctx, req)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(req); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	resp, err := n.postJSONFunc(ctx, n.client, url, &buf)
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
@@ -143,12 +143,16 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
 		err = fmt.Errorf("channel %q: %w", req.Channel, err)
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if retry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
 	n.logger.Debug("Message sent to Mattermost successfully",
 		"status", resp.StatusCode)
 
-	return false, nil
+	return notify.Success()
 }
 
 func (n *Notifier) createRequest(tmpl func(string) string) *request {

@@ -17,11 +17,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -33,10 +37,10 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestPagerDutyRetryV1(t *testing.T) {
@@ -81,6 +85,7 @@ func TestPagerDutyFailureReason(t *testing.T) {
 			name           string
 			statusCode     int
 			expectedReason notify.Reason
+			expectedRetry  map[string]bool
 		}{
 			{
 				name:           "client error",
@@ -93,19 +98,22 @@ func TestPagerDutyFailureReason(t *testing.T) {
 				expectedReason: notify.AuthErrorReason,
 			},
 			{
-				name:           "authorization error",
+				name:           "forbidden response",
 				statusCode:     http.StatusForbidden,
 				expectedReason: notify.AuthErrorReason,
+				expectedRetry:  map[string]bool{"v1": true},
 			},
 			{
 				name:           "rate limited",
 				statusCode:     http.StatusTooManyRequests,
 				expectedReason: notify.RateLimitedReason,
+				expectedRetry:  map[string]bool{"v2": true},
 			},
 			{
 				name:           "server error",
 				statusCode:     http.StatusInternalServerError,
 				expectedReason: notify.ServerErrorReason,
+				expectedRetry:  map[string]bool{"v1": true, "v2": true},
 			},
 		} {
 			t.Run(version+"/"+tc.name, func(t *testing.T) {
@@ -114,9 +122,13 @@ func TestPagerDutyFailureReason(t *testing.T) {
 				}))
 				defer srv.Close()
 
+				expectedReason := tc.expectedReason
 				cfg := &PagerdutyConfig{HTTPConfig: &commoncfg.HTTPClientConfig{}}
 				if version == "v1" {
 					cfg.ServiceKey = commoncfg.Secret("01234567890123456789012345678901")
+					if tc.statusCode == http.StatusForbidden {
+						expectedReason = notify.RateLimitedReason
+					}
 				} else {
 					u, err := url.Parse(srv.URL)
 					require.NoError(t, err)
@@ -131,21 +143,56 @@ func TestPagerDutyFailureReason(t *testing.T) {
 				}
 
 				ctx := notify.WithGroupKey(context.Background(), "1")
-				alert := &types.Alert{
-					Alert: model.Alert{
-						Labels:   model.LabelSet{"lbl1": "val1"},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
-					},
-				}
+				alrt := alert.New(model.Alert{
+					Labels:   model.LabelSet{"lbl1": "val1"},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false)
 
-				_, err = notifier.Notify(ctx, alert)
-				var reasonError *notify.ErrorWithReason
-				require.ErrorAs(t, err, &reasonError)
-				require.Equal(t, tc.expectedReason, reasonError.Reason)
+				verdict := notifier.Notify(ctx, alrt)
+				require.Error(t, verdict.Err())
+				require.Equal(t, expectedReason, verdict.Reason())
+				require.Equal(t, tc.expectedRetry[version], verdict.ShouldRetry())
 			})
 		}
 	}
+}
+
+func TestPagerDutyRequestFailureReasons(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		err    error
+		reason notify.Reason
+	}{
+		{name: "transport", err: errors.New("connection failed"), reason: notify.RequestErrorReason},
+		{name: "cancellation", err: fmt.Errorf("transport: %w", context.Canceled), reason: notify.ContextCanceledReason},
+		{name: "deadline", err: fmt.Errorf("transport: %w", context.DeadlineExceeded), reason: notify.ContextDeadlineExceededReason},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			notifier, err := New(&PagerdutyConfig{
+				HTTPConfig: &commoncfg.HTTPClientConfig{},
+				RoutingKey: commoncfg.Secret("key"),
+				URL:        &amcommoncfg.URL{URL: &url.URL{Scheme: "http", Host: "pagerduty.invalid"}},
+			}, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+			notifier.client.Transport = roundTripperFunc(func(*http.Request) (*http.Response, error) { return nil, tc.err })
+
+			verdict := notifier.Notify(notify.WithGroupKey(context.Background(), "1"))
+			require.ErrorIs(t, verdict.Err(), tc.err)
+			require.True(t, verdict.ShouldRetry())
+			require.Equal(t, tc.reason, verdict.Reason())
+		})
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestPagerDutyRedactedURLV1(t *testing.T) {
@@ -234,7 +281,7 @@ func TestPagerDutyV2RoutingKeyFromFile(t *testing.T) {
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, key)
 }
 
-func TestPagerDutyTemplating(t *testing.T) {
+func TestPagerDutyNotify(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
 		out := make(map[string]any)
@@ -250,8 +297,10 @@ func TestPagerDutyTemplating(t *testing.T) {
 		title string
 		cfg   *PagerdutyConfig
 
-		retry  bool
-		errMsg string
+		retry           bool
+		errMsg          string
+		reason          notify.Reason
+		withoutGroupKey bool
 	}{
 		{
 			title: "full-blown legacy message",
@@ -336,6 +385,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 				},
 			},
 			errMsg: "failed to render details: template: :1: unclosed action",
+			reason: notify.TemplateErrorReason,
 		},
 		{
 			title: "details with templating errors",
@@ -349,6 +399,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 				},
 			},
 			errMsg: "failed to render details: template: :1: unclosed action",
+			reason: notify.TemplateErrorReason,
 		},
 		{
 			title: "v2 message with templating errors",
@@ -357,6 +408,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 				Severity:   "{{ ",
 			},
 			errMsg: "failed to template",
+			reason: notify.TemplateErrorReason,
 		},
 		{
 			title: "v1 message with templating errors",
@@ -365,6 +417,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 				Client:     "{{ ",
 			},
 			errMsg: "failed to template",
+			reason: notify.TemplateErrorReason,
 		},
 		{
 			title: "routing key cannot be empty",
@@ -372,6 +425,7 @@ func TestPagerDutyTemplating(t *testing.T) {
 				RoutingKey: commoncfg.Secret(`{{ "" }}`),
 			},
 			errMsg: "routing key cannot be empty",
+			reason: notify.ConfigErrorReason,
 		},
 		{
 			title: "service_key cannot be empty",
@@ -379,6 +433,27 @@ func TestPagerDutyTemplating(t *testing.T) {
 				ServiceKey: commoncfg.Secret(`{{ "" }}`),
 			},
 			errMsg: "service key cannot be empty",
+			reason: notify.ConfigErrorReason,
+		},
+		{
+			title:  "missing group key",
+			cfg:    &PagerdutyConfig{RoutingKey: commoncfg.Secret("key")},
+			errMsg: "group key missing", reason: notify.MissingContextReason, withoutGroupKey: true,
+		},
+		{
+			title:  "unreadable service key file",
+			cfg:    &PagerdutyConfig{ServiceKeyFile: filepath.Join(t.TempDir(), "missing-key")},
+			errMsg: "failed to read service key", reason: notify.FileReadErrorReason,
+		},
+		{
+			title:  "unreadable routing key file",
+			cfg:    &PagerdutyConfig{RoutingKeyFile: filepath.Join(t.TempDir(), "missing-key")},
+			errMsg: "failed to read routing key", reason: notify.FileReadErrorReason,
+		},
+		{
+			title:  "message encoding",
+			cfg:    &PagerdutyConfig{RoutingKey: commoncfg.Secret("key"), Details: map[string]any{"invalid": math.NaN()}},
+			errMsg: "failed to encode PagerDuty message", reason: notify.EncodingErrorReason,
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
@@ -391,26 +466,27 @@ func TestPagerDutyTemplating(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			ctx = notify.WithGroupKey(ctx, "1")
+			if !tc.withoutGroupKey {
+				ctx = notify.WithGroupKey(ctx, "1")
+			}
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
+			require.Equal(t, tc.reason, verdict.Reason())
 		})
 	}
 }
@@ -615,18 +691,16 @@ func TestPagerDutyEmptySrcHref(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	_, err = pagerDuty.Notify(ctx, []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"lbl1": "val1",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	verdict := pagerDuty.Notify(ctx, []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}...)
-	require.NoError(t, err)
+	require.NoError(t, verdict.Err())
 }
 
 func TestPagerDutyTimeout(t *testing.T) {
@@ -639,16 +713,14 @@ func TestPagerDutyTimeout(t *testing.T) {
 		Links       []pagerDutyLink
 	}
 
-	tests := map[string]struct {
+	for name, tt := range map[string]struct {
 		latency time.Duration
 		timeout time.Duration
 		wantErr bool
 	}{
 		"success": {latency: 100 * time.Millisecond, timeout: 120 * time.Millisecond, wantErr: false},
 		"error":   {latency: 100 * time.Millisecond, timeout: 80 * time.Millisecond, wantErr: true},
-	}
-
-	for name, tt := range tests {
+	} {
 		t.Run(name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
@@ -681,17 +753,21 @@ func TestPagerDutyTimeout(t *testing.T) {
 
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
-			alert := &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"lbl1": "val1",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alrt := alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"lbl1": "val1",
 				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
+			verdict := pd.Notify(ctx, alrt)
+			require.Equal(t, tt.wantErr, verdict.Err() != nil)
+			expectedReason := notify.DefaultReason
+			if tt.wantErr {
+				expectedReason = notify.ContextDeadlineExceededReason
 			}
-			_, err = pd.Notify(ctx, alert)
-			require.Equal(t, tt.wantErr, err != nil)
+			require.Equal(t, expectedReason, verdict.Reason())
+			require.Equal(t, tt.wantErr, verdict.ShouldRetry())
 		})
 	}
 }

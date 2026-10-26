@@ -32,9 +32,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestIncidentIORetry(t *testing.T) {
@@ -98,7 +98,7 @@ func TestIncidentIOURLFromFile(t *testing.T) {
 }
 
 func TestIncidentIOTruncateAlerts(t *testing.T) {
-	alerts := make([]*types.Alert, 10)
+	alerts := make([]*alert.Alert, 10)
 
 	truncatedAlerts, numTruncated := truncateAlerts(0, alerts)
 	require.Len(t, truncatedAlerts, 10)
@@ -150,20 +150,18 @@ func TestIncidentIONotify(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels: model.LabelSet{
-				"alertname": "TestAlert",
-				"severity":  "critical",
-			},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
+	alrt := alert.New(model.Alert{
+		Labels: model.LabelSet{
+			"alertname": "TestAlert",
+			"severity":  "critical",
 		},
-	}
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alrt)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 }
 
 func TestIncidentIORetryScenarios(t *testing.T) {
@@ -231,25 +229,23 @@ func TestIncidentIORetryScenarios(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			alert := &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "TestAlert",
-						"severity":  "critical",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alrt := alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "TestAlert",
+					"severity":  "critical",
 				},
-			}
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
-			retry, err := notifier.Notify(ctx, alert)
+			verdict := notifier.Notify(ctx, alrt)
 			if tc.expectErrorMsgContains == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.expectErrorMsgContains)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.expectErrorMsgContains)
 			}
-			require.Equal(t, tc.expectRetry, retry)
+			require.Equal(t, tc.expectRetry, verdict.ShouldRetry())
 		})
 	}
 }
@@ -325,28 +321,26 @@ func TestIncidentIOPayloadTruncation(t *testing.T) {
 	largeAnnotationStr := string(largeAnnotation)
 
 	// Create alerts with large annotations
-	var alerts []*types.Alert
+	var alerts []*alert.Alert
 	for i := range 10 { // 10 alerts * 100KB = 1MB total in annotations alone
-		alert := &types.Alert{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
-					"severity":  "critical",
-					"job":       "test-job",
-					"instance":  "test-instance",
-					"env":       "production",
-					"team":      "sre",
-				},
-				Annotations: model.LabelSet{
-					"description": model.LabelValue(largeAnnotationStr),
-					"runbook":     model.LabelValue(largeAnnotationStr),
-					"summary":     model.LabelValue("This is a test alert with very large annotations"),
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+		alrt := alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": model.LabelValue("TestAlert" + string(rune('0'+i))),
+				"severity":  "critical",
+				"job":       "test-job",
+				"instance":  "test-instance",
+				"env":       "production",
+				"team":      "sre",
 			},
-		}
-		alerts = append(alerts, alert)
+			Annotations: model.LabelSet{
+				"description": model.LabelValue(largeAnnotationStr),
+				"runbook":     model.LabelValue(largeAnnotationStr),
+				"summary":     model.LabelValue("This is a test alert with very large annotations"),
+			},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false)
+		alerts = append(alerts, alrt)
 	}
 
 	// Create template data
@@ -394,7 +388,7 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create many alerts with many labels to push size over limit even without annotations
-	var alerts []*types.Alert
+	var alerts []*alert.Alert
 	for i := range 100 { // Many alerts
 		labels := model.LabelSet{
 			"alertname": model.LabelValue("TestAlert" + string(rune('0'+i%10))),
@@ -413,14 +407,12 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 			labels[labelName] = model.LabelValue(labelValue)
 		}
 
-		alert := &types.Alert{
-			Alert: model.Alert{
-				Labels:   labels,
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
-			},
-		}
-		alerts = append(alerts, alert)
+		alrt := alert.New(model.Alert{
+			Labels:   labels,
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false)
+		alerts = append(alerts, alrt)
 	}
 
 	// Create template data
@@ -453,17 +445,17 @@ func TestIncidentIOPayloadTruncationWithLabelTruncation(t *testing.T) {
 	require.LessOrEqual(t, len(decodedMsg.Alerts), 100, "Number of alerts may have been reduced")
 
 	// Check that essential labels are preserved in remaining alerts
-	for _, alert := range decodedMsg.Alerts {
+	for _, alrt := range decodedMsg.Alerts {
 		// Essential labels should be preserved
-		require.Contains(t, alert.Labels["alertname"], "TestAlert")
-		require.Equal(t, "critical", alert.Labels["severity"])
-		require.Equal(t, "test-job", alert.Labels["job"])
-		require.Equal(t, "test-instance", alert.Labels["instance"])
+		require.Contains(t, alrt.Labels["alertname"], "TestAlert")
+		require.Equal(t, "critical", alrt.Labels["severity"])
+		require.Equal(t, "test-job", alrt.Labels["job"])
+		require.Equal(t, "test-instance", alrt.Labels["instance"])
 
 		// Check if labels were truncated (will have truncated_labels marker) or if we still have all labels
-		if truncatedLabels, ok := alert.Labels["truncated_labels"]; ok && truncatedLabels == "true" {
+		if truncatedLabels, ok := alrt.Labels["truncated_labels"]; ok && truncatedLabels == "true" {
 			// Non-essential labels should be removed
-			for k := range alert.Labels {
+			for k := range alrt.Labels {
 				if k != "alertname" &&
 					k != "severity" &&
 					k != "job" &&
@@ -506,17 +498,15 @@ func TestIncidentIOMetadataEmpty(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "TestAlert"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "TestAlert"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alrt)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 
 	// Verify metadata field is not present in JSON
 	var rawMsg map[string]json.RawMessage
@@ -558,17 +548,15 @@ func TestIncidentIOMetadataStatic(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "TestAlert"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "TestAlert"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alrt)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 
 	require.Equal(t, map[string]string{
 		"environment": "production",
@@ -611,32 +599,28 @@ func TestIncidentIOMetadataTemplated(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "HighLatency",
-					"severity":  "critical",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "HighLatency",
+				"severity":  "critical",
 			},
-		},
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"alertname": "HighLatency",
-					"severity":  "critical",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"alertname": "HighLatency",
+				"severity":  "critical",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}
 
-	retry, err := notifier.Notify(ctx, alerts...)
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alerts...)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 
 	require.Equal(t, "critical", receivedMsg.Metadata["severity"])
 	require.Equal(t, "HighLatency", receivedMsg.Metadata["alert_name"])
@@ -666,16 +650,14 @@ func TestIncidentIOMetadataTemplateError(t *testing.T) {
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
 
-	alert := &types.Alert{
-		Alert: model.Alert{
-			Labels:   model.LabelSet{"alertname": "TestAlert"},
-			StartsAt: time.Now(),
-			EndsAt:   time.Now().Add(time.Hour),
-		},
-	}
+	alrt := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "TestAlert"},
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
 
-	retry, err := notifier.Notify(ctx, alert)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to render metadata templates")
-	require.False(t, retry, "should not retry on template rendering errors")
+	verdict := notifier.Notify(ctx, alrt)
+	require.Error(t, verdict.Err())
+	require.Contains(t, verdict.Err().Error(), "failed to render metadata templates")
+	require.False(t, verdict.ShouldRetry(), "should not retry on template rendering errors")
 }

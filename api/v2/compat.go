@@ -30,10 +30,14 @@ import (
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
 func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSilence, error) {
+	return gettableSilenceFromProtoAt(s, time.Now())
+}
+
+func gettableSilenceFromProtoAt(s *silencepb.Silence, now time.Time) (open_api_models.GettableSilence, error) {
 	start := strfmt.DateTime(s.StartsAt.AsTime())
 	end := strfmt.DateTime(s.EndsAt.AsTime())
 	updated := strfmt.DateTime(s.UpdatedAt.AsTime())
-	state := string(silence.CurrentState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
+	state := string(silence.StateFromProtoAt(s, now))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
 			StartsAt:    &start,
@@ -192,21 +196,22 @@ func AlertToOpenAPIAlert(source *alert.Alert, status alert.AlertStatus, receiver
 	return aa
 }
 
-// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to []*alert.Alert.
-func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []*alert.Alert {
+// OpenAPIAlertsToAlerts converts open_api_models.PostableAlerts to
+// []prometheus_model.Alert. The result still has to be normalized and
+// validated before being turned into internal alerts with alert.New,
+// which then copies each alert into its own memory space.
+func OpenAPIAlertsToAlerts(ctx context.Context, apiAlerts open_api_models.PostableAlerts) []prometheus_model.Alert {
 	_, span := tracer.Start(ctx, "OpenAPIAlertsToAlerts")
 	defer span.End()
 
-	alerts := make([]*alert.Alert, 0, len(apiAlerts))
+	alerts := make([]prometheus_model.Alert, 0, len(apiAlerts))
 	for _, apiAlert := range apiAlerts {
-		alerts = append(alerts, &alert.Alert{
-			Alert: prometheus_model.Alert{
-				Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
-				Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
-				StartsAt:     time.Time(apiAlert.StartsAt),
-				EndsAt:       time.Time(apiAlert.EndsAt),
-				GeneratorURL: string(apiAlert.GeneratorURL),
-			},
+		alerts = append(alerts, prometheus_model.Alert{
+			Labels:       APILabelSetToModelLabelSet(apiAlert.Labels),
+			Annotations:  APILabelSetToModelLabelSet(apiAlert.Annotations),
+			StartsAt:     time.Time(apiAlert.StartsAt),
+			EndsAt:       time.Time(apiAlert.EndsAt),
+			GeneratorURL: string(apiAlert.GeneratorURL),
 		})
 	}
 

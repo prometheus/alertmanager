@@ -58,14 +58,14 @@ func (formatter *SimpleFormatter) FormatAlerts(alerts []*models.GettableAlert) e
 	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
 	sort.Sort(ByStartsAt(alerts))
 	fmt.Fprintln(w, "Alertname\tStarts At\tSummary\tState\t")
-	for _, alert := range alerts {
+	for _, alrt := range alerts {
 		fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t\n",
-			alert.Labels["alertname"],
-			FormatDate(*alert.StartsAt),
-			alert.Annotations["summary"],
-			*alert.Status.State,
+			alrt.Labels["alertname"],
+			FormatDate(*alrt.StartsAt),
+			alrt.Annotations["summary"],
+			*alrt.Status.State,
 		)
 	}
 	return w.Flush()

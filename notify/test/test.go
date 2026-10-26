@@ -24,9 +24,9 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // RetryTests returns a map of HTTP status codes to bool indicating whether the notifier should retry or not.
@@ -142,24 +142,23 @@ func AssertNotifyLeaksNoSecret(ctx context.Context, t *testing.T, n notify.Notif
 	require.NotEmpty(t, secret)
 
 	ctx = notify.WithGroupKey(ctx, "1")
-	ok, err := n.Notify(ctx, []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"lbl1": "val1",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	verdict := n.Notify(ctx, []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}...)
 
+	err := verdict.Err()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), context.Canceled.Error())
 	for _, s := range secret {
 		require.NotContains(t, err.Error(), s)
 	}
-	require.True(t, ok)
+	require.True(t, verdict.ShouldRetry())
 }
 
 // GetContextWithCancelingURL returns a context that gets canceled when a

@@ -569,7 +569,9 @@ receivers:
 
 	am.Push(At(1), Alert("alertname", "test1"))
 
-	co.Want(Between(3, 4), Alert("alertname", "test1").Active(1))
+	// Backoff only starts once an attempt times out, putting the last retry at
+	// 4.6s.
+	co.Want(Between(3, 5), Alert("alertname", "test1").Active(1))
 
 	at.Run()
 

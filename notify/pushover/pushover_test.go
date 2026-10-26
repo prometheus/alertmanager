@@ -16,15 +16,18 @@ package pushover
 import (
 	"net/http"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func TestPushoverRetry(t *testing.T) {
@@ -112,6 +115,35 @@ func TestPushoverReadingTokenFromFile(t *testing.T) {
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, token)
 }
 
+func TestPushoverTrimsTrailingNewlineFromFiles(t *testing.T) {
+	ctx, apiURL, fn := test.GetContextWithCancelingURL(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "user_key", r.FormValue("user"))
+		require.Equal(t, "token", r.FormValue("token"))
+	})
+	defer fn()
+
+	dir := t.TempDir()
+	userKeyFile := filepath.Join(dir, "user_key")
+	require.NoError(t, os.WriteFile(userKeyFile, []byte("user_key\n"), 0o600))
+	tokenFile := filepath.Join(dir, "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("token\n"), 0o600))
+
+	notifier, err := New(
+		&PushoverConfig{
+			UserKeyFile: userKeyFile,
+			TokenFile:   tokenFile,
+			HTTPConfig:  &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+	notifier.apiURL = apiURL.String()
+
+	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
+}
+
 func TestPushoverMonospaceParameter(t *testing.T) {
 	ctx, apiURL, fn := test.GetContextWithCancelingURL(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm())
@@ -132,6 +164,5 @@ func TestPushoverMonospaceParameter(t *testing.T) {
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
 
-	_, err = notifier.Notify(notify.WithGroupKey(ctx, "1"), &types.Alert{})
-	require.NoError(t, err)
+	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
 }

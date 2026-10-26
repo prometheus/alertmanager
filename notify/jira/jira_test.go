@@ -31,10 +31,10 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 func jiraStringDescription(v string) *jiraDescription {
@@ -164,16 +164,14 @@ func TestSearchExistingIssue(t *testing.T) {
 			tc.cfg.APIURL = &amcommoncfg.URL{URL: u}
 			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
 
-			as := []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"project": "PROJ",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			as := []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"project": "PROJ",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}
 
 			pd, err := New(tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
@@ -189,7 +187,7 @@ func TestSearchExistingIssue(t *testing.T) {
 				return tmplText(tmpl), tmplTextErr
 			}
 
-			issue, retry, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
+			issue, retry, _, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
 			if tc.expectedErr {
 				require.Error(t, err)
 			} else {
@@ -454,25 +452,23 @@ func TestJiraTemplating(t *testing.T) {
 				"hostname": "host1.example.com",
 			})
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1":     "val1",
-							"hostname": "host1.example.com",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1":     "val1",
+						"hostname": "host1.example.com",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
 
 			// Verify that custom fields were templated correctly
 			if tc.expectedFieldKey != "" {
@@ -490,7 +486,7 @@ func TestJiraNotify(t *testing.T) {
 		title string
 		cfg   *JiraConfig
 
-		alert *types.Alert
+		alert *alert.Alert
 
 		customFieldAssetFn func(t *testing.T, issue map[string]any)
 		searchResponse     issueSearchResult
@@ -511,17 +507,15 @@ func TestJiraNotify(t *testing.T) {
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
 			},
-			alert: &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "test",
-						"instance":  "vm1",
-						"severity":  "critical",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test",
+					"instance":  "vm1",
+					"severity":  "critical",
 				},
-			},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false),
 			searchResponse: issueSearchResult{
 				Issues: []issue{},
 			},
@@ -559,19 +553,17 @@ func TestJiraNotify(t *testing.T) {
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
 			},
-			alert: &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname":  "test",
-						"instance":   "vm1",
-						"severity":   "critical",
-						"project":    "MONITORING",
-						"issue_type": "MINOR",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname":  "test",
+					"instance":   "vm1",
+					"severity":   "critical",
+					"project":    "MONITORING",
+					"issue_type": "MINOR",
 				},
-			},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false),
 			searchResponse: issueSearchResult{
 				Issues: []issue{
 					{
@@ -624,19 +616,17 @@ func TestJiraNotify(t *testing.T) {
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
 			},
-			alert: &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname":  "test",
-						"instance":   "vm1",
-						"severity":   "critical",
-						"project":    "MONITORING",
-						"issue_type": "MINOR",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname":  "test",
+					"instance":   "vm1",
+					"severity":   "critical",
+					"project":    "MONITORING",
+					"issue_type": "MINOR",
 				},
-			},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false),
 			searchResponse: issueSearchResult{
 				Issues: []issue{},
 			},
@@ -681,16 +671,14 @@ func TestJiraNotify(t *testing.T) {
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
 			},
-			alert: &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "test",
-						"instance":  "vm1",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test",
+					"instance":  "vm1",
 				},
-			},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false),
 			searchResponse: issueSearchResult{
 				Issues: []issue{},
 			},
@@ -733,16 +721,14 @@ func TestJiraNotify(t *testing.T) {
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
 			},
-			alert: &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "test",
-						"instance":  "vm1",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test",
+					"instance":  "vm1",
 				},
-			},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false),
 			searchResponse: issueSearchResult{
 				Issues: []issue{
 					{
@@ -788,16 +774,14 @@ func TestJiraNotify(t *testing.T) {
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
 			},
-			alert: &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "test",
-						"instance":  "vm1",
-					},
-					StartsAt: time.Now().Add(-time.Hour),
-					EndsAt:   time.Now().Add(-time.Hour),
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test",
+					"instance":  "vm1",
 				},
-			},
+				StartsAt: time.Now().Add(-time.Hour),
+				EndsAt:   time.Now().Add(-time.Hour),
+			}, time.Time{}, false),
 			searchResponse: issueSearchResult{
 				Issues: []issue{
 					{
@@ -842,16 +826,14 @@ func TestJiraNotify(t *testing.T) {
 				ResolveTransition: "CLOSE",
 				WontFixResolution: "WONTFIX",
 			},
-			alert: &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "test",
-						"instance":  "vm1",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test",
+					"instance":  "vm1",
 				},
-			},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false),
 			searchResponse: issueSearchResult{
 				Issues: []issue{
 					{
@@ -1045,12 +1027,12 @@ func TestJiraNotify(t *testing.T) {
 			ctx = notify.WithGroupKey(ctx, "1")
 			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"alertname": "test"})
 
-			_, err = notifier.Notify(ctx, tc.alert)
+			verdict := notifier.Notify(ctx, tc.alert)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.EqualError(t, err, tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.EqualError(t, verdict.Err(), tc.errMsg)
 			}
 		})
 	}
@@ -1061,180 +1043,156 @@ func TestJiraPriority(t *testing.T) {
 	for _, tc := range []struct {
 		title string
 
-		alerts []*types.Alert
+		alerts []*alert.Alert
 
 		expectedPriority string
 	}{
 		{
 			"empty",
-			[]*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			[]*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			"",
 		},
 		{
 			"critical",
-			[]*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "critical",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			[]*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			"High",
 		},
 		{
 			"warning",
-			[]*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "warning",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			[]*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "warning",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			"Medium",
 		},
 		{
 			"info",
-			[]*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "info",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			[]*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "info",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			"Low",
 		},
 		{
 			"critical+warning+info",
-			[]*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "critical",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			[]*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
 					},
-				},
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "warning",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "warning",
 					},
-				},
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "info",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "info",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			"High",
 		},
 		{
 			"warning+info",
-			[]*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "warning",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			[]*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "warning",
 					},
-				},
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "info",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "info",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			"Medium",
 		},
 		{
 			"critical(resolved)+warning+info",
-			[]*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "critical",
-						},
-						StartsAt: time.Now().Add(-time.Hour),
-						EndsAt:   time.Now().Add(-time.Hour),
+			[]*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "critical",
 					},
-				},
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "warning",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+					StartsAt: time.Now().Add(-time.Hour),
+					EndsAt:   time.Now().Add(-time.Hour),
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "warning",
 					},
-				},
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"alertname": "test",
-							"instance":  "vm1",
-							"severity":  "info",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"alertname": "test",
+						"instance":  "vm1",
+						"severity":  "info",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			},
 			"Medium",
 		},
@@ -1304,24 +1262,22 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 			notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
 			require.NoError(t, err)
 
-			alert := &types.Alert{
-				Alert: model.Alert{
-					Labels: model.LabelSet{
-						"alertname": "test",
-						"instance":  "vm1",
-						"severity":  "critical",
-					},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
+			alrt := alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test",
+					"instance":  "vm1",
+					"severity":  "critical",
 				},
-			}
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
 			ctx := context.Background()
 			groupID := "1"
 			ctx = notify.WithGroupKey(ctx, groupID)
-			ctx = notify.WithGroupLabels(ctx, alert.Labels)
+			ctx = notify.WithGroupLabels(ctx, alrt.Labels)
 
-			alerts := []*types.Alert{alert}
+			alerts := []*alert.Alert{alrt}
 			logger := notifier.logger.With("group_key", groupID)
 			data := notify.GetTemplateData(ctx, notifier.tmpl, alerts, logger)
 

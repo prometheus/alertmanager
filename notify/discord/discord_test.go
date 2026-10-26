@@ -31,9 +31,9 @@ import (
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
-	"github.com/prometheus/alertmanager/types"
 )
 
 // This is a test URL that has been modified to not be valid.
@@ -111,24 +111,22 @@ func TestDiscordTemplating(t *testing.T) {
 			ctx := context.Background()
 			ctx = notify.WithGroupKey(ctx, "1")
 
-			ok, err := pd.Notify(ctx, []*types.Alert{
-				{
-					Alert: model.Alert{
-						Labels: model.LabelSet{
-							"lbl1": "val1",
-						},
-						StartsAt: time.Now(),
-						EndsAt:   time.Now().Add(time.Hour),
+			verdict := pd.Notify(ctx, []*alert.Alert{
+				alert.New(model.Alert{
+					Labels: model.LabelSet{
+						"lbl1": "val1",
 					},
-				},
+					StartsAt: time.Now(),
+					EndsAt:   time.Now().Add(time.Hour),
+				}, time.Time{}, false),
 			}...)
 			if tc.errMsg == "" {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			} else {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tc.errMsg)
+				require.Error(t, verdict.Err())
+				require.Contains(t, verdict.Err().Error(), tc.errMsg)
 			}
-			require.Equal(t, tc.retry, ok)
+			require.Equal(t, tc.retry, verdict.ShouldRetry())
 		})
 	}
 }
@@ -169,18 +167,15 @@ func TestDiscordFailureReason(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := notify.WithGroupKey(context.Background(), "1")
-			alert := &types.Alert{
-				Alert: model.Alert{
-					Labels:   model.LabelSet{"lbl1": "val1"},
-					StartsAt: time.Now(),
-					EndsAt:   time.Now().Add(time.Hour),
-				},
-			}
+			alrt := alert.New(model.Alert{
+				Labels:   model.LabelSet{"lbl1": "val1"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
 
-			_, err = notifier.Notify(ctx, alert)
-			var reasonError *notify.ErrorWithReason
-			require.ErrorAs(t, err, &reasonError)
-			require.Equal(t, tc.expectedReason, reasonError.Reason)
+			verdict := notifier.Notify(ctx, alrt)
+			require.Error(t, verdict.Err())
+			require.Equal(t, tc.expectedReason, verdict.Reason())
 		})
 	}
 }
@@ -264,22 +259,20 @@ func TestDiscord_Notify(t *testing.T) {
 	// Create a context and alerts
 	ctx := context.Background()
 	ctx = notify.WithGroupKey(ctx, "1")
-	alerts := []*types.Alert{
-		{
-			Alert: model.Alert{
-				Labels: model.LabelSet{
-					"lbl1": "val1",
-				},
-				StartsAt: time.Now(),
-				EndsAt:   time.Now().Add(time.Hour),
+	alerts := []*alert.Alert{
+		alert.New(model.Alert{
+			Labels: model.LabelSet{
+				"lbl1": "val1",
 			},
-		},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false),
 	}
 
 	// Call the Notify method
-	ok, err := notifier.Notify(ctx, alerts...)
-	require.NoError(t, err)
-	require.False(t, ok)
+	verdict := notifier.Notify(ctx, alerts...)
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 
 	require.JSONEq(t, `{"content":"Test Content","embeds":[{"title":"Test Title","description":"Test Message","color":10038562}],"username":"Test Username","avatar_url":"http://example.com/avatar.png"}`, resp)
 }

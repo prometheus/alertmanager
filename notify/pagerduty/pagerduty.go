@@ -29,9 +29,9 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -148,7 +148,7 @@ func (n *Notifier) notifyV1(
 	key notify.Key,
 	data *template.Data,
 	details map[string]any,
-) (bool, error) {
+) (bool, notify.Reason, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
@@ -161,7 +161,7 @@ func (n *Notifier) notifyV1(
 	if serviceKey == "" {
 		content, fileErr := os.ReadFile(n.conf.ServiceKeyFile)
 		if fileErr != nil {
-			return false, fmt.Errorf("failed to read service key from file: %w", fileErr)
+			return false, notify.FileReadErrorReason, fmt.Errorf("failed to read service key from file: %w", fileErr)
 		}
 		serviceKey = strings.TrimSpace(string(content))
 	}
@@ -180,30 +180,33 @@ func (n *Notifier) notifyV1(
 	}
 
 	if tmplErr != nil {
-		return false, fmt.Errorf("failed to template PagerDuty v1 message: %w", tmplErr)
+		return false, notify.TemplateErrorReason, fmt.Errorf("failed to template PagerDuty v1 message: %w", tmplErr)
 	}
 
 	// Ensure that the service key isn't empty after templating.
 	if msg.ServiceKey == "" {
-		return false, errors.New("service key cannot be empty")
+		return false, notify.ConfigErrorReason, errors.New("service key cannot be empty")
 	}
 
 	encodedMsg, err := n.encodeMessage(msg)
 	if err != nil {
-		return false, err
+		return false, notify.EncodingErrorReason, err
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.apiV1, &encodedMsg)
 	if err != nil {
-		return true, fmt.Errorf("failed to post message to PagerDuty v1: %w", err)
+		return true, notify.RequestErrorReason, fmt.Errorf("failed to post message to PagerDuty v1: %w", err)
 	}
 	defer notify.Drain(resp)
 
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		if resp.StatusCode == http.StatusForbidden {
+			return retry, notify.RateLimitedReason, err
+		}
+		return retry, notify.GetFailureReasonFromStatusCode(resp.StatusCode), err
 	}
-	return retry, err
+	return retry, notify.DefaultReason, err
 }
 
 func (n *Notifier) notifyV2(
@@ -212,12 +215,13 @@ func (n *Notifier) notifyV2(
 	key notify.Key,
 	data *template.Data,
 	details map[string]any,
-) (bool, error) {
+) (bool, notify.Reason, error) {
 	var tmplErr error
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
-	if n.conf.Severity == "" {
-		n.conf.Severity = "error"
+	severity := n.conf.Severity
+	if severity == "" {
+		severity = "error"
 	}
 
 	summary, truncated := notify.TruncateInRunes(tmpl(n.conf.Description), maxV2SummaryLenRunes)
@@ -229,7 +233,7 @@ func (n *Notifier) notifyV2(
 	if routingKey == "" {
 		content, fileErr := os.ReadFile(n.conf.RoutingKeyFile)
 		if fileErr != nil {
-			return false, fmt.Errorf("failed to read routing key from file: %w", fileErr)
+			return false, notify.FileReadErrorReason, fmt.Errorf("failed to read routing key from file: %w", fileErr)
 		}
 		routingKey = strings.TrimSpace(string(content))
 	}
@@ -245,7 +249,7 @@ func (n *Notifier) notifyV2(
 		Payload: &pagerDutyPayload{
 			Summary:       summary,
 			Source:        tmpl(n.conf.Source),
-			Severity:      tmpl(n.conf.Severity),
+			Severity:      tmpl(severity),
 			CustomDetails: details,
 			Class:         tmpl(n.conf.Class),
 			Component:     tmpl(n.conf.Component),
@@ -277,42 +281,39 @@ func (n *Notifier) notifyV2(
 	}
 
 	if tmplErr != nil {
-		return false, fmt.Errorf("failed to template PagerDuty v2 message: %w", tmplErr)
+		return false, notify.TemplateErrorReason, fmt.Errorf("failed to template PagerDuty v2 message: %w", tmplErr)
 	}
 
 	// Ensure that the routing key isn't empty after templating.
 	if msg.RoutingKey == "" {
-		return false, errors.New("routing key cannot be empty")
+		return false, notify.ConfigErrorReason, errors.New("routing key cannot be empty")
 	}
 
 	encodedMsg, err := n.encodeMessage(msg)
 	if err != nil {
-		return false, err
+		return false, notify.EncodingErrorReason, err
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.conf.URL.String(), &encodedMsg)
 	if err != nil {
-		return true, fmt.Errorf("failed to post message to PagerDuty: %w", err)
+		return true, notify.RequestErrorReason, fmt.Errorf("failed to post message to PagerDuty: %w", err)
 	}
 	defer notify.Drain(resp)
 
 	retry, err := n.retrier.Check(resp.StatusCode, resp.Body)
-	if err != nil {
-		return retry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
-	}
-	return retry, err
+	return retry, notify.GetFailureReasonFromStatusCode(resp.StatusCode), err
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.MissingContextReason)
 	}
 	logger := n.logger.With("group_key", key)
 
 	var (
-		alerts    = types.Alerts(as...)
+		alerts    = alert.Alerts(as...)
 		data      = notify.GetTemplateData(ctx, n.tmpl, as, logger)
 		eventType = pagerDutyEventTrigger
 	)
@@ -325,7 +326,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	details, err := n.renderDetails(data)
 	if err != nil {
-		return false, fmt.Errorf("failed to render details: %w", err)
+		return notify.Unrecoverable(fmt.Errorf("failed to render details: %w", err), notify.TemplateErrorReason)
 	}
 
 	if n.conf.Timeout > 0 {
@@ -338,14 +339,25 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if n.apiV1 != "" {
 		nf = n.notifyV1
 	}
-	retry, err := nf(ctx, eventType, key, data, details)
+	retry, reason, err := nf(ctx, eventType, key, data, details)
 	if err != nil {
+		if reason == notify.RequestErrorReason {
+			switch {
+			case errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled):
+				reason = notify.ContextCanceledReason
+			case errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded):
+				reason = notify.ContextDeadlineExceededReason
+			}
+		}
 		if ctx.Err() != nil {
 			err = fmt.Errorf("%w: %w", err, context.Cause(ctx))
 		}
-		return retry, err
+		if retry {
+			return notify.Retry(0, err, reason)
+		}
+		return notify.Unrecoverable(err, reason)
 	}
-	return retry, nil
+	return notify.Success()
 }
 
 func errDetails(status int, body io.Reader) string {

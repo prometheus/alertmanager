@@ -16,7 +16,7 @@ package pushover
 import (
 	"testing"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 func TestPushoverUserKeyIsPresent(t *testing.T) {

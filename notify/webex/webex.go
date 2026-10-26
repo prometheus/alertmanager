@@ -23,10 +23,9 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 
-	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/types"
 )
 
 const (
@@ -36,7 +35,7 @@ const (
 )
 
 type Notifier struct {
-	conf    *config.WebexConfig
+	conf    *WebexConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
 	client  *http.Client
@@ -44,7 +43,7 @@ type Notifier struct {
 }
 
 // New returns a new Webex notifier.
-func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
+func New(c *WebexConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
 	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "webex", httpOpts...)
 	if err != nil {
 		return nil, err
@@ -67,10 +66,10 @@ type webhook struct {
 }
 
 // Notify implements the Notifier interface.
-func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	logger := n.logger.With("group_key", key)
@@ -79,12 +78,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 	tmpl := notify.TmplText(n.tmpl, data, &err)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	message := tmpl(n.conf.Message)
 	if err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	message, truncated := notify.TruncateInBytes(message, maxMessageSize)
@@ -99,29 +98,28 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	var payload bytes.Buffer
 	if err = json.NewEncoder(&payload).Encode(w); err != nil {
-		return false, err
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	resp, err := notify.PostJSON(ctx, n.client, n.conf.APIURL.String(), &payload)
 	received := time.Now()
 	if err != nil {
-		return true, notify.RedactURL(err)
+		return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
 	}
 	defer notify.Drain(resp)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		if resp.StatusCode == http.StatusTooManyRequests {
-			if d := notify.ParseRetryAfter(resp.Header, received); d > 0 {
-				logger.Warn("Rate limited by Webex, waiting before retry", "retry_after_secs", d.Seconds())
-				select {
-				case <-time.After(d):
-				case <-ctx.Done():
-				}
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			retryAfter := notify.ParseRetryAfter(resp.Header, received)
+			if retryAfter > 0 {
+				logger.Warn("Rate limited by Webex, delaying retry", "retry_after_secs", retryAfter.Seconds())
 			}
+			return notify.Retry(retryAfter, err, reason)
 		}
-		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
+		return notify.Unrecoverable(err, reason)
 	}
 
-	return false, nil
+	return notify.Success()
 }

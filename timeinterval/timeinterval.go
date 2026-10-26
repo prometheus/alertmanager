@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 // Intervener determines whether a given time and active route time interval should mute outgoing notifications.
@@ -50,6 +50,29 @@ func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error
 	}
 
 	return len(in) > 0, in, nil
+}
+
+// ContainsTime reports whether any of the named intervals contains now,
+// without collecting the matching names. Like Mutes, it validates every name,
+// including those after the first match.
+func (i *Intervener) ContainsTime(names []string, now time.Time) (bool, error) {
+	contains := false
+	for _, name := range names {
+		interval, ok := i.intervals[name]
+		if !ok {
+			return false, fmt.Errorf("time interval %s doesn't exist in config", name)
+		}
+		if contains {
+			continue
+		}
+		for _, ti := range interval {
+			if ti.ContainsTime(now.UTC()) {
+				contains = true
+				break
+			}
+		}
+	}
+	return contains, nil
 }
 
 func NewIntervener(ti map[string][]TimeInterval) *Intervener {
@@ -83,6 +106,7 @@ type InclusiveRange struct {
 }
 
 // A WeekdayRange is an inclusive range between [0, 6] where 0 = Sunday.
+// Begin may be greater than End to wrap around the end of the week, e.g. friday:monday.
 type WeekdayRange struct {
 	InclusiveRange
 }
@@ -242,9 +266,6 @@ func (r *WeekdayRange) UnmarshalYAML(unmarshal func(any) error) error {
 	if err := stringableRangeFromString(str, r); err != nil {
 		return err
 	}
-	if r.Begin > r.End {
-		return errors.New("start day cannot be before end day")
-	}
 	if r.Begin < 0 || r.Begin > 6 {
 		return fmt.Errorf("%s is not a valid day of the week: out of range", str)
 	}
@@ -311,6 +332,12 @@ func (r *MonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if err := stringableRangeFromString(str, r); err != nil {
 		return err
+	}
+	if r.Begin < 1 || r.Begin > 12 {
+		return fmt.Errorf("%d is not a valid month: out of range", r.Begin)
+	}
+	if r.End < 1 || r.End > 12 {
+		return fmt.Errorf("%d is not a valid month: out of range", r.End)
 	}
 	if r.Begin > r.End {
 		begin := monthsInv[r.Begin]
@@ -550,7 +577,13 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Weekdays != nil {
 		in := false
 		for _, validDays := range tp.Weekdays {
-			if t.Weekday() >= time.Weekday(validDays.Begin) && t.Weekday() <= time.Weekday(validDays.End) {
+			// A range where Begin > End wraps around the end of the week, e.g. friday:monday.
+			if validDays.Begin <= validDays.End {
+				if t.Weekday() >= time.Weekday(validDays.Begin) && t.Weekday() <= time.Weekday(validDays.End) {
+					in = true
+					break
+				}
+			} else if t.Weekday() >= time.Weekday(validDays.Begin) || t.Weekday() <= time.Weekday(validDays.End) {
 				in = true
 				break
 			}

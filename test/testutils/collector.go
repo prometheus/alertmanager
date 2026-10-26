@@ -216,8 +216,8 @@ func CompareCollectors(a, b *Collector, opts *AcceptanceOpts) (bool, error) {
 		result := []*models.GettableAlert{}
 		for _, batches := range collected {
 			for _, batch := range batches {
-				for _, alert := range batch {
-					result = append(result, alert)
+				for _, alrt := range batch {
+					result = append(result, alrt)
 				}
 			}
 		}

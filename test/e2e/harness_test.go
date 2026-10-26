@@ -11,21 +11,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package e2e contains end-to-end tests that boot Alertmanager in-process via
+// the app package and exercise the experimental Connect API services through
+// their generated ConnectRPC clients.
+//
+// The tests in this package intentionally do not call t.Parallel: building the
+// API v2 router mutates a process-global OpenAPI spec inside go-openapi, and
+// starting several instances concurrently trips the race detector.
 package e2e
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"testing"
 	"time"
 
 	"connectrpc.com/connect"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/exporter-toolkit/web"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/app"
@@ -39,6 +49,26 @@ receivers:
   - name: default
 `
 
+// requestTimeout bounds every request an e2e test makes against an instance.
+const requestTimeout = 5 * time.Second
+
+// featureFlags is the feature set shared by every instance in this package.
+var featureFlags featurecontrol.Flagger
+
+// TestMain initializes the process-global matcher compatibility mode once.
+// The call to compat.InitFromFlags mutates package-level state, so it must
+// not run concurrently from parallel tests.
+func TestMain(m *testing.M) {
+	logger := promslog.NewNopLogger()
+	ff, err := featurecontrol.NewFlags(logger, "")
+	if err != nil {
+		panic(err)
+	}
+	featureFlags = ff
+	compat.InitFromFlags(logger, ff)
+	os.Exit(m.Run())
+}
+
 // instance is a running in-process Alertmanager bound to an ephemeral port
 // with clustering disabled. Both API v2 and the Connect API are served.
 type instance struct {
@@ -46,84 +76,114 @@ type instance struct {
 	baseURL     string
 	routePrefix string
 	httpClient  *http.Client
-	h2cClient   *http.Client
+	rpcClient   *http.Client
+	tlsConfig   *tls.Config
 }
 
-// startInstance boots an Alertmanager and registers its teardown (and
-// temp-dir removal) via Ginkgo's DeferCleanup.
-func startInstance(routePrefix string) *instance {
-	GinkgoHelper()
+type instanceOptions struct {
+	routePrefix  string
+	tlsEnabled   bool
+	disableHTTP2 bool
+}
 
-	dir, err := os.MkdirTemp("", "am-e2e-")
-	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() { _ = os.RemoveAll(dir) })
+// startInstance boots an Alertmanager and stops it when the test ends.
+func startInstance(t testing.TB, options instanceOptions, configure ...func(*app.Options)) *instance {
+	t.Helper()
 
+	dir := t.TempDir()
 	configPath := filepath.Join(dir, "alertmanager.yml")
-	Expect(os.WriteFile(configPath, []byte(minimalConfig), 0o600)).To(Succeed())
-
-	logger := promslog.NewNopLogger()
-	ff, err := featurecontrol.NewFlags(logger, "")
-	Expect(err).NotTo(HaveOccurred())
-	// compat.InitFromFlags mutates package-global matcher state; the e2e
-	// suite always uses the same feature set, so this is safe.
-	compat.InitFromFlags(logger, ff)
+	require.NoError(t, os.WriteFile(configPath, []byte(minimalConfig), 0o600))
 
 	addrs := []string{"127.0.0.1:0"}
 	systemd := false
 	webCfg := ""
+	var clientTLS *tls.Config
+	if options.tlsEnabled {
+		certDir, err := filepath.Abs(filepath.Join("..", "..", "cluster", "testdata", "certs"))
+		require.NoError(t, err)
+		ca, err := os.ReadFile(filepath.Join(certDir, "ca.pem"))
+		require.NoError(t, err)
+		webCfg = filepath.Join(dir, "web.yml")
+		require.NoError(t, os.WriteFile(webCfg, []byte(fmt.Sprintf(`tls_server_config:
+  cert_file: %q
+  key_file: %q
+http_server_config:
+  http2: %t
+`, filepath.Join(certDir, "node1.pem"), filepath.Join(certDir, "node1-key.pem"), !options.disableHTTP2)), 0o600))
+		roots := x509.NewCertPool()
+		require.True(t, roots.AppendCertsFromPEM(ca))
+		clientTLS = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
+	}
 
 	opts := app.DefaultOptions()
 	opts.ConfigFile = configPath
 	opts.DataDir = dir
-	opts.RoutePrefix = routePrefix
+	opts.RoutePrefix = options.routePrefix
 	opts.WebConfig = &web.FlagConfig{
 		WebListenAddresses: &addrs,
 		WebSystemdSocket:   &systemd,
 		WebConfigFile:      &webCfg,
 	}
-	opts.Logger = logger
+	opts.Logger = promslog.NewNopLogger()
 	opts.Registerer = prometheus.NewRegistry()
-	opts.Flagger = ff
+	opts.Flagger = featureFlags
+	for _, c := range configure {
+		c(&opts)
+	}
 
 	a, err := app.New(opts)
-	Expect(err).NotTo(HaveOccurred())
-	DeferCleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
-		Expect(a.Stop(ctx)).To(Succeed())
+		require.NoError(t, a.Stop(ctx))
 	})
-	Expect(a.Start()).To(Succeed())
+	require.NoError(t, a.Start())
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	DeferCleanup(client.CloseIdleConnections)
-	protocols := new(http.Protocols)
-	protocols.SetUnencryptedHTTP2(true)
-	h2cTransport := &http.Transport{Protocols: protocols}
-	h2cClient := &http.Client{Transport: h2cTransport, Timeout: 5 * time.Second}
-	DeferCleanup(h2cTransport.CloseIdleConnections)
+	client := &http.Client{Timeout: requestTimeout}
+	var rpcClient *http.Client
+	scheme := "http://"
+	if options.tlsEnabled {
+		protocols := new(http.Protocols)
+		protocols.SetHTTP1(true)
+		protocols.SetHTTP2(true)
+		transport := &http.Transport{TLSClientConfig: clientTLS, Protocols: protocols}
+		client = &http.Client{Transport: transport, Timeout: requestTimeout}
+		rpcClient = client
+		scheme = "https://"
+		t.Cleanup(transport.CloseIdleConnections)
+	} else {
+		t.Cleanup(client.CloseIdleConnections)
+		protocols := new(http.Protocols)
+		protocols.SetUnencryptedHTTP2(true)
+		transport := &http.Transport{Protocols: protocols}
+		rpcClient = &http.Client{Transport: transport, Timeout: requestTimeout}
+		t.Cleanup(transport.CloseIdleConnections)
+	}
 
 	inst := &instance{
 		app:         a,
-		baseURL:     "http://" + a.Addr(),
-		routePrefix: routePrefix,
+		baseURL:     scheme + a.Addr(),
+		routePrefix: options.routePrefix,
 		httpClient:  client,
-		h2cClient:   h2cClient,
+		rpcClient:   rpcClient,
+		tlsConfig:   clientTLS,
 	}
-	inst.waitHealthy()
+	inst.waitHealthy(t)
 	return inst
 }
 
 // waitHealthy blocks until the instance serves /-/healthy with a 200.
-func (i *instance) waitHealthy() {
-	GinkgoHelper()
-	Eventually(func() int {
+func (i *instance) waitHealthy(t testing.TB) {
+	t.Helper()
+	require.Eventually(t, func() bool {
 		resp, err := i.httpClient.Get(i.webURL("/-/healthy"))
 		if err != nil {
-			return 0
+			return false
 		}
 		_ = resp.Body.Close()
-		return resp.StatusCode
-	}, 5*time.Second, 50*time.Millisecond).Should(Equal(http.StatusOK))
+		return resp.StatusCode == http.StatusOK
+	}, requestTimeout, 50*time.Millisecond)
 }
 
 func (i *instance) webURL(path string) string {

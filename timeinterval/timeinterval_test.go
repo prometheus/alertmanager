@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 )
 
 var timeIntervalTestCases = []struct {
@@ -319,12 +319,77 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "couldn't parse timestamp 99:99, invalid format",
 	},
 	{
-		// Start day before end day.
+		// Start day after end day wraps around the week.
 		in: `
 ---
 - weekdays: ['friday:monday']`,
-		expectError: true,
-		err:         "start day cannot be before end day",
+		intervals: []TimeInterval{
+			{
+				Weekdays: []WeekdayRange{{InclusiveRange{Begin: 5, End: 1}}},
+			},
+		},
+		contains: []string{
+			"31 Jul 20 13:00 +0000", // Friday
+			"01 Aug 20 13:00 +0000", // Saturday
+			"02 Aug 20 13:00 +0000", // Sunday
+			"03 Aug 20 13:00 +0000", // Monday
+		},
+		excludes: []string{
+			"04 Aug 20 13:00 +0000", // Tuesday
+			"05 Aug 20 13:00 +0000", // Wednesday
+			"06 Aug 20 13:00 +0000", // Thursday
+		},
+	},
+	{
+		// unorthodox valid weekdays order
+		in: `
+---
+- weekdays: ['wednesday', 'saturday:monday', 'friday']`,
+		intervals: []TimeInterval{
+			{
+				Weekdays: []WeekdayRange{
+					{InclusiveRange{Begin: 3, End: 3}},
+					{InclusiveRange{Begin: 6, End: 1}},
+					{InclusiveRange{Begin: 5, End: 5}},
+				},
+			},
+		},
+		contains: []string{
+			"31 Jul 20 13:00 +0000", // Friday
+			"01 Aug 20 13:00 +0000", // Saturday
+			"02 Aug 20 13:00 +0000", // Sunday
+			"03 Aug 20 13:00 +0000", // Monday
+			"05 Aug 20 13:00 +0000", // Wednesday
+		},
+		excludes: []string{
+			"04 Aug 20 13:00 +0000", // Tuesday
+			"06 Aug 20 13:00 +0000", // Thursday
+		},
+	},
+	{
+		// weekday range with single day
+		in: `
+---
+- weekdays: ['wednesday:wednesday', 'friday']`,
+		intervals: []TimeInterval{
+			{
+				Weekdays: []WeekdayRange{
+					{InclusiveRange{Begin: 3, End: 3}},
+					{InclusiveRange{Begin: 5, End: 5}},
+				},
+			},
+		},
+		contains: []string{
+			"31 Jul 20 13:00 +0000", // Friday
+			"05 Aug 20 13:00 +0000", // Wednesday
+		},
+		excludes: []string{
+			"01 Aug 20 13:00 +0000", // Saturday
+			"02 Aug 20 13:00 +0000", // Sunday
+			"03 Aug 20 13:00 +0000", // Monday
+			"04 Aug 20 13:00 +0000", // Tuesday
+			"06 Aug 20 13:00 +0000", // Thursday
+		},
 	},
 	{
 		// Invalid weekdays.
@@ -465,6 +530,64 @@ var yamlUnmarshalTestCases = []struct {
 `,
 		expectError: true,
 		err:         "end month january is before start month december",
+	},
+	{
+		// Month number above 12.
+		in: `
+---
+- months: ['13']
+`,
+		expectError: true,
+		err:         "13 is not a valid month: out of range",
+	},
+	{
+		// Month number 0.
+		in: `
+---
+- months: ['0']
+`,
+		expectError: true,
+		err:         "0 is not a valid month: out of range",
+	},
+	{
+		// Negative start month.
+		in: `
+---
+- months: ['-1:3']
+`,
+		expectError: true,
+		err:         "-1 is not a valid month: out of range",
+	},
+	{
+		// End month above 12.
+		in: `
+---
+- months: ['october:14']
+`,
+		expectError: true,
+		err:         "14 is not a valid month: out of range",
+	},
+	{
+		// Out-of-range start month after end month.
+		in: `
+---
+- months: ['13:12']
+`,
+		expectError: true,
+		err:         "13 is not a valid month: out of range",
+	},
+	{
+		// Numeric months at both boundaries.
+		in: `
+---
+- months: ['1:12']
+`,
+		expectError: false,
+		intervals: []TimeInterval{
+			{
+				Months: []MonthRange{{InclusiveRange{1, 12}}},
+			},
+		},
 	},
 	{
 		// Start year after end year.
@@ -752,6 +875,9 @@ func TestIntervener_Mutes(t *testing.T) {
 
 			isMuted, mutedBy, err := intervener.Mutes(timeIntervalNames, test.now)
 			require.NoError(t, err)
+			contains, err := intervener.ContainsTime(timeIntervalNames, test.now)
+			require.NoError(t, err)
+			require.Equal(t, len(test.mutedBy) > 0, contains)
 
 			if len(test.mutedBy) == 0 {
 				require.False(t, isMuted)
@@ -760,6 +886,43 @@ func TestIntervener_Mutes(t *testing.T) {
 				require.True(t, isMuted)
 				require.Equal(t, test.mutedBy, mutedBy)
 			}
+		})
+	}
+}
+
+func TestIntervenerContainsTime(t *testing.T) {
+	t.Parallel()
+	intervener := NewIntervener(map[string][]TimeInterval{
+		"empty":   nil,
+		"always":  {{}, {}},
+		"evening": {{Times: []TimeRange{{StartMinute: 17 * 60, EndMinute: 24 * 60}}}},
+	})
+	now := time.Date(2026, time.January, 1, 10, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		names    []string
+		contains bool
+		wantErr  bool
+	}{
+		{name: "no names"},
+		{name: "no definitions", names: []string{"empty"}},
+		{name: "no match", names: []string{"evening"}},
+		{name: "match first", names: []string{"always", "evening"}, contains: true},
+		{name: "match last", names: []string{"evening", "always"}, contains: true},
+		{name: "duplicate names", names: []string{"always", "always"}, contains: true},
+		{name: "unknown name", names: []string{"missing"}, wantErr: true},
+		{name: "unknown before match", names: []string{"missing", "always"}, wantErr: true},
+		{name: "unknown after match", names: []string{"always", "missing"}, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			contains, err := intervener.ContainsTime(tc.names, now)
+			if tc.wantErr {
+				require.EqualError(t, err, "time interval missing doesn't exist in config")
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.contains, contains)
 		})
 	}
 }
