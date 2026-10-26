@@ -249,8 +249,7 @@ func TestWebexFailureReason(t *testing.T) {
 }
 
 // TestWebexTruncatesMultiByteMessage sends a message that is over
-// maxMessageSize in bytes while holding fewer runes than that, the shape any
-// long non-ASCII alert takes. Notify used to panic on it.
+// maxMessageSize in bytes while holding fewer runes than that.
 func TestWebexTruncatesMultiByteMessage(t *testing.T) {
 	var out []byte
 	readErr := make(chan error, 1)
