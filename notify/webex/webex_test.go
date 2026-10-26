@@ -264,7 +264,7 @@ func TestWebexTruncatesMultiByteMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier, err := New(
-		&config.WebexConfig{
+		&WebexConfig{
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			APIURL:     &amcommoncfg.URL{URL: u},
 			Message:    "{{ .CommonAnnotations.description }}",
@@ -280,16 +280,14 @@ func TestWebexTruncatesMultiByteMessage(t *testing.T) {
 	require.Less(t, len([]rune(description)), maxMessageSize)
 
 	ctx := notify.WithGroupKey(context.Background(), "1")
-	retry, err := notifier.Notify(ctx, &types.Alert{
-		Alert: model.Alert{
-			Labels:      model.LabelSet{"lbl1": "val1"},
-			Annotations: model.LabelSet{"description": model.LabelValue(description)},
-			StartsAt:    time.Now(),
-			EndsAt:      time.Now().Add(time.Hour),
-		},
-	})
-	require.NoError(t, err)
-	require.False(t, retry)
+	verdict := notifier.Notify(ctx, alert.New(model.Alert{
+		Labels:      model.LabelSet{"lbl1": "val1"},
+		Annotations: model.LabelSet{"description": model.LabelValue(description)},
+		StartsAt:    time.Now(),
+		EndsAt:      time.Now().Add(time.Hour),
+	}, time.Time{}, false))
+	require.NoError(t, verdict.Err())
+	require.False(t, verdict.ShouldRetry())
 	require.NoError(t, <-readErr)
 
 	var w webhook
