@@ -292,10 +292,10 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	// Check beginning <= end accounting for negatives day of month indices as well.
 	// Months != 31 days can't be addressed here and are clamped, but at least we can catch blatant errors.
-	if r.Begin == 0 || r.Begin < -31 || r.Begin > 31 {
+	if r.Begin == 0 || r.Begin < -maxDaysInMonth || r.Begin > maxDaysInMonth {
 		return fmt.Errorf("%d is not a valid day of the month: out of range", r.Begin)
 	}
-	if r.End == 0 || r.End < -31 || r.End > 31 {
+	if r.End == 0 || r.End < -maxDaysInMonth || r.End > maxDaysInMonth {
 		return fmt.Errorf("%d is not a valid day of the month: out of range", r.End)
 	}
 	// Restricting here prevents errors where begin > end in longer months but not shorter months.
@@ -303,15 +303,9 @@ func (r *DayOfMonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 		return fmt.Errorf("end day must be negative if start day is negative")
 	}
 	// Check begin <= end. We can't know this for sure when using negative indices
-	// but we can prevent cases where its always invalid (using 28 day minimum length).
-	checkBegin := r.Begin
-	checkEnd := r.End
-	if r.Begin < 0 {
-		checkBegin = 28 + r.Begin
-	}
-	if r.End < 0 {
-		checkEnd = 28 + r.End
-	}
+	// but we can prevent cases where its always invalid (using the longest month).
+	checkBegin := resolveDayOfMonth(r.Begin, maxDaysInMonth)
+	checkEnd := resolveDayOfMonth(r.End, maxDaysInMonth)
 	if checkBegin > checkEnd {
 		return fmt.Errorf("end day %d is always before start day %d", r.End, r.Begin)
 	}
@@ -504,6 +498,18 @@ func daysInMonth(t time.Time) int {
 	return time.Date(t.Year(), t.Month()+1, 0, 12, 0, 0, 0, t.Location()).Day()
 }
 
+const maxDaysInMonth = 31
+
+// resolveDayOfMonth converts a day-of-month index, where negative values count
+// back from the end of the month (-1 is the last day), into a 1-based day for a
+// month with the given number of days.
+func resolveDayOfMonth(day, daysInMonth int) int {
+	if day < 0 {
+		return daysInMonth + day + 1
+	}
+	return day
+}
+
 func clamp(n, min, max int) int {
 	if n <= min {
 		return min
@@ -534,18 +540,9 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.DaysOfMonth != nil {
 		in := false
 		for _, validDates := range tp.DaysOfMonth {
-			var begin, end int
 			daysInMonth := daysInMonth(t)
-			if validDates.Begin < 0 {
-				begin = daysInMonth + validDates.Begin + 1
-			} else {
-				begin = validDates.Begin
-			}
-			if validDates.End < 0 {
-				end = daysInMonth + validDates.End + 1
-			} else {
-				end = validDates.End
-			}
+			begin := resolveDayOfMonth(validDates.Begin, daysInMonth)
+			end := resolveDayOfMonth(validDates.End, daysInMonth)
 			// Skip clamping if the beginning date is after the end of the month.
 			if begin > daysInMonth {
 				continue
