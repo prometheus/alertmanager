@@ -34,6 +34,7 @@ update msg model =
         DeleteFilterMatcher setMatcherText matcher ->
             ( { model
                 | matchers = List.filter ((/=) matcher) model.matchers
+                , keepMatchers = List.filter ((/=) matcher) model.keepMatchers
                 , matcherText =
                     if setMatcherText then
                         Utils.Filter.stringifyMatcher matcher
@@ -44,6 +45,19 @@ update msg model =
             , True
             , Dom.focus "filter-bar-matcher"
                 |> Task.attempt (always Noop)
+            )
+
+        KeepFilterMatcher matcher ->
+            ( { model
+                | keepMatchers =
+                    if List.member matcher model.keepMatchers then
+                        List.filter ((/=) matcher) model.keepMatchers
+
+                    else
+                        model.keepMatchers ++ [ matcher ]
+              }
+            , True
+            , Cmd.none
             )
 
         UpdateMatcherText value ->
@@ -63,4 +77,5 @@ setMatchers filter model =
             filter.text
                 |> Maybe.andThen parseFilter
                 |> Maybe.withDefault []
+        , keepMatchers = []
     }

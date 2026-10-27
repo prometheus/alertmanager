@@ -141,12 +141,20 @@ toSilence filterBar { id, comment, createdBy, startsAt, endsAt, annotations } =
 
 
 validMatchers : FilterBar.Model -> Result String (List Data.Matcher.Matcher)
-validMatchers { matchers, matcherText } =
+validMatchers { matchers, keepMatchers, matcherText } =
     if matcherText /= "" then
         Err "Please complete adding the matcher"
 
     else
-        case matchers of
+        let
+            finalMatchers =
+                if List.isEmpty keepMatchers then
+                    matchers
+
+                else
+                    List.filter (\matcher -> List.member matcher keepMatchers) matchers
+        in
+        case finalMatchers of
             [] ->
                 Err "Matchers are required"
 
