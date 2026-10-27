@@ -19,11 +19,10 @@ import (
 	"maps"
 	"slices"
 
-	"go.opentelemetry.io/otel/attribute"
-
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
 // SetNotifiesStage sets the notification information about passed alerts. The
@@ -87,13 +86,7 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 
 	muted := n.mutedAlerts(ctx)
 
-	if span.IsRecording() {
-		span.SetAttributes(
-			attribute.Int("alerting.alerts.firing.count", len(firing)),
-			attribute.Int("alerting.alerts.resolved.count", len(resolved)),
-			attribute.Int("alerting.alerts.muted.count", len(muted)),
-		)
-	}
+	tracing.SetNotifiesCounts(span, len(firing), len(resolved), len(muted))
 
 	// Extract receiver data from context if present (it's ok for it to be nil).
 	store, _ := NflogStore(ctx)

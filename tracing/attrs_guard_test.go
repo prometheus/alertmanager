@@ -30,7 +30,9 @@ import (
 )
 
 // TestTracingAttributeConventions keeps attribute and option construction off
-// the disabled tracing path. Runtime allocation tests cover the actual callers.
+// the disabled tracing path: helpers in this package guard it behind
+// IsRecording, and code outside this package only records on spans through
+// those helpers. Runtime allocation tests cover the actual callers.
 func TestTracingAttributeConventions(t *testing.T) {
 	t.Parallel()
 
@@ -68,8 +70,15 @@ func TestTracingAttributeConventions(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", path, err)
 		}
-		for _, violation := range tracingAttributeViolations(f) {
-			rel, _ := filepath.Rel(root, path)
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		found := tracingAttributeViolations(f)
+		if !strings.HasPrefix(rel, "tracing"+string(filepath.Separator)) {
+			found = append(found, spanRecordingViolations(f)...)
+		}
+		for _, violation := range found {
 			pos := fset.Position(violation.pos)
 			violations = append(violations, fmt.Sprintf("%s:%d: %s", rel, pos.Line, violation.message))
 		}
@@ -85,17 +94,8 @@ type tracingAttributeViolation struct {
 }
 
 func tracingAttributeViolations(f *ast.File) []tracingAttributeViolation {
-	traceImports := make(map[string]bool)
-	for _, imp := range f.Imports {
-		path, err := strconv.Unquote(imp.Path.Value)
-		if err == nil && path == "go.opentelemetry.io/otel/trace" {
-			name := "trace"
-			if imp.Name != nil {
-				name = imp.Name.Name
-			}
-			traceImports[name] = true
-		}
-	}
+	traceImports := importNames(f, "go.opentelemetry.io/otel/trace", "trace")
+	helperImports := importNames(f, "github.com/prometheus/alertmanager/tracing", "tracing")
 
 	var violations []tracingAttributeViolation
 	var parents []ast.Node
@@ -108,7 +108,7 @@ func tracingAttributeViolations(f *ast.File) []tracingAttributeViolation {
 			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
 				needsGuard := sel.Sel.Name == "SetAttributes" ||
 					((sel.Sel.Name == "AddEvent" || sel.Sel.Name == "RecordError") && len(call.Args) > 1)
-				if needsGuard && !hasRecordingGuard(call, sel.X, parents) {
+				if needsGuard && !isPackageCall(sel, helperImports) && !hasRecordingGuard(call, sel.X, parents) {
 					violations = append(violations, tracingAttributeViolation{call.Pos(), sel.Sel.Name + " must be inside a recording guard for the same span"})
 				}
 			}
@@ -135,6 +135,67 @@ func tracingAttributeViolations(f *ast.File) []tracingAttributeViolation {
 		return true
 	})
 	return violations
+}
+
+// spanRecordingViolations flags code outside this package that records on a
+// span directly instead of through the helpers in events.go, and imports of
+// the attribute and status code packages those helpers exist to encapsulate.
+func spanRecordingViolations(f *ast.File) []tracingAttributeViolation {
+	var violations []tracingAttributeViolation
+	helperImports := importNames(f, "github.com/prometheus/alertmanager/tracing", "tracing")
+	for _, imp := range f.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			continue
+		}
+		switch path {
+		case "go.opentelemetry.io/otel/attribute", "go.opentelemetry.io/otel/codes":
+			violations = append(violations, tracingAttributeViolation{imp.Pos(), "import " + path + " only in the tracing package"})
+		}
+	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		switch sel.Sel.Name {
+		case "SetAttributes", "AddEvent", "RecordError", "SetStatus":
+		default:
+			return true
+		}
+		if isPackageCall(sel, helperImports) {
+			return true
+		}
+		violations = append(violations, tracingAttributeViolation{call.Pos(), "record on spans through the tracing package helpers, not " + sel.Sel.Name})
+		return true
+	})
+	return violations
+}
+
+// importNames returns the identifiers under which the file imports path.
+func importNames(f *ast.File, path, defaultName string) map[string]bool {
+	names := make(map[string]bool)
+	for _, imp := range f.Imports {
+		if imported, err := strconv.Unquote(imp.Path.Value); err == nil && imported == path {
+			name := defaultName
+			if imp.Name != nil {
+				name = imp.Name.Name
+			}
+			names[name] = true
+		}
+	}
+	return names
+}
+
+// isPackageCall reports whether sel selects a function from one of the
+// named package imports rather than a method on a value.
+func isPackageCall(sel *ast.SelectorExpr, packages map[string]bool) bool {
+	id, ok := sel.X.(*ast.Ident)
+	return ok && packages[id.Name]
 }
 
 func traceFunction(n ast.Node, imports map[string]bool) string {

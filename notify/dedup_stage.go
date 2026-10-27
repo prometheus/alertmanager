@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
 // DedupStage filters alerts.
@@ -160,7 +161,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 	}
 
 	if updateReason.shouldNotify() {
-		span.AddEvent("notify.DedupStage.Exec nflog needs update")
+		tracing.EventDedupNeedsUpdate(span)
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil

@@ -25,8 +25,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
@@ -141,9 +139,7 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdi
 	ctx, span := tracer.StartIntegrationNotify(ctx, i.name, len(alerts))
 
 	defer func() {
-		if span.IsRecording() {
-			span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", verdict.ShouldRetry()))
-		}
+		tracing.SetNotifyRecoverable(span, verdict.ShouldRetry())
 		if err := verdict.Err(); err != nil {
 			i.recordFailure(span, verdict.Reason(), err)
 		}
@@ -153,17 +149,9 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdi
 	return i.notifier.Notify(ctx, alerts...)
 }
 
+// recordFailure records a failed notification attempt on span.
 func (i *Integration) recordFailure(span trace.Span, reason Reason, err error) {
-	if span.IsRecording() {
-		span.SetAttributes(
-			attribute.String("alerting.notify.error.reason", reason.String()),
-			attribute.String("alerting.notify.receiver.name", i.receiverName),
-			attribute.String("alerting.notify.integration.name", i.name),
-			attribute.Int("alerting.notify.integration.index", i.idx),
-		)
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-	}
+	tracing.RecordNotifyFailure(span, err, reason.String(), i.receiverName, i.name, i.idx)
 }
 
 // SendResolved implements the ResolvedSender interface.

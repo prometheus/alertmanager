@@ -165,3 +165,86 @@ func TestTracingAttributeGuard(t *testing.T) {
 		})
 	}
 }
+
+func TestSpanRecordingOutsideTracing(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		imports string
+		source  string
+		want    string
+	}{
+		{
+			name:   "helper call",
+			source: `func f() { tracing.EventNotInhibited(span) }`,
+		}, {
+			name:   "helper with span method name",
+			source: `func f() { tracing.RecordError(span, err) }`,
+		}, {
+			name:    "aliased helper import",
+			imports: `import tr "github.com/prometheus/alertmanager/tracing"`,
+			source:  `func f() { tr.RecordError(span, err) }`,
+		}, {
+			name:   "span lifecycle",
+			source: `func f() { ctx, span := tracer.StartMuteStage(ctx, 1); defer span.End(); _ = span.IsRecording() }`,
+		}, {
+			name:   "direct event",
+			source: `func f() { span.AddEvent("event") }`,
+			want:   "not AddEvent",
+		}, {
+			name:   "direct attributes",
+			source: `func f() { span.SetAttributes(attr) }`,
+			want:   "not SetAttributes",
+		}, {
+			name:   "direct error",
+			source: `func f() { span.RecordError(err) }`,
+			want:   "not RecordError",
+		}, {
+			name:   "direct status",
+			source: `func f() { span.SetStatus(codes.Error, "failed") }`,
+			want:   "not SetStatus",
+		}, {
+			name:   "guarded direct event",
+			source: `func f() { if span.IsRecording() { span.AddEvent("event") } }`,
+			want:   "not AddEvent",
+		}, {
+			name:   "field span",
+			source: `func f() { s.span.RecordError(err) }`,
+			want:   "not RecordError",
+		}, {
+			name:    "attribute import",
+			imports: `import "go.opentelemetry.io/otel/attribute"`,
+			source:  `var _ = attribute.Int`,
+			want:    "otel/attribute only in the tracing package",
+		}, {
+			name:    "codes import",
+			imports: `import "go.opentelemetry.io/otel/codes"`,
+			source:  `var _ = codes.Error`,
+			want:    "otel/codes only in the tracing package",
+		}, {
+			name:    "trace import",
+			imports: `import "go.opentelemetry.io/otel/trace"`,
+			source:  `func f(span trace.Span) {}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			imports := tc.imports
+			if imports == "" {
+				imports = `import "github.com/prometheus/alertmanager/tracing"`
+			}
+			source := fmt.Sprintf("package example\n%s\n%s", imports, tc.source)
+			f, err := parser.ParseFile(token.NewFileSet(), "example.go", source, parser.SkipObjectResolution)
+			require.NoError(t, err)
+			violations := spanRecordingViolations(f)
+			if tc.want == "" {
+				require.Empty(t, violations)
+			} else {
+				require.Len(t, violations, 1)
+				require.Contains(t, violations[0].message, tc.want)
+			}
+		})
+	}
+}

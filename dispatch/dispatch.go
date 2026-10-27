@@ -28,10 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -271,17 +268,10 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 
 	ctx, span := tracer.StartRouteAlert(ctx, alrt)
 	defer span.End()
-	recording := span.IsRecording()
 
 	now := time.Now()
 	for _, r := range d.route.Match(alrt.Labels) {
-		if recording {
-			span.AddEvent("dispatching alert to route",
-				trace.WithAttributes(
-					attribute.String("alerting.route.receiver.name", r.RouteOpts.Receiver),
-				),
-			)
-		}
+		tracing.EventRouteMatched(span, r.RouteOpts.Receiver)
 		d.groupAlert(ctx, alrt, r)
 	}
 	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
@@ -492,7 +482,6 @@ type notifyFunc func(context.Context, ...*alert.Alert) bool
 func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *Route) {
 	_, span := tracer.StartGroupAlert(ctx, alrt, route.RouteOpts.Receiver)
 	defer span.End()
-	recording := span.IsRecording()
 
 	now := time.Now()
 	groupLabels := getGroupLabels(alrt, route)
@@ -521,15 +510,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		err := errors.New("too many aggregation groups, cannot create new group for alert")
 		message := "Failed to create aggregation group"
 		d.logger.Error(message, "err", err.Error(), "groups", current, "limit", limit, "alert", alrt.Name())
-		if recording {
-			span.SetStatus(codes.Error, message)
-			span.RecordError(err,
-				trace.WithAttributes(
-					attribute.Int("alerting.aggregation_group.count", current),
-					attribute.Int("alerting.aggregation_group.limit", limit),
-				),
-			)
-		}
+		tracing.RecordAggregationGroupLimit(span, err, current, limit)
 		return
 	}
 
@@ -588,34 +569,21 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		}
 	}
 
-	if recording {
-		span.AddEvent("new AggregationGroup created",
-			trace.WithAttributes(
-				attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
-				attribute.Int("alerting.aggregation_group.count", int(d.aggrGroupsNum.Load())),
-			),
-		)
-	}
+	tracing.EventAggregationGroupCreated(span, ag.GroupKey(), int(d.aggrGroupsNum.Load()))
 
 	if alrt.StartsAt.Add(ag.opts.GroupWait).Before(now) {
 		message := "Alert is old enough for immediate flush, resetting timer to zero"
 		ag.logger.Debug(message, "alert", alrt.Name(), "fingerprint", alrt.Fingerprint(), "startsAt", alrt.StartsAt)
-		if recording {
-			span.AddEvent(message,
-				trace.WithAttributes(
-					attribute.String("alerting.alert.StartsAt", alrt.StartsAt.Format(time.RFC3339)),
-				),
-			)
-		}
+		tracing.EventImmediateFlush(span, alrt.StartsAt)
 		ag.resetTimer(0)
 	}
 	// Check dispatcher and alert state to determine if we should run the AG now.
 	switch d.state.Load() {
 	case DispatcherStateWaitingToStart:
-		span.AddEvent("Not starting Aggregation Group, dispatcher is not running")
+		tracing.EventAggregationGroupWaiting(span)
 		d.logger.Debug("Dispatcher still waiting to start")
 	case DispatcherStateRunning:
-		span.AddEvent("Starting Aggregation Group")
+		tracing.EventAggregationGroupStarted(span)
 		d.runAG(ag)
 	default:
 		d.logger.Warn("unknown state detected", "state", "unknown")
@@ -882,7 +850,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 
 				success := nf(ctx, alerts...)
 				if !success {
-					span.SetStatus(codes.Error, "notification failed")
+					tracing.SetErrorStatus(span, "notification failed")
 				}
 				return success
 			})
@@ -922,8 +890,7 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 			return false
 		}
 		message := "error on set alert"
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err)
+		tracing.RecordErrorWithStatus(span, message, err)
 		ag.logger.Error(message, "err", err)
 	} else {
 		ag.recorder.RecordEvent(ctx, func() eventrecorder.EventData {

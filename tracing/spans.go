@@ -24,8 +24,8 @@ import (
 // This file holds one Start method per span that carries attributes. The
 // methods take plain values and only format them into attributes once the
 // span is known to be recording, so callers pay nothing when tracing is
-// disabled or the span is not sampled. Events and errors recorded later in
-// a span's lifetime stay at the call site behind span.IsRecording().
+// disabled or the span is not sampled. Events, attributes and errors recorded
+// later in a span's lifetime have their own helpers in events.go.
 
 // Alert is the subset of alert.Alert that alert-scoped spans record. It
 // lets the helpers read the alert name only once the span is recording,
