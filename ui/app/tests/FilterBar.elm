@@ -35,7 +35,9 @@ update =
                     ( unpinned, _, _ ) =
                         FilterBarUpdates.update (FilterBarTypes.KeepFilterMatcher first) pinned
                 in
-                Expect.equal [] unpinned.keepMatchers
+                Expect.equal
+                    ( [ first ], [] )
+                    ( pinned.keepMatchers, unpinned.keepMatchers )
         , test "deleting a pinned matcher removes its pin" <|
             \() ->
                 let
