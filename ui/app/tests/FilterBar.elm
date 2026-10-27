@@ -74,4 +74,26 @@ update =
                         FilterBarUpdates.setMatchers filter initial
                 in
                 Expect.equal [] updated.keepMatchers
+        , test "transfers a pin to the edited matcher" <|
+            \() ->
+                let
+                    first =
+                        matcher "alertname" "ExampleAlert"
+
+                    edited =
+                        matcher "alertname" "OtherAlert"
+
+                    base =
+                        model [ first ]
+
+                    initial =
+                        { base | keepMatchers = [ first ] }
+
+                    ( editing, _, _ ) =
+                        FilterBarUpdates.update (FilterBarTypes.DeleteFilterMatcher True first) initial
+
+                    ( updated, _, _ ) =
+                        FilterBarUpdates.update (FilterBarTypes.AddFilterMatcher True edited) editing
+                in
+                Expect.equal [ edited ] updated.keepMatchers
         ]

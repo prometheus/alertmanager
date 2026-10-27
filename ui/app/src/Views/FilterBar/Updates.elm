@@ -19,6 +19,22 @@ update msg model =
 
                     else
                         model.matchers ++ [ matcher ]
+                , keepMatchers =
+                    case model.editing of
+                        Just edited ->
+                            List.map
+                                (\existing ->
+                                    if existing == edited then
+                                        matcher
+
+                                    else
+                                        existing
+                                )
+                                model.keepMatchers
+
+                        Nothing ->
+                            model.keepMatchers
+                , editing = Nothing
                 , matcherText =
                     if emptyMatcherText then
                         ""
@@ -34,7 +50,26 @@ update msg model =
         DeleteFilterMatcher setMatcherText matcher ->
             ( { model
                 | matchers = List.filter ((/=) matcher) model.matchers
-                , keepMatchers = List.filter ((/=) matcher) model.keepMatchers
+                , keepMatchers =
+                    if setMatcherText then
+                        -- Editing a matcher keeps its pin so it can be transferred to the
+                        -- edited matcher. Drop a previously edited matcher that was never
+                        -- re-added, though.
+                        case model.editing of
+                            Just previous ->
+                                List.filter ((/=) previous) model.keepMatchers
+
+                            Nothing ->
+                                model.keepMatchers
+
+                    else
+                        List.filter ((/=) matcher) model.keepMatchers
+                , editing =
+                    if setMatcherText then
+                        Just matcher
+
+                    else
+                        model.editing
                 , matcherText =
                     if setMatcherText then
                         Utils.Filter.stringifyMatcher matcher
@@ -78,4 +113,5 @@ setMatchers filter model =
                 |> Maybe.andThen parseFilter
                 |> Maybe.withDefault []
         , keepMatchers = []
+        , editing = Nothing
     }

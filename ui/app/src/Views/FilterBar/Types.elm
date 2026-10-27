@@ -6,6 +6,7 @@ import Utils.Filter
 type alias Model =
     { matchers : List Utils.Filter.Matcher
     , keepMatchers : List Utils.Filter.Matcher
+    , editing : Maybe Utils.Filter.Matcher
     , backspacePressed : Bool
     , matcherText : String
     }
@@ -34,6 +35,7 @@ initFilterBar : List Utils.Filter.Matcher -> Model
 initFilterBar matchers =
     { matchers = matchers
     , keepMatchers = []
+    , editing = Nothing
     , backspacePressed = False
     , matcherText = ""
     }
