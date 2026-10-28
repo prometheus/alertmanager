@@ -161,9 +161,14 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 			return notify.Retry(0, fmt.Errorf("establish connection to server: %w", err), notify.DefaultReason)
 		}
 	}
+	defer conn.Close()
+	// DialContext only covers connection establishment. Close the connection when
+	// the context ends to interrupt SMTP reads and writes, including deferred QUIT.
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
-		conn.Close()
 		return notify.Retry(0, fmt.Errorf("create SMTP client: %w", err), notify.DefaultReason)
 	}
 	defer func() {
