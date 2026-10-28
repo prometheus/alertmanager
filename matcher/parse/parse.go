@@ -158,6 +158,9 @@ func (p *parser) parseMatcher(l *lexer) (parseFunc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%d:%d: %s: invalid input", t.columnStart, t.columnEnd, t.value)
 	}
+	if matchName == "" {
+		return nil, fmt.Errorf("%d:%d: %s: %w", t.columnStart, t.columnEnd, t.value, errNoLabelName)
+	}
 	// The next token should be the operator.
 	if t, err = p.expect(l, tokenEquals, tokenNotEquals, tokenMatches, tokenNotMatches); err != nil {
 		return nil, fmt.Errorf("%w: %w", err, errNoOperator)
