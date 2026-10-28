@@ -121,7 +121,10 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	return nil, errs
 }
 
-// Notify implements the Notifier interface.
+// Notify sends the alerts by email and returns the delivery verdict.
+// Once the SMTP connection is established, cancellation or expiry of ctx
+// interrupts SMTP operations by closing the connection. Failure during QUIT
+// after message acceptance does not turn a successful delivery into a retry.
 func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var (
 		c       *smtp.Client

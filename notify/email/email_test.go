@@ -367,6 +367,9 @@ func TestEmailNotifyWithDoneContext(t *testing.T) {
 	require.Contains(t, err.Error(), "establish connection to server")
 }
 
+// TestEmailNotifyWithContextEndingDuringSMTP verifies that cancellation and
+// deadlines interrupt stalled SMTP operations and close the connection. A stall
+// during QUIT preserves success because the server already accepted the message.
 func TestEmailNotifyWithContextEndingDuringSMTP(t *testing.T) {
 	t.Parallel()
 	for _, stage := range []string{"greeting", "EHLO", "AUTH", "DATA", "QUIT"} {
@@ -458,6 +461,9 @@ func TestEmailNotifyWithContextEndingDuringSMTP(t *testing.T) {
 	}
 }
 
+// serveSMTPUntilContextEnds handles one SMTP transaction up to stage, then
+// signals stalled and withholds the response until the client closes conn.
+// Unexpected commands and transport errors are returned to the caller.
 func serveSMTPUntilContextEnds(conn net.Conn, stage string, stalled chan<- struct{}) error {
 	reader := textproto.NewReader(bufio.NewReader(conn))
 	for _, step := range []struct{ name, command, response string }{
