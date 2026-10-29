@@ -365,6 +365,68 @@ func TestEmailNotifyWithDoneContext(t *testing.T) {
 	require.Contains(t, err.Error(), "establish connection to server")
 }
 
+// TestEmailNotifyImplicitTLSWithDoneContext checks that the implicit TLS dial
+// honours the context when the server accepts the connection but never answers
+// the TLS handshake.
+func TestEmailNotifyImplicitTLSWithDoneContext(t *testing.T) {
+	t.Parallel()
+
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var conns []net.Conn
+	accepted := make(chan struct{})
+	go func() {
+		defer close(accepted)
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			// Keep the connection open without ever writing to it.
+			conns = append(conns, conn)
+		}
+	}()
+	t.Cleanup(func() {
+		l.Close()
+		<-accepted
+		for _, c := range conns {
+			c.Close()
+		}
+	})
+
+	host, port, err := net.SplitHostPort(l.Addr().String())
+	require.NoError(t, err)
+
+	forceImplicitTLS := true
+	cfg := &EmailConfig{
+		Smarthost:        amcommoncfg.HostPort{Host: host, Port: port},
+		To:               emailTo,
+		From:             emailFrom,
+		HTML:             "HTML body",
+		Text:             "Text body",
+		ForceImplicitTLS: &forceImplicitTLS,
+		TLSConfig:        &commoncfg.TLSConfig{},
+	}
+	tmpl, firingAlert, err := prepare(cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	done := make(chan notify.NotifyVerdict, 1)
+	go func() {
+		done <- New(cfg, tmpl, promslog.NewNopLogger()).Notify(ctx, firingAlert)
+	}()
+
+	select {
+	case verdict := <-done:
+		require.ErrorContains(t, verdict.Err(), "establish TLS connection to server")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Notify did not return after the context was done")
+	}
+}
+
 // TestEmailNotifyWithoutAuthentication sends an email to an instance of
 // MailDev configured with no authentication then it checks that the server has
 // successfully processed the email.
