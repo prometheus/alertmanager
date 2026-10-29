@@ -16,10 +16,12 @@ package dispatch
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
@@ -28,14 +30,16 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/provider/mem"
+	"github.com/prometheus/alertmanager/template"
 )
 
 // buildDeepRouteTree creates a multi-level hierarchical route tree:
 // - numTeams routes at top level
 // - Each team has numClusters cluster sub-routes
 // - Each cluster has numPriorities priority sub-routes
+// - The labels are attached to the root route, and thus inherited by every leaf
 // Total: numTeams * numClusters * numPriorities leaf routes with 3 levels of depth.
-func buildDeepRouteTree(numTeams, numClusters, numPriorities int) *Route {
+func buildDeepRouteTree(numTeams, numClusters, numPriorities int, labels model.LabelSet) *Route {
 	groupWait := model.Duration(30 * time.Second)
 	groupInterval := model.Duration(5 * time.Minute)
 	repeatInterval := model.Duration(4 * time.Hour)
@@ -46,6 +50,7 @@ func buildDeepRouteTree(numTeams, numClusters, numPriorities int) *Route {
 		GroupWait:      &groupWait,
 		GroupInterval:  &groupInterval,
 		RepeatInterval: &repeatInterval,
+		Labels:         labels,
 	}
 
 	// Create team routes, each with cluster sub-routes, each with priority sub-routes
@@ -142,13 +147,28 @@ func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *rec
 	require.NoError(b, err)
 	b.Cleanup(func() { alerts.Close() })
 
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(b, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
 	metrics := NewDispatcherMetrics(false, reg, nil)
 
-	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, 30*time.Second, nil, logger, eventrecorder.NopRecorder(), metrics, nil)
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, 30*time.Second, nil, logger, eventrecorder.NopRecorder(), metrics, tmpl)
 
 	return dispatcher, alerts, recorder
+}
+
+// waitProcessed blocks until the dispatcher has routed at least want alerts in
+// total, so that a following Groups call observes every insert.
+func waitProcessed(b *testing.B, d *Dispatcher, want uint64) {
+	b.Helper()
+	var m dto.Metric
+	require.Eventually(b, func() bool {
+		require.NoError(b, d.metrics.processingDuration.Write(&m))
+		return m.GetSummary().GetSampleCount() >= want
+	}, time.Minute, time.Millisecond)
 }
 
 // populateGroups pre-populates the dispatcher with aggregation groups.
@@ -203,7 +223,7 @@ func BenchmarkGroups(b *testing.B) {
 }
 
 func benchmarkGroups(b *testing.B, numGroups, alertsPerGroup, numTeams, numClusters, numPriorities int) {
-	route := buildDeepRouteTree(numTeams, numClusters, numPriorities)
+	route := buildDeepRouteTree(numTeams, numClusters, numPriorities, nil)
 
 	b.ReportAllocs()
 
@@ -260,7 +280,7 @@ func BenchmarkIngestionUnderGroupsLoad(b *testing.B) {
 }
 
 func benchmarkIngestionUnderGroupsLoad(b *testing.B, numGroupsCallers int, groupsTick time.Duration) {
-	route := buildDeepRouteTree(25, 4, 5)
+	route := buildDeepRouteTree(25, 4, 5, nil)
 
 	b.ReportAllocs()
 
@@ -310,4 +330,99 @@ func benchmarkIngestionUnderGroupsLoad(b *testing.B, numGroupsCallers int, group
 		}
 		counter++
 	}
+}
+
+// BenchmarkGroupsRouteLabels measures Groups() (the /api/v2/alerts/groups read
+// path, which renders each group's route labels) while every alert held by the
+// dispatcher is re-sent between calls with an extended EndsAt, as Prometheus
+// does for firing alerts. Per iteration it reports:
+//   - ns/resend: putting every alert again and waiting until it is dispatched.
+//   - ns/groups-after-resend: the first Groups() call after the re-send.
+//   - ns/groups-warm: a second Groups() call with no intervening change.
+func BenchmarkGroupsRouteLabels(b *testing.B) {
+	b.Run("no route labels", func(b *testing.B) {
+		benchmarkGroupsRouteLabels(b, nil)
+	})
+	b.Run("templated route labels", func(b *testing.B) {
+		benchmarkGroupsRouteLabels(b, model.LabelSet{
+			"owner":     "ops",
+			"alertname": "{{ .GroupLabels.alertname }}",
+			"count":     "{{ len .Alerts }}",
+		})
+	})
+}
+
+func benchmarkGroupsRouteLabels(b *testing.B, labels model.LabelSet) {
+	const (
+		numTeams, numClusters, numPriorities = 10, 2, 5
+		numGroups                            = 2000
+		alertsPerGroup                       = 3
+	)
+	route := buildDeepRouteTree(numTeams, numClusters, numPriorities, labels)
+	d, alerts, _ := setupDispatcher(b, route)
+	go d.Run(time.Now())
+	defer d.Stop()
+
+	ctx := context.Background()
+	now := time.Now()
+	population := make([]*alert.Alert, 0, numGroups*alertsPerGroup)
+	for i := range numGroups {
+		for j := range alertsPerGroup {
+			population = append(population, alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": model.LabelValue(fmt.Sprintf("alert-%d", i)),
+					"instance":  model.LabelValue(fmt.Sprintf("instance-%d", j)),
+					"team":      model.LabelValue(fmt.Sprintf("team-%d", i%numTeams)),
+					"cluster":   model.LabelValue(fmt.Sprintf("cluster-%d", (i/numTeams)%numClusters)),
+					"priority":  model.LabelValue(fmt.Sprintf("p%d", (i/(numTeams*numClusters))%numPriorities)),
+				},
+				Annotations:  model.LabelSet{"description": "benchmark alert"},
+				StartsAt:     now.Add(-time.Hour),
+				EndsAt:       now.Add(time.Hour),
+				GeneratorURL: "http://localhost",
+			}, now, false))
+		}
+	}
+	require.NoError(b, alerts.Put(ctx, population...))
+	processed := uint64(len(population))
+	waitProcessed(b, d, processed)
+
+	routeFilter := func(*Route) bool { return true }
+	alertFilter := func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true }
+	groups, _, _ := d.Groups(ctx, routeFilter, alertFilter)
+	require.Len(b, groups, numGroups)
+
+	var resendDur, afterResendDur, warmDur time.Duration
+	resent := make([]*alert.Alert, len(population))
+	for b.Loop() {
+		now := time.Now()
+		for i, a := range population {
+			cp := *a
+			cp.UpdatedAt = now
+			cp.EndsAt = now.Add(time.Hour)
+			resent[i] = &cp
+		}
+
+		t0 := time.Now()
+		require.NoError(b, alerts.Put(ctx, resent...))
+		processed += uint64(len(resent))
+		waitProcessed(b, d, processed)
+		t1 := time.Now()
+		groups, _, _ = d.Groups(ctx, routeFilter, alertFilter)
+		t2 := time.Now()
+		if len(groups) != numGroups {
+			b.Fatalf("unexpected group count: %d (expected %d)", len(groups), numGroups)
+		}
+		d.Groups(ctx, routeFilter, alertFilter)
+		t3 := time.Now()
+
+		resendDur += t1.Sub(t0)
+		afterResendDur += t2.Sub(t1)
+		warmDur += t3.Sub(t2)
+	}
+
+	n := float64(b.N)
+	b.ReportMetric(float64(resendDur)/n, "ns/resend")
+	b.ReportMetric(float64(afterResendDur)/n, "ns/groups-after-resend")
+	b.ReportMetric(float64(warmDur)/n, "ns/groups-warm")
 }
