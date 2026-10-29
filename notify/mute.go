@@ -20,14 +20,11 @@ import (
 	"log/slog"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/silence"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
 const (
@@ -78,10 +75,7 @@ func NewMuteStage(m Muter, metrics *Metrics) *MuteStage {
 
 // Exec implements the Stage interface.
 func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	ctx, span := tracer.Start(ctx, "notify.MuteStage.Exec",
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartMuteStage(ctx, len(alerts))
 	defer span.End()
 
 	var (
@@ -108,11 +102,7 @@ func (n *MuteStage) Exec(ctx context.Context, logger *slog.Logger, alerts ...*al
 			reason = SuppressedReasonInhibition
 		default:
 		}
-		span.SetAttributes(
-			attribute.Int("alerting.alerts.muted.count", len(muted)),
-			attribute.Int("alerting.alerts.filtered.count", len(filtered)),
-			attribute.String("alerting.suppressed.reason", reason),
-		)
+		tracing.SetMuted(span, len(muted), len(filtered), reason)
 		n.metrics.numNotificationSuppressedTotal.WithLabelValues(reason).Add(float64(len(muted)))
 		logger.Debug("Notifications will not be sent for muted alerts", "alerts", fmt.Sprintf("%v", muted), "reason", reason)
 
@@ -201,17 +191,14 @@ func NewTimeMuteStage(muter TimeMuter, metrics *Metrics) *TimeMuteStage {
 // Exec implements the stage interface for TimeMuteStage.
 // TimeMuteStage is responsible for muting alerts whose route is not in an active time.
 func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	ctx, span := tracer.Start(ctx, "notify.TimeMuteStage.Exec",
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartTimeMuteStage(ctx, len(alerts))
 	defer span.End()
 
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
 	}
-	span.SetAttributes(attribute.String("alerting.group.key", gkey))
+	tracing.SetGroupKey(span, gkey)
 
 	muteTimeIntervalNames, ok := MuteTimeIntervalNames(ctx)
 	if !ok {
@@ -224,8 +211,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*al
 
 	mutedBy, err := mutedByMuteTimeIntervals(tms.muter, muteTimeIntervalNames, now)
 	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
+		tracing.RecordError(span, err)
 		return ctx, alerts, err
 	}
 
@@ -233,7 +219,7 @@ func (tms TimeMuteStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*al
 	if len(mutedBy) > 0 {
 		tms.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonMuteTimeInterval).Add(float64(len(alerts)))
 		l.Debug("Notifications not sent, route is within mute time", "alerts", len(alerts))
-		span.AddEvent("notify.TimeMuteStage.Exec muted the alerts")
+		tracing.EventTimeMuted(span)
 		return recordMuted(ctx, alerts), nil, nil
 	}
 
@@ -249,17 +235,14 @@ func NewTimeActiveStage(muter TimeMuter, metrics *Metrics) *TimeActiveStage {
 // Exec implements the stage interface for TimeActiveStage.
 // TimeActiveStage is responsible for muting alerts whose route is not in an active time.
 func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-	ctx, span := tracer.Start(ctx, "notify.TimeActiveStage.Exec",
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartTimeActiveStage(ctx, len(alerts))
 	defer span.End()
 
 	gkey, ok := GroupKey(ctx)
 	if !ok {
 		return ctx, nil, errors.New("group key missing")
 	}
-	span.SetAttributes(attribute.String("alerting.group.key", gkey))
+	tracing.SetGroupKey(span, gkey)
 
 	activeTimeIntervalNames, ok := ActiveTimeIntervalNames(ctx)
 	if !ok {
@@ -283,7 +266,7 @@ func (tas TimeActiveStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*
 
 	// If the current time is not inside an active time, all alerts are removed from the pipeline
 	if len(mutedBy) > 0 {
-		span.AddEvent("notify.TimeActiveStage.Exec not active, removing all alerts")
+		tracing.EventTimeNotActive(span)
 		tas.metrics.numNotificationSuppressedTotal.WithLabelValues(SuppressedReasonActiveTimeInterval).Add(float64(len(alerts)))
 		l.Debug("Notifications not sent, route is not within active time", "alerts", len(alerts))
 		return recordMuted(ctx, alerts), nil, nil

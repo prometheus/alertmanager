@@ -34,7 +34,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
-	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api/metrics"
@@ -401,16 +400,14 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	if err := api.alerts.Put(ctx, validAlerts...); err != nil {
 		message := "Failed to create alerts"
 		logger.Error(message, "err", err)
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err)
+		tracing.RecordErrorWithStatus(span, message, err)
 		return alert_ops.NewPostAlertsInternalServerError().WithPayload(err.Error())
 	}
 
 	if validationErrs != nil {
 		message := "Failed to validate alerts"
 		logger.Error(message, "err", validationErrs.Error())
-		span.SetStatus(codes.Error, message)
-		span.RecordError(validationErrs)
+		tracing.RecordErrorWithStatus(span, message, validationErrs)
 		return alert_ops.NewPostAlertsBadRequest().WithPayload(validationErrs.Error())
 	}
 
@@ -484,8 +481,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	if err != nil {
 		message := "Failed to get alert groups"
 		logger.Error(message, "err", err)
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err)
+		tracing.RecordErrorWithStatus(span, message, err)
 		return alertgroup_ops.NewGetAlertGroupsInternalServerError()
 	}
 

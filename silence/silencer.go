@@ -18,15 +18,13 @@ import (
 	"log/slog"
 
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/labelset"
 	"github.com/prometheus/alertmanager/marker"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
 // Silencer holds Silences and implements the Muter interface.
@@ -50,12 +48,7 @@ func NewSilencer(silences *Silences, logger *slog.Logger, recorder eventrecorder
 // Mutes implements the Muter interface.
 func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
-	ctx, span := tracer.Start(ctx, "silence.Silencer.Mutes",
-		trace.WithAttributes(
-			attribute.String("alerting.alert.fingerprint", fp.String()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartSilencerMutes(ctx, fp)
 	defer span.End()
 
 	// Track the silences to set on marker
@@ -81,11 +74,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	if cacheIsUpToDate && cachedEntry.count() == 0 {
 		// Very fast path: no new silences have been added and this lset was not
 		// silenced last time we checked.
-		span.AddEvent("No new silences to match since last check",
-			trace.WithAttributes(
-				attribute.Int("alerting.silences.cache.count", cachedEntry.count()),
-			),
-		)
+		tracing.EventSilencesCached(span, cachedEntry.count())
 		return false
 	}
 	// Either there are new silences and we need to check if those match lset or there were
@@ -103,8 +92,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QState(SilenceStateActive, SilenceStatePending),
 		)
 		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			tracing.RecordError(span, err)
 			s.logger.Error(
 				"Querying old silences failed, alerts might not get silenced correctly",
 				"err", err,
@@ -125,8 +113,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			QMatches(lset.LabelSet),
 		)
 		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
+			tracing.RecordError(span, err)
 			s.logger.Error(
 				"Querying silences failed, alerts might not get silenced correctly",
 				"err", err,
@@ -141,9 +128,7 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	if totalSilences == 0 {
 		// Easy case, neither active nor pending silences anymore.
 		s.cache.set(fp, newCacheEntry(newVersion))
-		span.AddEvent("No silences to match", trace.WithAttributes(
-			attribute.Int("alerting.silences.count", totalSilences),
-		))
+		tracing.EventNoSilences(span, totalSilences)
 		return false
 	}
 
@@ -191,19 +176,11 @@ func (s *Silencer) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 
 	s.cache.set(fp, newCacheEntry(newVersion, allIDs...))
 
-	t := trace.WithAttributes(
-		attribute.Int("alerting.silences.active.count", len(activeIDs)),
-		attribute.Int("alerting.silences.pending.count", len(allIDs)-len(activeIDs)),
-		attribute.Int("alerting.silences.total.count", len(allIDs)),
-	)
-
 	mutes := len(activeIDs) > 0
 	if mutes {
 		markedSilences = activeIDs
-		span.AddEvent("Silencer mutes alert", t)
-	} else {
-		span.AddEvent("Silencer does not mute alert", t)
 	}
+	tracing.EventSilencerResult(span, mutes, len(activeIDs), len(allIDs))
 	return mutes
 }
 

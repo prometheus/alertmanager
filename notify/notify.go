@@ -25,8 +25,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
@@ -138,14 +136,10 @@ func NewIntegration(notifier Notifier, rs ResolvedSender, name string, idx int, 
 
 // Notify implements the Notifier interface.
 func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdict NotifyVerdict) {
-	ctx, span := tracer.Start(ctx, "notify.Integration.Notify",
-		trace.WithAttributes(attribute.String("alerting.notify.integration.name", i.name)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindClient),
-	)
+	ctx, span := tracer.StartIntegrationNotify(ctx, i.name, len(alerts))
 
 	defer func() {
-		span.SetAttributes(attribute.Bool("alerting.notify.error.recoverable", verdict.ShouldRetry()))
+		tracing.SetNotifyRecoverable(span, verdict.ShouldRetry())
 		if err := verdict.Err(); err != nil {
 			i.recordFailure(span, verdict.Reason(), err)
 		}
@@ -155,15 +149,9 @@ func (i *Integration) Notify(ctx context.Context, alerts ...*alert.Alert) (verdi
 	return i.notifier.Notify(ctx, alerts...)
 }
 
+// recordFailure records a failed notification attempt on span.
 func (i *Integration) recordFailure(span trace.Span, reason Reason, err error) {
-	span.SetAttributes(
-		attribute.String("alerting.notify.error.reason", reason.String()),
-		attribute.String("alerting.notify.receiver.name", i.receiverName),
-		attribute.String("alerting.notify.integration.name", i.name),
-		attribute.Int("alerting.notify.integration.index", i.idx),
-	)
-	span.SetStatus(codes.Error, err.Error())
-	span.RecordError(err)
+	tracing.RecordNotifyFailure(span, err, reason.String(), i.receiverName, i.name, i.idx)
 }
 
 // SendResolved implements the ResolvedSender interface.
@@ -294,13 +282,7 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 		return ctx, nil, errors.New("receiver missing")
 	}
 
-	ctx, span := tracer.Start(ctx, "notify.RoutingStage.Exec",
-		trace.WithAttributes(
-			attribute.String("alerting.notify.receiver.name", receiver),
-			attribute.Int("alerting.alerts.count", len(alerts)),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartRoutingStage(ctx, receiver, len(alerts))
 	defer span.End()
 
 	s, ok := rs[receiver]
