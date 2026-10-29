@@ -1,7 +1,7 @@
 module Views.FilterBar.Views exposing (view)
 
 import Html exposing (Html, a, button, div, i, input, small, text)
-import Html.Attributes exposing (class, disabled, href, id, spellcheck, style, value)
+import Html.Attributes exposing (attribute, class, disabled, href, id, spellcheck, style, title, value)
 import Html.Events exposing (onClick, onInput)
 import Utils.Filter exposing (Matcher, convertFilterMatcher)
 import Utils.Keyboard exposing (onKeyDown, onKeyUp)
@@ -20,8 +20,25 @@ keys =
     }
 
 
-viewMatcher : Matcher -> Html Msg
-viewMatcher matcher =
+viewMatcher : Bool -> List Matcher -> Matcher -> Html Msg
+viewMatcher showKeepButton keepMatchers matcher =
+    let
+        keepMode =
+            not (List.isEmpty keepMatchers)
+
+        isKept =
+            List.member matcher keepMatchers
+
+        pinClass =
+            if isKept then
+                "btn btn-success"
+
+            else if keepMode then
+                "btn btn-secondary"
+
+            else
+                "btn btn-outline-secondary"
+    in
     div [ class "col col-auto" ]
         [ div [ class "btn-group mr-2 mb-2" ]
             [ button
@@ -30,6 +47,30 @@ viewMatcher matcher =
                 ]
                 [ text <| Utils.Filter.stringifyMatcher matcher
                 ]
+            , if showKeepButton then
+                button
+                    [ class pinClass
+                    , onClick (KeepFilterMatcher matcher)
+                    , attribute "aria-label"
+                        (if isKept then
+                            "Do not keep this matcher"
+
+                         else
+                            "Keep this matcher"
+                        )
+                    , attribute "aria-pressed"
+                        (if isKept then
+                            "true"
+
+                         else
+                            "false"
+                        )
+                    , title "Keep this matcher; all other matchers will be dropped"
+                    ]
+                    [ i [ class "fa fa-thumb-tack" ] [] ]
+
+              else
+                text ""
             , button
                 [ class "btn btn-outline-danger"
                 , onClick (DeleteFilterMatcher False matcher)
@@ -39,14 +80,14 @@ viewMatcher matcher =
         ]
 
 
-viewMatchers : List Matcher -> List (Html Msg)
-viewMatchers matchers =
+viewMatchers : Bool -> List Matcher -> List Matcher -> List (Html Msg)
+viewMatchers showKeepButton keepMatchers matchers =
     matchers
-        |> List.map viewMatcher
+        |> List.map (viewMatcher showKeepButton keepMatchers)
 
 
-view : { showSilenceButton : Bool } -> Model -> Html Msg
-view { showSilenceButton } { matchers, matcherText, backspacePressed } =
+view : { showSilenceButton : Bool, showKeepButton : Bool } -> Model -> Html Msg
+view { showSilenceButton, showKeepButton } { matchers, keepMatchers, matcherText, backspacePressed } =
     let
         maybeMatcher =
             Utils.Filter.parseMatcher matcherText
@@ -109,7 +150,7 @@ view { showSilenceButton } { matchers, matcherText, backspacePressed } =
     in
     div
         [ class "row no-gutters align-items-start" ]
-        (viewMatchers matchers
+        (viewMatchers showKeepButton keepMatchers matchers
             ++ [ div
                     [ class ("col " ++ className)
                     , style "min-width"
