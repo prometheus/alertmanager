@@ -12,6 +12,7 @@
 /notify/incidentio @prometheus/alertmanager-maintainers
 /notify/jira       @prometheus/alertmanager-maintainers
 /notify/mattermost @prometheus/alertmanager-maintainers
+/notify/matrix @prometheus/alertmanager-maintainers
 /notify/msteams    @prometheus/alertmanager-maintainers
 /notify/msteamsv2  @prometheus/alertmanager-maintainers
 /notify/opsgenie   @prometheus/alertmanager-maintainers

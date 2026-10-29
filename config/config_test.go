@@ -1866,6 +1866,29 @@ func TestWechatGlobalAPISecretFile(t *testing.T) {
 	}
 }
 
+func TestMatrixConfigUsesTheGlobalHTTPConfig(t *testing.T) {
+	t.Parallel()
+	conf, err := Load(`
+global:
+  http_config:
+    proxy_url: http://proxy.example.org:3128
+route:
+  receiver: matrix
+receivers:
+- name: matrix
+  matrix_configs:
+  - homeserver_url: https://matrix.example.org
+    access_token: secret
+    room_id: '!abc123:example.org'
+`)
+	require.NoError(t, err)
+	matrixCfg := conf.Receivers[0].MatrixConfigs[0]
+	require.NotNil(t, matrixCfg.HTTPConfig)
+	require.Equal(t, "http://proxy.example.org:3128", matrixCfg.HTTPConfig.ProxyURL.String())
+	require.Equal(t, "https://matrix.example.org", matrixCfg.HomeserverURL.String())
+	require.Equal(t, "m.text", matrixCfg.MsgType)
+}
+
 func TestMattermostDefaultWebhookURL(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.mattermost-default-webhook-url.yml")
 	if err != nil {

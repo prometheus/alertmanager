@@ -855,6 +855,8 @@ discord_configs:
   [ - <discord_config>, ... ]
 email_configs:
   [ - <email_config>, ... ]
+matrix_configs:
+  [ - <matrix_config>, ... ]
 mattermost_configs:
   [ - <mattermost_config>, ... ]
 msteams_configs:
@@ -1150,6 +1152,47 @@ receivers:
         smarthost: smtp.example.com:465  # Auto-detects implicit TLS
       - to: alerts@example.com
         smarthost: smtp.example.com:587  # Auto-detects explicit TLS
+```
+
+### `<matrix_config>`
+
+Matrix notifications are sent to a room as `m.room.message` events through the
+[Matrix Client-Server API](https://spec.matrix.org/latest/client-server-api/#put_matrixclientv3roomsroomidsendeventtypetxnid).
+The account the access token belongs to must have joined the room. Messages
+are sent unencrypted, so they cannot be read in end-to-end encrypted rooms.
+
+```yaml
+# Whether to notify about resolved alerts.
+[ send_resolved: <boolean> | default = true ]
+
+# The base URL of the homeserver the access token belongs to,
+# e.g. https://matrix.example.org.
+homeserver_url: <string>
+
+# The access token of the account that sends the messages.
+# access_token and access_token_file are mutually exclusive.
+access_token: <secret>
+access_token_file: <filepath>
+
+# The ID of the room to send to, e.g. !abc123:example.org. A room alias
+# (#room:example.org) is not accepted.
+room_id: <tmpl_string>
+
+# The plain text body of the message.
+[ message: <tmpl_string> | default = '{{ template "matrix.default.message" . }}' ]
+
+# An optional HTML version of the message, which clients show instead of the
+# plain text body. It is sent as formatted_body in the org.matrix.custom.html
+# format. When it is longer than the size Alertmanager allows, only the plain
+# text body is sent.
+[ html_message: <tmpl_string> | default = '' ]
+
+# The message type: m.text, or m.notice for automated messages, which bots
+# do not respond to.
+[ msgtype: <string> | default = 'm.text' ]
+
+# The HTTP client's configuration.
+[ http_config: <http_config> | default = global.http_config ]
 ```
 
 ### `<mattermost_config>`
