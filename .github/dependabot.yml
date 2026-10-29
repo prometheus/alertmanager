@@ -8,6 +8,8 @@ updates:
     open-pull-requests-limit: 20
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     groups:
       aws:
         patterns:
@@ -26,10 +28,14 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     groups:
       promci:
         patterns:
@@ -49,6 +55,8 @@ updates:
     open-pull-requests-limit: 20
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     groups:
       connect:
         patterns:
