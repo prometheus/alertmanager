@@ -121,7 +121,10 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 	return nil, errs
 }
 
-// Notify implements the Notifier interface.
+// Notify sends the alerts by email and returns the delivery verdict.
+// Once the SMTP connection is established, cancellation or expiry of ctx
+// interrupts SMTP operations by closing the connection. Failure during QUIT
+// after message acceptance does not turn a successful delivery into a retry.
 func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVerdict {
 	var (
 		c       *smtp.Client
@@ -161,9 +164,14 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 			return notify.Retry(0, fmt.Errorf("establish connection to server: %w", err), notify.DefaultReason)
 		}
 	}
+	defer conn.Close()
+	// DialContext only covers connection establishment. Close the connection when
+	// the context ends to interrupt SMTP reads and writes, including deferred QUIT.
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
-		conn.Close()
 		return notify.Retry(0, fmt.Errorf("create SMTP client: %w", err), notify.DefaultReason)
 	}
 	defer func() {
