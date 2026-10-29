@@ -1651,7 +1651,7 @@ Rocketchat notifications are sent via the [Rocketchat REST API](https://develope
 [ channel: <tmpl_string> ]
 
 # The sender token and token_id
-# See https://docs.rocket.chat/use-rocket.chat/user-guides/user-panel/my-account#personal-access-tokens
+# See https://docs.rocket.chat/docs/manage-personal-access-tokens
 # token and token_file are mutually exclusive.
 # token_id and token_id_file are mutually exclusive.
 token: <secret>
@@ -2108,7 +2108,7 @@ url_file: <filepath>
 ### `<wechat_config>`
 
 WeChat notifications are sent via the [WeChat
-API](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Service_Center_messages.html).
+API](https://developer.work.weixin.qq.com/document/path/90236).
 
 ```yaml
 # Whether to notify about resolved alerts.
