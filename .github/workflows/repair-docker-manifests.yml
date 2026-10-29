@@ -1,0 +1,79 @@
+---
+# Finishes a release whose publish_release job pushed the per-arch images to
+# Docker Hub but failed before the multi-arch manifests. Re-running the
+# release workflow is not an option because it checks out the tagged commit,
+# so it would run the same broken Makefile.common again.
+name: Repair Docker manifests
+on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose per-arch images exist on Docker Hub (e.g. v0.34.2)
+        required: true
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    if: github.repository_owner == 'prometheus'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write  # push to GHCR via github.token
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Login
+        env:
+          DOCKER_HUB_LOGIN: ${{ secrets.docker_hub_login }}
+          DOCKER_HUB_PASSWORD: ${{ secrets.docker_hub_password }}
+          QUAY_IO_LOGIN: ${{ secrets.quay_io_login }}
+          QUAY_IO_PASSWORD: ${{ secrets.quay_io_password }}
+          GHCR_IO_PASSWORD: ${{ github.token }}
+        run: |
+          echo "$DOCKER_HUB_PASSWORD" | docker login docker.io -u "$DOCKER_HUB_LOGIN" --password-stdin
+          echo "$QUAY_IO_PASSWORD" | docker login quay.io -u "$QUAY_IO_LOGIN" --password-stdin
+          echo "$GHCR_IO_PASSWORD" | docker login ghcr.io -u prometheus --password-stdin
+      - name: Select tags
+        run: |
+          tags="$TAG"
+          # Same rule as promci publish_release: only the newest stable release moves the floating tags.
+          latest_tag=$(git ls-remote --tags --refs "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" 'v*' \
+            | sed 's|.*refs/tags/||' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V -r | head -n1)
+          if [[ "$TAG" == "$latest_tag" ]]; then
+            tags="$tags latest ${TAG%%.*}"
+          fi
+          echo "TAGS=$tags" >> "$GITHUB_ENV"
+      # Images built without --platform are wrapped in an index that labels
+      # every arch linux/amd64. Referencing the image manifest by digest makes
+      # imagetools take the platform from the image config instead.
+      - name: Resolve per-arch image digests
+        run: |
+          for arch in amd64 armv7 arm64 ppc64le s390x; do
+            digest=$(docker buildx imagetools inspect --raw "docker.io/prom/alertmanager-linux-$arch:$TAG" \
+              | jq -r '.manifests[] | select(.platform.os == "linux") | .digest')
+            echo "DIGEST_$arch=$digest" >> "$GITHUB_ENV"
+          done
+      - name: Retag per-arch images on all registries
+        run: |
+          read -ra tags <<< "$TAGS"
+          for arch in amd64 armv7 arm64 ppc64le s390x; do
+            digest_var="DIGEST_$arch"
+            for dst in docker.io/prom quay.io/prometheus ghcr.io/prometheus; do
+              img="$dst/alertmanager-linux-$arch"
+              args=()
+              for t in "${tags[@]}"; do args+=(-t "$img:$t"); done
+              docker buildx imagetools create "${args[@]}" \
+                "docker.io/prom/alertmanager-linux-$arch@${!digest_var}"
+            done
+          done
+      - name: Create multi-arch manifests
+        run: |
+          read -ra tags <<< "$TAGS"
+          for repo in docker.io/prom quay.io/prometheus ghcr.io/prometheus; do
+            img="$repo/alertmanager"
+            args=()
+            for t in "${tags[@]}"; do args+=(-t "$img:$t"); done
+            docker buildx imagetools create "${args[@]}" \
+              "$img-linux-amd64@$DIGEST_amd64" "$img-linux-armv7@$DIGEST_armv7" "$img-linux-arm64@$DIGEST_arm64" \
+              "$img-linux-ppc64le@$DIGEST_ppc64le" "$img-linux-s390x@$DIGEST_s390x"
+          done
