@@ -131,8 +131,8 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 
 	if c.enableGroupKey {
 		labelValues := make([]string, 2)
-		for i := range d.routeGroupsSlice {
-			d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+		for _, s := range d.slots {
+			s.groups.Range(func(_, el any) bool {
 				ag := el.(*aggrGroup)
 				active, suppressed, unprocessed := ag.countAlertsByState()
 				labelValues[1] = ag.GroupKey()
@@ -153,8 +153,8 @@ func (c *alertStateCollector) Collect(ch chan<- prometheus.Metric) {
 	// different per-group marker states. Use highest-priority state:
 	// suppressed > active > unprocessed.
 	seen := map[model.Fingerprint]alert.AlertState{}
-	for i := range d.routeGroupsSlice {
-		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+	for _, s := range d.slots {
+		s.groups.Range(func(_, el any) bool {
 			ag := el.(*aggrGroup)
 			for _, a := range ag.alerts.List() {
 				fp := a.Fingerprint()
