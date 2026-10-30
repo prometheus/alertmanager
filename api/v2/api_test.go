@@ -350,6 +350,16 @@ func TestGetSilencesHandlerCreatedByFilter(t *testing.T) {
 			query:    "unrelated=%zz",
 			expected: []string{"alice", "alice", "bob", "team a"},
 		},
+		{
+			name:     "percent-encoded key",
+			query:    "created%5Fby=bob",
+			expected: []string{"bob"},
+		},
+		{
+			name:     "malformed key that only resembles created_by keeps working",
+			query:    "created_by%zz=alice",
+			expected: []string{"alice", "alice", "bob", "team a"},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := callHandler(t, tc.query)
@@ -376,6 +386,10 @@ func TestGetSilencesHandlerCreatedByFilter(t *testing.T) {
 		{name: "repeated with empty value", query: "created_by=&created_by=alice", expected: "created_by must not be repeated"},
 		{name: "invalid percent-encoding", query: "created_by=%zz", expected: `invalid query string: invalid URL escape "%zz"`},
 		{name: "invalid separator", query: "created_by=a;b", expected: "invalid query string: invalid semicolon separator in query"},
+		{name: "percent-encoded key with invalid percent-encoding", query: "created%5Fby=%zz", expected: `invalid query string: invalid URL escape "%zz"`},
+		{name: "percent-encoded key with invalid separator", query: "created%5Fby=a;b", expected: "invalid query string: invalid semicolon separator in query"},
+		{name: "percent-encoded key repeated", query: "created%5Fby=alice&created_by=bob", expected: "created_by must not be repeated"},
+		{name: "percent-encoded key empty", query: "created%5Fby=", expected: "created_by must not be empty"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := callHandler(t, tc.query)
