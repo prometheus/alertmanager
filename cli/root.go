@@ -15,6 +15,7 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -24,6 +25,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	clientruntime "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/cfaccess"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/version"
@@ -118,7 +120,7 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 			kingpin.Fatalf("failed to load HTTP config file: %v", err)
 		}
 
-		httpclient, err := promconfig.NewClientFromConfig(*httpConfig, "amtool")
+		httpclient, err := newAmtoolHTTPClient(*httpConfig)
 		if err != nil {
 			kingpin.Fatalf("failed to create a new HTTP client: %v", err)
 		}
@@ -142,6 +144,24 @@ func NewAlertmanagerClient(amURL *url.URL) *client.AlertmanagerAPI {
 	}
 
 	return c
+}
+
+// newAmtoolHTTPClient creates an HTTP client and enables Cloudflare Access
+// authentication when requested by the configuration.
+func newAmtoolHTTPClient(httpConfig promconfig.HTTPClientConfig) (*http.Client, error) {
+	httpConfig, cfAccessEnabled, err := cfaccess.PrepareHTTPClientConfig(httpConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := promconfig.NewClientFromConfig(httpConfig, "amtool")
+	if err != nil {
+		return nil, err
+	}
+	if cfAccessEnabled {
+		client.Transport = cfaccess.NewRoundTripper(client.Transport)
+	}
+	return client, nil
 }
 
 // Execute is the main function for the amtool command.
