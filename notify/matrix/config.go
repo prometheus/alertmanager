@@ -49,7 +49,8 @@ type MatrixConfig struct {
 	// AccessToken authenticates the account that sends the messages.
 	AccessToken     commoncfg.Secret `yaml:"access_token,omitempty" json:"access_token,omitempty"`
 	AccessTokenFile string           `yaml:"access_token_file,omitempty" json:"access_token_file,omitempty"`
-	// RoomID is the ID of the room to send to, such as !abc123:example.org.
+	// RoomID is the ID of the room to send to, such as !deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc,
+	// or !abc123:example.org for rooms created with room versions before 12.
 	// The account must have joined the room.
 	RoomID string `yaml:"room_id,omitempty" json:"room_id,omitempty"`
 	// Message is the plain text body of the message.
@@ -87,7 +88,7 @@ func (c *MatrixConfig) Validate() error {
 	}
 	// A templated room ID is checked once it is rendered.
 	if !strings.Contains(c.RoomID, "{{") && !validRoomID(c.RoomID) {
-		return errors.New("room_id on matrix_config must be a room ID such as !abc123:example.org, not a room alias")
+		return errors.New("room_id on matrix_config must be a room ID such as !deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc, not a room alias")
 	}
 	if c.MsgType != MsgTypeText && c.MsgType != MsgTypeNotice {
 		return errors.New("msgtype on matrix_config must be m.text or m.notice")

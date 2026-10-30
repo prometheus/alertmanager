@@ -32,6 +32,14 @@ func TestMatrixConfiguration(t *testing.T) {
 			in: `
 homeserver_url: https://matrix.example.org
 access_token: secret
+room_id: '!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc'
+`,
+		},
+		{
+			name: "with a room ID from a room version before 12 - it succeeds",
+			in: `
+homeserver_url: https://matrix.example.org
+access_token: secret
 room_id: '!abc123:example.org'
 `,
 		},
@@ -48,7 +56,7 @@ msgtype: m.notice
 			name: "without homeserver_url - it fails",
 			in: `
 access_token: secret
-room_id: '!abc123:example.org'
+room_id: '!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc'
 `,
 			expected: "missing homeserver_url on matrix_config",
 		},
@@ -56,7 +64,7 @@ room_id: '!abc123:example.org'
 			name: "without a token - it fails",
 			in: `
 homeserver_url: https://matrix.example.org
-room_id: '!abc123:example.org'
+room_id: '!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc'
 `,
 			expected: "missing access_token or access_token_file on matrix_config",
 		},
@@ -66,7 +74,7 @@ room_id: '!abc123:example.org'
 homeserver_url: https://matrix.example.org
 access_token: secret
 access_token_file: /token
-room_id: '!abc123:example.org'
+room_id: '!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc'
 `,
 			expected: "at most one of access_token & access_token_file must be configured",
 		},
@@ -85,14 +93,14 @@ homeserver_url: https://matrix.example.org
 access_token: secret
 room_id: '#alerts:example.org'
 `,
-			expected: "room_id on matrix_config must be a room ID such as !abc123:example.org, not a room alias",
+			expected: "room_id on matrix_config must be a room ID such as !deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc, not a room alias",
 		},
 		{
 			name: "with an unknown msgtype - it fails",
 			in: `
 homeserver_url: https://matrix.example.org
 access_token: secret
-room_id: '!abc123:example.org'
+room_id: '!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc'
 msgtype: m.emote
 `,
 			expected: "msgtype on matrix_config must be m.text or m.notice",
@@ -117,7 +125,7 @@ func TestMatrixConfigurationDefaults(t *testing.T) {
 	require.NoError(t, yaml.UnmarshalStrict([]byte(`
 homeserver_url: https://matrix.example.org
 access_token: secret
-room_id: '!abc123:example.org'
+room_id: '!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc'
 `), &cfg))
 	require.True(t, cfg.SendResolved())
 	require.Equal(t, `{{ template "matrix.default.message" . }}`, cfg.Message)

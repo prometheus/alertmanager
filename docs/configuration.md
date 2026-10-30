@@ -1174,7 +1174,9 @@ homeserver_url: <string>
 access_token: <secret>
 access_token_file: <filepath>
 
-# The ID of the room to send to, e.g. !abc123:example.org. A room alias
+# The ID of the room to send to, e.g. !deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc.
+# Rooms created with room versions before 12 have IDs that end with the server
+# name, e.g. !abc123:example.org, which are accepted as well. A room alias
 # (#room:example.org) is not accepted.
 room_id: <tmpl_string>
 

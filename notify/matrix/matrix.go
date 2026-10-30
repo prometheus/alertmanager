@@ -39,8 +39,13 @@ import (
 
 const (
 	// A Matrix event, including the envelope the homeserver adds, is
-	// limited to 65536 bytes. The body and the HTML body share that limit.
-	// See https://spec.matrix.org/latest/client-server-api/#size-limits.
+	// limited to 65536 bytes, see
+	// https://spec.matrix.org/latest/client-server-api/#size-limits.
+	// The plain text body and the HTML body are sent in the same event and
+	// are each truncated to this size. JSON escaping can make them grow
+	// (quotes, newlines and control characters take two to six bytes), so
+	// 2 x 20000 bytes leaves room for that and for the envelope (sender,
+	// room ID, event ID, signatures and so on) to stay under the limit.
 	maxBodyBytes = 20000
 	// The size of an error response that is read is bounded too.
 	maxResponseBytes = 64 << 10
@@ -100,7 +105,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 	if !validRoomID(roomID) {
-		return notify.Unrecoverable(fmt.Errorf("room_id %q is not a room ID such as !abc123:example.org", roomID), notify.DefaultReason)
+		return notify.Unrecoverable(fmt.Errorf("room_id %q is not a room ID such as !deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc", roomID), notify.DefaultReason)
 	}
 
 	body, truncated := notify.TruncateInBytes(body, maxBodyBytes)

@@ -38,7 +38,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
-const testRoomID = "!abc123:example.org"
+const testRoomID = "!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc"
 
 // sentEvent is what the test homeserver received for one message.
 type sentEvent struct {

@@ -1879,7 +1879,7 @@ receivers:
   matrix_configs:
   - homeserver_url: https://matrix.example.org
     access_token: secret
-    room_id: '!abc123:example.org'
+    room_id: '!deadbeefdeadbeefdeadbeefdeadbeefdeadbeefabc'
 `)
 	require.NoError(t, err)
 	matrixCfg := conf.Receivers[0].MatrixConfigs[0]
