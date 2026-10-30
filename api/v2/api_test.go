@@ -256,6 +256,138 @@ func TestGetSilencesHandlerStateFilter(t *testing.T) {
 	require.Empty(t, callHandler(new(false), new(false), new(false)))
 }
 
+func TestGetSilencesHandlerCreatedByFilter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	silences := newSilences(t)
+	api := API{
+		uptime:   now,
+		silences: silences,
+		logger:   promslog.NewNopLogger(),
+	}
+
+	createSilence := func(createdBy, label string, startsAt time.Time) {
+		t.Helper()
+		m := &silencepb.Matcher{Type: silencepb.Matcher_EQUAL, Name: "a", Pattern: label}
+		require.NoError(t, silences.Set(t.Context(), &silencepb.Silence{
+			MatcherSets: []*silencepb.MatcherSet{{Matchers: []*silencepb.Matcher{m}}},
+			StartsAt:    timestamppb.New(startsAt),
+			EndsAt:      timestamppb.New(startsAt.Add(time.Hour)),
+			CreatedBy:   createdBy,
+			Comment:     "test",
+		}))
+	}
+	createSilence("alice", "active", now.Add(-time.Minute))
+	createSilence("alice", "pending", now.Add(30*time.Minute))
+	createSilence("bob", "active", now.Add(-time.Minute))
+	createSilence("team a", "active", now.Add(-time.Minute))
+
+	// Requests go through the generated parameter binding, so these tests also
+	// cover what it does with empty, repeated and malformed values.
+	callHandler := func(t *testing.T, query string) *httptest.ResponseRecorder {
+		t.Helper()
+		r, err := http.NewRequest("GET", "/api/v2/silences?"+query, nil)
+		require.NoError(t, err)
+		params := silence_ops.NewGetSilencesParams()
+		require.NoError(t, params.BindRequest(r, &middleware.MatchedRoute{}))
+		w := httptest.NewRecorder()
+		api.getSilencesHandler(params).WriteResponse(w, runtime.JSONProducer())
+		return w
+	}
+
+	for _, tc := range []struct {
+		name     string
+		query    string
+		expected []string
+	}{
+		{
+			name:     "no filter returns every creator",
+			expected: []string{"alice", "alice", "bob", "team a"},
+		},
+		{
+			name:     "exact match",
+			query:    "created_by=alice",
+			expected: []string{"alice", "alice"},
+		},
+		{
+			name:     "percent-encoded value",
+			query:    "created_by=team%20a",
+			expected: []string{"team a"},
+		},
+		{
+			name:     "match is case sensitive",
+			query:    "created_by=Alice",
+			expected: []string{},
+		},
+		{
+			name:     "substring does not match",
+			query:    "created_by=ali",
+			expected: []string{},
+		},
+		{
+			name:     "matchers are not interpreted",
+			query:    "created_by=.%2A",
+			expected: []string{},
+		},
+		{
+			name:     "unknown creator",
+			query:    "created_by=nobody",
+			expected: []string{},
+		},
+		{
+			name:     "combined with state filter",
+			query:    "created_by=alice&pending=false",
+			expected: []string{"alice"},
+		},
+		{
+			name:     "combined with matcher filter",
+			query:    "created_by=bob&filter=a%3D%22active%22",
+			expected: []string{"bob"},
+		},
+		{
+			name:     "malformed query without created_by keeps working",
+			query:    "unrelated=%zz",
+			expected: []string{"alice", "alice", "bob", "team a"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := callHandler(t, tc.query)
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+			var sils open_api_models.GettableSilences
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &sils))
+			got := make([]string, 0, len(sils))
+			for _, sil := range sils {
+				got = append(got, *sil.CreatedBy)
+			}
+			require.ElementsMatch(t, tc.expected, got)
+		})
+	}
+
+	for _, tc := range []struct {
+		name     string
+		query    string
+		expected string
+	}{
+		{name: "empty value", query: "created_by=", expected: "created_by must not be empty"},
+		{name: "key without value", query: "created_by", expected: "created_by must not be empty"},
+		{name: "repeated", query: "created_by=alice&created_by=bob", expected: "created_by must not be repeated"},
+		{name: "repeated with empty value", query: "created_by=&created_by=alice", expected: "created_by must not be repeated"},
+		{name: "invalid percent-encoding", query: "created_by=%zz", expected: `invalid query string: invalid URL escape "%zz"`},
+		{name: "invalid separator", query: "created_by=a;b", expected: "invalid query string: invalid semicolon separator in query"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := callHandler(t, tc.query)
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+
+			var msg string
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &msg))
+			require.Equal(t, tc.expected, msg)
+		})
+	}
+}
+
 func TestGetSilencesHandlerEndBoundary(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		store := newSilences(t)

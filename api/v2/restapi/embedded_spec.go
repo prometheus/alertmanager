@@ -350,6 +350,12 @@ func init() {
             "description": "Include pending silences in results. If false, excludes pending silences.",
             "name": "pending",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Only include silences whose ` + "`" + `createdBy` + "`" + ` is exactly this value. It cannot be empty or repeated.",
+            "name": "created_by",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1270,6 +1276,12 @@ func init() {
             "default": true,
             "description": "Include pending silences in results. If false, excludes pending silences.",
             "name": "pending",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Only include silences whose ` + "`" + `createdBy` + "`" + ` is exactly this value. It cannot be empty or repeated.",
+            "name": "created_by",
             "in": "query"
           }
         ],
