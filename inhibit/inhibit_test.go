@@ -180,7 +180,8 @@ func TestInhibitRuleHasEqual(t *testing.T) {
 			r := &InhibitRule{
 				TargetMatchers: c.targetMatchers,
 				Equal:          equal,
-				cache:          newCache(equal),
+				// Equal-only data: identity constraints with the raw names as slots.
+				cache: newCache(constraintsFor(c.equal, nil)),
 			}
 			for _, v := range c.initial {
 				r.cache.set(v)
@@ -619,10 +620,9 @@ func TestInhibit(t *testing.T) {
 }
 
 func TestInhibitRule_fingerprintEquals(t *testing.T) {
-	c := newCache(map[model.LabelName]struct{}{
-		"cluster": {},
-		"service": {},
-	})
+	c := newCache(constraintsFor(
+		model.LabelNames{"cluster", "service"}, nil,
+	))
 
 	lset := model.LabelSet{
 		"cluster":  "prod",
@@ -630,7 +630,7 @@ func TestInhibitRule_fingerprintEquals(t *testing.T) {
 		"instance": "host1",
 	}
 
-	fp := c.fingerprintEquals(lset)
+	fp := c.fingerprintSource(lset)
 
 	// Same equal labels should produce same fingerprint
 	lset2 := model.LabelSet{
@@ -638,14 +638,14 @@ func TestInhibitRule_fingerprintEquals(t *testing.T) {
 		"service":  "api",
 		"instance": "host2", // different non-equal label
 	}
-	require.Equal(t, fp, c.fingerprintEquals(lset2))
+	require.Equal(t, fp, c.fingerprintSource(lset2))
 
 	// Different equal label value should produce different fingerprint
 	lset3 := model.LabelSet{
 		"cluster": "staging",
 		"service": "api",
 	}
-	require.NotEqual(t, fp, c.fingerprintEquals(lset3))
+	require.NotEqual(t, fp, c.fingerprintSource(lset3))
 }
 
 func TestInhibitRuleIndexSurvivesGC(t *testing.T) {
@@ -714,16 +714,663 @@ func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
 	require.Equal(t, sourceOnly.Fingerprint(), fp)
 }
 
+// TestConstraintSlots covers slot assignment: raw names for equal labels,
+// "#N" suffixes on collision, config order preserved.
+func TestConstraintSlots(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		equal model.LabelNames
+		pairs []amcommoncfg.LabelPair
+		want  []constraint
+	}{
+		{
+			name: "no constraints",
+			want: []constraint{},
+		},
+		{
+			name: "equal labels keep their names as slots in config order",
+			equal: model.LabelNames{
+				"alertname",
+				"cluster",
+			},
+			want: []constraint{
+				{slot: "alertname", src: "alertname", tgt: "alertname"},
+				{slot: "cluster", src: "cluster", tgt: "cluster"},
+			},
+		},
+		{
+			name: "pair whose source label is not equal to any other constraint",
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			want: []constraint{
+				{slot: "hostname", src: "hostname", tgt: "remote"},
+			},
+		},
+		{
+			name:  "pair source label also listed in equal gets a suffixed slot",
+			equal: model.LabelNames{"hostname"},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			want: []constraint{
+				{slot: "hostname", src: "hostname", tgt: "hostname"},
+				{slot: "hostname#2", src: "hostname", tgt: "remote"},
+			},
+		},
+		{
+			name: "two pairs sharing one source label count suffixes independently",
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "source", TargetLabel: "target_a"},
+				{SourceLabel: "source", TargetLabel: "target_b"},
+			},
+			want: []constraint{
+				{slot: "source", src: "source", tgt: "target_a"},
+				{slot: "source#2", src: "source", tgt: "target_b"},
+			},
+		},
+		{
+			name:  "equal label plus two pairs on the same source label",
+			equal: model.LabelNames{"source"},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "source", TargetLabel: "target_a"},
+				{SourceLabel: "source", TargetLabel: "target_b"},
+			},
+			want: []constraint{
+				{slot: "source", src: "source", tgt: "source"},
+				{slot: "source#2", src: "source", tgt: "target_a"},
+				{slot: "source#3", src: "source", tgt: "target_b"},
+			},
+		},
+		{
+			name:  "duplicate equal entries share one slot and stay deterministic",
+			equal: model.LabelNames{"hostname", "hostname"},
+			want: []constraint{
+				{slot: "hostname", src: "hostname", tgt: "hostname"},
+				{slot: "hostname", src: "hostname", tgt: "hostname"},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := constraintsFor(c.equal, c.pairs)
+			require.Equal(t, c.want, got)
+			// Slot assignment must be deterministic for repeated calls.
+			require.Equal(t, got, constraintsFor(c.equal, c.pairs))
+		})
+	}
+}
+
+func TestNewInhibitRuleEqualAndPairShareSourceLabel(t *testing.T) {
+	t.Parallel()
+
+	// Slot collision: hostname is both an equal label and a pair source
+	// label, so the pair gets the suffixed slot.
+	r := NewInhibitRule(amcommoncfg.InhibitRule{
+		Equal:      []string{"hostname"},
+		EqualPairs: []amcommoncfg.LabelPair{{SourceLabel: "hostname", TargetLabel: "remote"}},
+	})
+
+	require.Equal(t, map[model.LabelName]struct{}{"hostname": {}}, r.Equal)
+	require.Equal(t, []constraint{
+		{slot: "hostname", src: "hostname", tgt: "hostname"},
+		{slot: "hostname#2", src: "hostname", tgt: "remote"},
+	}, r.cache.constraints)
+}
+
+func TestInhibitRulePairsTwoSidedDoesNotShadow(t *testing.T) {
+	t.Parallel()
+
+	// Pair variant of TestInhibitRuleTwoSidedDoesNotShadow: two-sided sources
+	// are skipped and never shadow a source-only alert.
+	now := time.Now()
+	r := NewInhibitRule(amcommoncfg.InhibitRule{
+		TargetMatchers: amcommoncfg.Matchers{
+			&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+		},
+		Equal:      []string{"cluster"},
+		EqualPairs: []amcommoncfg.LabelPair{{SourceLabel: "hostname", TargetLabel: "remote"}},
+	})
+
+	sourceOnly := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "S1", "cluster": "c1", "hostname": "db1", "severity": "critical"},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
+	twoSided := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "S2", "cluster": "c1", "hostname": "db1", "severity": "warning"},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(2 * time.Hour),
+	}, time.Time{}, false)
+	r.cache.set(sourceOnly)
+	r.cache.set(twoSided)
+
+	target := model.LabelSet{"alertname": "T", "cluster": "c1", "remote": "db1", "severity": "warning"}
+	fp, ok := r.hasEqual(target, true, now)
+	require.True(t, ok)
+	require.Equal(t, sourceOnly.Fingerprint(), fp)
+}
+
+func TestInhibitRulePairWithNoConstraintsByConfig(t *testing.T) {
+	t.Parallel()
+
+	// Zero-constraint rule: empty key, matches any cached source, same as
+	// a pre-change rule without an equal list.
+	r := NewInhibitRule(amcommoncfg.InhibitRule{})
+	now := time.Now()
+	r.cache.set(alert.New(model.Alert{
+		Labels:   model.LabelSet{"any": "alert"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false))
+
+	_, found := r.hasEqual(model.LabelSet{"any": "alert"}, false, now)
+	require.True(t, found, "a rule without constraints matches any cached source alert")
+}
+
+func TestInhibitRuleHasEqualPairs(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	cases := []struct {
+		name        string
+		src         model.LabelSet
+		pairs       []amcommoncfg.LabelPair
+		target      model.LabelSet
+		excludeBoth bool
+		want        bool
+	}{
+		{
+			name: "pair and equal both match",
+			src:  model.LabelSet{"cluster": "prod", "hostname": "db1"},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			target: model.LabelSet{"cluster": "prod", "remote": "db1"},
+			want:   true,
+		},
+		{
+			name: "equal holds but pair values differ",
+			src: model.LabelSet{
+				"cluster":  "prod",
+				"hostname": "db1",
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			target: model.LabelSet{
+				"cluster": "prod",
+				"remote":  "db2",
+			},
+			want: false,
+		},
+		{
+			name: "pair target label missing on the target",
+			src: model.LabelSet{
+				"cluster":  "prod",
+				"hostname": "db1",
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			target: model.LabelSet{
+				"cluster": "prod",
+			},
+			want: false,
+		},
+		{
+			name: "pair source label missing on the source",
+			src: model.LabelSet{
+				"cluster": "prod",
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			target: model.LabelSet{
+				"cluster": "prod",
+				"remote":  "db1",
+			},
+			want: false,
+		},
+		{
+			name: "both pair labels missing compare as the empty string",
+			src: model.LabelSet{
+				"cluster": "prod",
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			target: model.LabelSet{
+				"cluster": "prod",
+			},
+			want: true,
+		},
+		{
+			name: "AND across all pairs: one failing pair disables the rule",
+			src: model.LabelSet{
+				"cluster":  "prod",
+				"hostname": "db1",
+				"zone":     "z1",
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+				{SourceLabel: "zone", TargetLabel: "region"},
+			},
+			target: model.LabelSet{
+				"cluster": "prod",
+				"remote":  "db1",
+				"region":  "z2",
+			},
+			want: false,
+		},
+		{
+			name: "AND across all pairs: all hold",
+			src: model.LabelSet{
+				"cluster":  "prod",
+				"hostname": "db1",
+				"zone":     "z1",
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+				{SourceLabel: "zone", TargetLabel: "region"},
+			},
+			target: model.LabelSet{
+				"cluster": "prod",
+				"remote":  "db1",
+				"region":  "z1",
+			},
+			want: true,
+		},
+		{
+			name: "resolved source alert does not inhibit",
+			src: model.LabelSet{
+				"cluster":  "prod",
+				"hostname": "db1",
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			target: model.LabelSet{
+				"cluster": "prod",
+				"remote":  "db1",
+			},
+			want: false,
+		},
+		{
+			name: "two-sided source is skipped when exclusion is active",
+			src: model.LabelSet{
+				"cluster":  "prod",
+				"hostname": "db1",
+				"t":        "1", // matches the rule's target matcher too
+			},
+			pairs: []amcommoncfg.LabelPair{
+				{SourceLabel: "hostname", TargetLabel: "remote"},
+			},
+			target: model.LabelSet{"cluster": "prod", "remote": "db1", "t": "1"},
+			// Only source is two-sided, so it is skipped.
+			excludeBoth: true,
+			want:        false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := NewInhibitRule(amcommoncfg.InhibitRule{
+				TargetMatchers: amcommoncfg.Matchers{
+					&labels.Matcher{Type: labels.MatchEqual, Name: "t", Value: "1"},
+				},
+				Equal:      []string{"cluster"},
+				EqualPairs: c.pairs,
+			})
+
+			src := alert.New(model.Alert{
+				Labels:   c.src,
+				StartsAt: now.Add(-time.Minute),
+				EndsAt:   now.Add(time.Hour),
+			}, time.Time{}, false)
+			if c.name == "resolved source alert does not inhibit" {
+				src.EndsAt = now.Add(-time.Second)
+			}
+			r.cache.set(src)
+
+			fp, found := r.hasEqual(c.target, c.excludeBoth, now)
+			require.Equal(t, c.want, found, "want %t, got %t", c.want, found)
+			if c.want {
+				require.Equal(t, src.Fingerprint(), fp)
+			}
+		})
+	}
+}
+
+func TestInhibitCombinedEqualAndPair(t *testing.T) {
+	t.Parallel()
+
+	// End to end through Mutes: RouterDown inhibits the InterfaceDown alerts
+	// of neighbouring routers in the same site that face the down router.
+	now := time.Now()
+	ih := NewInhibitor(nil, []amcommoncfg.InhibitRule{{
+		Name: "router-down-mutes-facing-interface-down",
+		SourceMatchers: amcommoncfg.Matchers{
+			&labels.Matcher{Type: labels.MatchEqual, Name: "alertname", Value: "RouterDown"},
+		},
+		TargetMatchers: amcommoncfg.Matchers{
+			&labels.Matcher{Type: labels.MatchEqual, Name: "alertname", Value: "InterfaceDown"},
+		},
+		Equal:      []string{"site"},
+		EqualPairs: []amcommoncfg.LabelPair{{SourceLabel: "hostname", TargetLabel: "remote"}},
+	}}, nopLogger, eventrecorder.NopRecorder())
+
+	router := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "RouterDown", "hostname": "r1", "site": "fra"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
+	ih.rules[0].cache.set(router)
+
+	cases := []struct {
+		name   string
+		target model.LabelSet
+		muted  bool
+	}{
+		{
+			name: "neighbour interface facing the down router",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"hostname":  "r2",
+				"remote":    "r1",
+				"site":      "fra",
+			},
+			muted: true,
+		},
+		{
+			name: "pair mismatch: interface facing another router",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"hostname":  "r2",
+				"remote":    "r3",
+				"site":      "fra",
+			},
+			muted: false,
+		},
+		{
+			name: "pair mismatch: interface located on the down router",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"hostname":  "r1",
+				"remote":    "r2",
+				"site":      "fra",
+			},
+			muted: false,
+		},
+		{
+			name: "equal mismatch: site differs from the router site",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"hostname":  "r2",
+				"remote":    "r1",
+				"site":      "ams",
+			},
+			muted: false,
+		},
+		{
+			name: "remote missing: compares as the empty string",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"hostname":  "r2",
+				"site":      "fra",
+			},
+			muted: false,
+		},
+		{
+			name: "site missing: compares as the empty string",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"hostname":  "r2",
+				"remote":    "r1",
+			},
+			muted: false,
+		},
+		{
+			name:   "target matcher mismatch: different alertname",
+			target: model.LabelSet{"alertname": "NodeDown", "hostname": "r2", "remote": "r1", "site": "fra"},
+			muted:  false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			checkMutes(t, ih, c.target, c.muted, "target %v", c.target)
+		})
+	}
+}
+
+func TestInhibitIssue2254RouterDown(t *testing.T) {
+	t.Parallel()
+
+	// Issue #2254 end to end through Mutes: a down router mutes the
+	// InterfaceDown alerts on itself (equal hostname) and on the far end of
+	// its links (pair hostname -> remote), but not unrelated links.
+	now := time.Now()
+	sourceMatchers := amcommoncfg.Matchers{
+		&labels.Matcher{Type: labels.MatchEqual, Name: "alertname", Value: "RouterDown"},
+	}
+	targetMatchers := amcommoncfg.Matchers{
+		&labels.Matcher{Type: labels.MatchEqual, Name: "alertname", Value: "InterfaceDown"},
+	}
+	ih := NewInhibitor(nil, []amcommoncfg.InhibitRule{
+		{
+			Name:           "router-down-mutes-local-interface-down",
+			SourceMatchers: sourceMatchers,
+			TargetMatchers: targetMatchers,
+			Equal:          []string{"hostname"},
+		},
+		{
+			Name:           "router-down-mutes-remote-interface-down",
+			SourceMatchers: sourceMatchers,
+			TargetMatchers: targetMatchers,
+			EqualPairs:     []amcommoncfg.LabelPair{{SourceLabel: "hostname", TargetLabel: "remote"}},
+		},
+	}, nopLogger, eventrecorder.NopRecorder())
+
+	router := alert.New(model.Alert{
+		Labels:   model.LabelSet{"alertname": "RouterDown", "instance": "192.168.0.1", "hostname": "r1"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
+	for _, r := range ih.rules {
+		r.cache.set(router)
+	}
+
+	cases := []struct {
+		name   string
+		target model.LabelSet
+		muted  bool
+	}{
+		{
+			name: "interface on the down router",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"instance":  "10.0.0.2",
+				"hostname":  "r1",
+				"interface": "Te0/2/0/1",
+				"remote":    "r2",
+			},
+			muted: true,
+		},
+		{
+			name: "interface on a neighbour facing the down router",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"instance":  "10.0.0.1",
+				"hostname":  "r2",
+				"interface": "Te0/7/0/12",
+				"remote":    "r1",
+			},
+			muted: true,
+		},
+		{
+			name: "interface on a neighbour facing another router",
+			target: model.LabelSet{
+				"alertname": "InterfaceDown",
+				"instance":  "10.0.0.5",
+				"hostname":  "r2",
+				"interface": "Te0/7/0/13",
+				"remote":    "r3",
+			},
+			muted: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			checkMutes(t, ih, c.target, c.muted, "target %v", c.target)
+		})
+	}
+}
+
+func TestInhibitRulePairProbeDiscriminatesSourceAlerts(t *testing.T) {
+	t.Parallel()
+
+	// Two sources differing only in the pair's source label: the probe
+	// must find exactly the matching one.
+	now := time.Now()
+	r := NewInhibitRule(amcommoncfg.InhibitRule{
+		Equal:      []string{"cluster"},
+		EqualPairs: []amcommoncfg.LabelPair{{SourceLabel: "hostname", TargetLabel: "remote"}},
+	})
+	src1 := alert.New(model.Alert{
+		Labels:   model.LabelSet{"cluster": "c1", "hostname": "db1"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
+	src2 := alert.New(model.Alert{
+		Labels:   model.LabelSet{"cluster": "c1", "hostname": "db2"},
+		StartsAt: now.Add(-time.Minute),
+		EndsAt:   now.Add(time.Hour),
+	}, time.Time{}, false)
+	r.cache.set(src1)
+	r.cache.set(src2)
+
+	fp, ok := r.hasEqual(model.LabelSet{"cluster": "c1", "remote": "db1"}, false, now)
+	require.True(t, ok)
+	require.Equal(t, src1.Fingerprint(), fp, "probe for remote=db1 must find the db1 source")
+
+	fp, ok = r.hasEqual(model.LabelSet{"cluster": "c1", "remote": "db2"}, false, now)
+	require.True(t, ok)
+	require.Equal(t, src2.Fingerprint(), fp, "probe for remote=db2 must find the db2 source")
+
+	_, ok = r.hasEqual(model.LabelSet{"cluster": "c1", "remote": "db3"}, false, now)
+	require.False(t, ok, "no source alert has hostname=db3")
+}
+
+func TestInhibitRulePairGCRemovesEverySlot(t *testing.T) {
+	t.Parallel()
+
+	// gc must drop resolved sources from map and index alike; a wrong
+	// key re-derivation would orphan entries.
+	now := time.Now()
+	r := NewInhibitRule(amcommoncfg.InhibitRule{
+		Equal:      []string{"cluster"},
+		EqualPairs: []amcommoncfg.LabelPair{{SourceLabel: "hostname", TargetLabel: "remote"}},
+	})
+	active := alert.New(model.Alert{
+		Labels:   model.LabelSet{"cluster": "c1", "hostname": "db1"},
+		StartsAt: now.Add(-time.Hour),
+		EndsAt:   now.Add(2 * time.Hour),
+	}, time.Time{}, false)
+	resolvedSameKey := alert.New(model.Alert{
+		Labels:   model.LabelSet{"cluster": "c1", "hostname": "db1", "id": "resolved"},
+		StartsAt: now.Add(-2 * time.Hour),
+		EndsAt:   now.Add(-time.Minute),
+	}, time.Time{}, false)
+	resolvedOtherKey := alert.New(model.Alert{
+		Labels:   model.LabelSet{"cluster": "c2", "hostname": "db9"},
+		StartsAt: now.Add(-2 * time.Hour),
+		EndsAt:   now.Add(-time.Hour),
+	}, time.Time{}, false)
+	r.cache.set(active)
+	r.cache.set(resolvedSameKey)
+	r.cache.set(resolvedOtherKey)
+	require.Len(t, r.cache.alerts, 3)
+	require.Len(t, r.cache.index, 2, "active and resolvedSameKey share one slot tuple, resolvedOtherKey another")
+
+	r.cache.gc()
+
+	require.Len(t, r.cache.alerts, 1)
+	require.Contains(t, r.cache.alerts, active.Fingerprint())
+	require.Len(t, r.cache.index, 1, "the resolvedOtherKey slot must be removed entirely")
+	// No orphans: every indexed fingerprint is a stored alert.
+	for key, fps := range r.cache.index {
+		for fp := range fps {
+			_, stored := r.cache.alerts[fp]
+			require.True(t, stored, "orphaned fingerprint %x in index slot %x", fp, key)
+		}
+	}
+	_, found := r.hasEqual(model.LabelSet{"cluster": "c1", "remote": "db1"}, false, now)
+	require.True(t, found, "active source must still inhibit after gc")
+
+	// After the last alert resolves, both maps end up empty.
+	active.EndsAt = now.Add(-time.Second)
+	r.cache.set(active)
+	r.cache.gc()
+	require.Empty(t, r.cache.alerts)
+	require.Empty(t, r.cache.index, "all slots must be removed once every alert resolved")
+}
+
+// legacyFingerprintEquals is the pre-equal_pairs implementation, verbatim,
+// so parity can be asserted against it.
+func legacyFingerprintEquals(equal map[model.LabelName]struct{}, lset model.LabelSet) model.Fingerprint {
+	equalSet := make(model.LabelSet, len(equal))
+	for n := range equal {
+		equalSet[n] = lset[n]
+	}
+	return equalSet.Fingerprint()
+}
+
+// TestFingerprintSourceParityEqualOnly proves equal-only rules build
+// byte-identical keys with no extra allocations. Serial: AllocsPerRun.
+func TestFingerprintSourceParityEqualOnly(t *testing.T) {
+	for n := 0; n <= 6; n++ {
+		var (
+			names model.LabelNames
+			equal = make(map[model.LabelName]struct{}, n)
+			lset  = make(model.LabelSet, n+1)
+		)
+		for i := 0; i < n; i++ {
+			name := model.LabelName(fmt.Sprintf("label_%d", i))
+			names = append(names, name)
+			equal[name] = struct{}{}
+			lset[name] = model.LabelValue(fmt.Sprintf("value_%d", i%3))
+		}
+		lset["noise"] = "untracked"
+
+		c := newCache(constraintsFor(names, nil))
+
+		want := legacyFingerprintEquals(equal, lset)
+		require.Equal(t, want, c.fingerprintSource(lset),
+			"%d equal labels: new index key deviates from the legacy fingerprint", n)
+		// Target-side projection agrees for identity constraints too.
+		require.Equal(t, want, c.fingerprintTarget(lset))
+
+		legacy := testing.AllocsPerRun(100, func() { legacyFingerprintEquals(equal, lset) })
+		fast := testing.AllocsPerRun(100, func() { c.fingerprintSource(lset) })
+		require.LessOrEqual(t, fast, legacy,
+			"%d equal labels: identity fast path must not allocate more than the legacy path (legacy=%d, new=%d)", n, legacy, fast)
+	}
+}
+
 func BenchmarkFingerprintEquals(b *testing.B) {
-	// Test fingerprintEquals with varying number of equal labels
+	// fingerprintSource with varying equal-label counts (identity slots),
+	// i.e. the pure-equal fast path.
 	for _, numLabels := range []int{1, 3, 5, 10} {
 		b.Run(fmt.Sprintf("%d_equal_labels", numLabels), func(b *testing.B) {
-			equalLabels := make(map[model.LabelName]struct{}, numLabels)
+			equalNames := make(model.LabelNames, numLabels)
 			for i := range numLabels {
-				equalLabels[model.LabelName(fmt.Sprintf("label_%d", i))] = struct{}{}
+				equalNames[i] = model.LabelName(fmt.Sprintf("label_%d", i))
 			}
 
-			c := newCache(equalLabels)
+			c := newCache(constraintsFor(equalNames, nil))
 
 			// Create a label set with matching values
 			lset := make(model.LabelSet, numLabels+2)
@@ -737,7 +1384,7 @@ func BenchmarkFingerprintEquals(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_ = c.fingerprintEquals(lset)
+				_ = c.fingerprintSource(lset)
 			}
 		})
 	}
