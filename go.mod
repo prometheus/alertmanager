@@ -2,6 +2,8 @@ module github.com/prometheus/alertmanager
 
 go 1.26.0
 
+godebug multipathtcp=0
+
 require (
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/cors v0.1.0
