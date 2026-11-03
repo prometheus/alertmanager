@@ -71,6 +71,7 @@ type Part struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	FullState     bool                   `protobuf:"varint,3,opt,name=full_state,json=fullState,proto3" json:"full_state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -117,6 +118,13 @@ func (x *Part) GetData() []byte {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *Part) GetFullState() bool {
+	if x != nil {
+		return x.FullState
+	}
+	return false
 }
 
 type FullState struct {
@@ -235,10 +243,12 @@ var File_cluster_proto protoreflect.FileDescriptor
 
 const file_cluster_proto_rawDesc = "" +
 	"\n" +
-	"\rcluster.proto\x12\tclusterpb\",\n" +
+	"\rcluster.proto\x12\tclusterpb\"K\n" +
 	"\x04Part\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"2\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\x12\x1d\n" +
+	"\n" +
+	"full_state\x18\x03 \x01(\bR\tfullState\"2\n" +
 	"\tFullState\x12%\n" +
 	"\x05parts\x18\x01 \x03(\v2\x0f.clusterpb.PartR\x05parts\"\xb3\x01\n" +
 	"\x11MemberlistMessage\x12\x18\n" +
