@@ -19,6 +19,7 @@ import (
 	"net/http/httptest"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,7 +55,24 @@ func TestSelectEncoding(t *testing.T) {
 		{"gzip, deflate, br, zstd", encBrotli}, // Chrome
 	} {
 		t.Run(tt.header, func(t *testing.T) {
-			require.Equal(t, tt.want, selectEncoding(tt.header))
+			require.Equal(t, tt.want, selectEncoding(tt.header, true))
+		})
+	}
+}
+
+func TestSelectEncodingBrotliUnavailable(t *testing.T) {
+	for _, tt := range []struct {
+		header string
+		want   encoding
+	}{
+		{"br", encNone},
+		{"br, gzip", encGzip},
+		{"br, gzip;q=0", encNone},
+		{"*", encGzip},
+		{"gzip, deflate, br, zstd", encGzip}, // Chrome
+	} {
+		t.Run(tt.header, func(t *testing.T) {
+			require.Equal(t, tt.want, selectEncoding(tt.header, false))
 		})
 	}
 }
@@ -149,10 +167,15 @@ func walkFiles(t *testing.T, appFS fs.FS, urlRoot string) map[string][]encoding 
 		ext := path.Ext(base)
 		fileType, known := fileTypes[ext]
 		require.True(t, known, "unknown extension %q for url %q", ext, url)
-		if fileType.varyEncoding {
+		switch {
+		case ext == ".html":
+			// HTML has no Brotli variant, see vite.config.mjs.
+			require.Equal(t, 1, n, "expected only .gz for HTML url %q, got %d variant(s)", url, n)
+			files[url] = []encoding{encGzip, encNone}
+		case fileType.varyEncoding:
 			require.Equal(t, 2, n, "expected .gz and .br for %q, got %d variant(s)", url, n)
 			files[url] = []encoding{encGzip, encBrotli, encNone}
-		} else {
+		default:
 			require.Equal(t, 1, n, "expected single file for uncompressed url %q, got %d", url, n)
 			files[url] = []encoding{encNone}
 		}
@@ -268,6 +291,24 @@ func checkWebRoutes(t *testing.T, router *route.Router, files map[string][]encod
 				default:
 					t.Fatalf("unhandled encoding %d", encoding)
 				}
+			}
+			if slices.Contains(encodings, encGzip) {
+				// HTML is served gzip-encoded to browsers, since proxies that
+				// rewrite HTML, such as the Kubernetes API server proxy, do not
+				// support Brotli. See
+				// https://github.com/prometheus/alertmanager/issues/5722.
+				want := "gzip"
+				if slices.Contains(encodings, encBrotli) {
+					want = "br"
+				}
+				t.Run("browser", func(t *testing.T) {
+					req := httptest.NewRequest(http.MethodGet, url, nil)
+					req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
+					res := httptest.NewRecorder()
+					router.ServeHTTP(res, req)
+					require.Equal(t, http.StatusOK, res.Code)
+					require.Equal(t, want, res.Header().Get("Content-Encoding"))
+				})
 			}
 		})
 	}

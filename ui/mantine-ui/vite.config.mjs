@@ -35,7 +35,7 @@ export default defineConfig({
       },
     }),
     compression({
-      include: [/\.(css|html|js|txt)$/],
+      include: [/\.(css|js|txt)$/],
       artifacts: () => [
         {
           src: licenseFile,
@@ -51,6 +51,15 @@ export default defineConfig({
           params: { 1: 11 },
         }),
       ],
+    }),
+    // HTML is only gzip-compressed, since proxies that rewrite HTML, such as
+    // the Kubernetes API server proxy, do not support Brotli.
+    compression({
+      include: [/\.html$/],
+      threshold: 0,
+      deleteOriginalAssets: true,
+      skipIfLargerOrEqual: false,
+      algorithms: [defineAlgorithm('gzip', { level: 9 })],
     }),
   ],
   test: {

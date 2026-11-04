@@ -82,8 +82,9 @@ const (
 )
 
 // selectEncoding parses the Accept-Encoding header and returns the preferred
-// encoding. For simplicity, non-zero q-values are not ranked.
-func selectEncoding(header string) encoding {
+// encoding. Brotli is only selected if brotliAvailable is true. For
+// simplicity, non-zero q-values are not ranked.
+func selectEncoding(header string, brotliAvailable bool) encoding {
 	brotli, gzip, wildcard := effectUnseen, effectUnseen, effectUnseen
 	for part := range strings.SplitSeq(header, ",") {
 		encAndQ := strings.SplitN(strings.TrimSpace(part), ";", 2)
@@ -108,7 +109,7 @@ func selectEncoding(header string) encoding {
 		}
 	}
 
-	if brotli == effectAccept || (wildcard == effectAccept && brotli == effectUnseen) {
+	if brotliAvailable && (brotli == effectAccept || (wildcard == effectAccept && brotli == effectUnseen)) {
 		return encBrotli
 	} else if gzip == effectAccept || (wildcard == effectAccept && gzip == effectUnseen) {
 		return encGzip
@@ -144,7 +145,9 @@ func Register(r *route.Router) {
 		}
 
 		if fileType.varyEncoding {
-			switch selectEncoding(req.Header.Get("Accept-Encoding")) {
+			// HTML has no Brotli variant, see vite.config.mjs.
+			_, err := fs.Stat(appFS, filePath+".br")
+			switch selectEncoding(req.Header.Get("Accept-Encoding"), err == nil) {
 			case encBrotli:
 				if f, err := appFS.Open(filePath + ".br"); err == nil {
 					defer f.Close()
