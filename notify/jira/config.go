@@ -57,6 +57,9 @@ type JiraConfig struct {
 	Priority    string          `yaml:"priority,omitempty" json:"priority,omitempty"`
 	IssueType   string          `yaml:"issue_type,omitempty" json:"issue_type,omitempty"`
 
+	// DisableLabels stops sending labels and stores the alert group ID in the summary instead.
+	DisableLabels bool `yaml:"disable_labels,omitempty" json:"disable_labels,omitempty"`
+
 	ReopenTransition  string         `yaml:"reopen_transition,omitempty" json:"reopen_transition,omitempty"`
 	ResolveTransition string         `yaml:"resolve_transition,omitempty" json:"resolve_transition,omitempty"`
 	WontFixResolution string         `yaml:"wont_fix_resolution,omitempty" json:"wont_fix_resolution,omitempty"`
@@ -109,6 +112,9 @@ func (c *JiraConfig) Validate() error {
 		c.APIType != "cloud" &&
 		c.APIType != "datacenter" {
 		return errors.New("unknown api_type on jira_config, must be auto, cloud or datacenter")
+	}
+	if c.DisableLabels && len(c.Labels) > 0 {
+		return errors.New("labels cannot be set when disable_labels is true in jira_config")
 	}
 	return nil
 }
