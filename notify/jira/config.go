@@ -113,8 +113,16 @@ func (c *JiraConfig) Validate() error {
 		c.APIType != "datacenter" {
 		return errors.New("unknown api_type on jira_config, must be auto, cloud or datacenter")
 	}
-	if c.DisableLabels && len(c.Labels) > 0 {
-		return errors.New("labels cannot be set when disable_labels is true in jira_config")
+	if c.DisableLabels {
+		if len(c.Labels) > 0 {
+			return errors.New("labels cannot be set when disable_labels is true in jira_config")
+		}
+		if _, ok := c.Fields["labels"]; ok {
+			return errors.New("fields.labels cannot be set when disable_labels is true in jira_config")
+		}
+		if _, ok := c.Fields["summary"]; ok {
+			return errors.New("fields.summary cannot be set when disable_labels is true in jira_config")
+		}
 	}
 	return nil
 }

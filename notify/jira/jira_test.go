@@ -1392,4 +1392,11 @@ func TestJiraConfigValidateDisableLabels(t *testing.T) {
 
 	cfg.Labels = []string{"alertmanager"}
 	require.EqualError(t, cfg.Validate(), "labels cannot be set when disable_labels is true in jira_config")
+
+	cfg.Labels = nil
+	cfg.Fields = map[string]any{"labels": []string{"alertmanager"}}
+	require.EqualError(t, cfg.Validate(), "fields.labels cannot be set when disable_labels is true in jira_config")
+
+	cfg.Fields = map[string]any{"summary": "custom"}
+	require.EqualError(t, cfg.Validate(), "fields.summary cannot be set when disable_labels is true in jira_config")
 }
