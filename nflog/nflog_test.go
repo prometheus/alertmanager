@@ -486,11 +486,17 @@ func TestStateMergeFiringAlertsRegression(t *testing.T) {
 		}
 	}
 
+	expired := func(e *pb.MeshEntry) *pb.MeshEntry {
+		e.ExpiresAt = timestamppb.New(now.Add(-time.Minute))
+		return e
+	}
+
 	const key = "key:a1/integr/1"
 
 	cases := []struct {
 		name               string
 		retainFiringAlerts bool
+		existing           *pb.MeshEntry
 		incoming           *pb.MeshEntry
 		expected           []uint64
 	}{
@@ -524,11 +530,25 @@ func TestStateMergeFiringAlertsRegression(t *testing.T) {
 			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, nil, []uint64{3}),
 			expected:           []uint64{1, 2},
 		},
+		{
+			// GC runs during periodic maintenance, so an expired entry can
+			// still be in the state. Retaining its firing alerts would carry
+			// them past their retention under the incoming expiration.
+			name:               "alerts of an expired entry are dropped",
+			retainFiringAlerts: true,
+			existing:           expired(newEntry(now, []uint64{1, 2, 3}, nil, nil)),
+			incoming:           newEntry(now.Add(time.Minute), []uint64{1, 2}, nil, nil),
+			expected:           []uint64{1, 2},
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			res := state{key: newEntry(now, []uint64{1, 2, 3}, nil, nil)}
+			existing := c.existing
+			if existing == nil {
+				existing = newEntry(now, []uint64{1, 2, 3}, nil, nil)
+			}
+			res := state{key: existing}
 			before := append([]uint64(nil), c.incoming.Entry.FiringAlerts...)
 
 			res.merge(c.incoming, now, c.retainFiringAlerts)

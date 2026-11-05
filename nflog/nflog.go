@@ -272,7 +272,10 @@ func (s state) merge(e *pb.MeshEntry, now time.Time, retainFiringAlerts bool) bo
 
 	prev, ok := s[k]
 	if !ok || prev.Entry.Timestamp.AsTime().Before(e.Entry.Timestamp.AsTime()) {
-		if ok && retainFiringAlerts {
+		// An entry whose expiration has passed is only removed by the next GC
+		// run, so retaining its firing alerts would carry them past their
+		// retention under the expiration of e.
+		if ok && retainFiringAlerts && prev.ExpiresAt.AsTime().After(now) {
 			e = withRetainedFiringAlerts(prev.Entry, e)
 		}
 		s[k] = e
