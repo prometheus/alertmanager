@@ -39,6 +39,20 @@ matcherFilterBar matchers =
     FilterBar.initFilterBar matchers
 
 
+matcher : String -> String -> Utils.Filter.Matcher
+matcher key value =
+    { key = key, op = Utils.Filter.Eq, value = value }
+
+
+matcherFilterBarWithKeep : List Utils.Filter.Matcher -> List Utils.Filter.Matcher -> FilterBar.Model
+matcherFilterBarWithKeep matchers keepMatchers =
+    let
+        filterBar =
+            FilterBar.initFilterBar matchers
+    in
+    { filterBar | keepMatchers = keepMatchers }
+
+
 toSilence : Test
 toSilence =
     describe "toSilence"
@@ -63,6 +77,71 @@ toSilence =
                         (matcherFilterBar [])
                         (silenceForm "" "")
                     )
+        , test "keeps only the pinned matchers when at least one is pinned" <|
+            \() ->
+                let
+                    alertname =
+                        matcher "alertname" "ExampleAlert"
+
+                    instance =
+                        matcher "instance" "example:9090"
+
+                    job =
+                        matcher "job" "myjob"
+
+                    silence =
+                        Views.SilenceForm.Types.toSilence
+                            (matcherFilterBarWithKeep [ alertname, instance, job ] [ instance ])
+                            (silenceForm "" "")
+                in
+                Expect.equal
+                    (Just [ { name = "instance", value = "example:9090", isRegex = False, isEqual = Just True } ])
+                    (Maybe.map .matchers silence)
+        , test "keeps all matchers when none are pinned" <|
+            \() ->
+                let
+                    alertname =
+                        matcher "alertname" "ExampleAlert"
+
+                    instance =
+                        matcher "instance" "example:9090"
+
+                    silence =
+                        Views.SilenceForm.Types.toSilence
+                            (matcherFilterBarWithKeep [ alertname, instance ] [])
+                            (silenceForm "" "")
+                in
+                Expect.equal
+                    (Just
+                        [ { name = "alertname", value = "ExampleAlert", isRegex = False, isEqual = Just True }
+                        , { name = "instance", value = "example:9090", isRegex = False, isEqual = Just True }
+                        ]
+                    )
+                    (Maybe.map .matchers silence)
+        , test "preserves matcher order when pinning a subset" <|
+            \() ->
+                let
+                    first =
+                        matcher "alertname" "ExampleAlert"
+
+                    second =
+                        matcher "job" "myjob"
+
+                    third =
+                        matcher "instance" "example:9090"
+
+                    silence =
+                        Views.SilenceForm.Types.toSilence
+                            (matcherFilterBarWithKeep [ first, second, third ] [ third, first ])
+                            (silenceForm "" "")
+                in
+                Expect.equal
+                    (Just
+                        [ { name = "alertname", value = "ExampleAlert", isRegex = False, isEqual = Just True }
+                        , { name = "instance", value = "example:9090", isRegex = False, isEqual = Just True }
+                        ]
+                    )
+                    (Maybe.map .matchers silence)
         ]
 
 
