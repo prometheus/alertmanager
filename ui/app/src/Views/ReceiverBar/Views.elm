@@ -91,7 +91,7 @@ viewDropdown { matches, fieldText, selectedReceiver } =
             []
         , matches
             |> List.map (receiverField selectedReceiver)
-            |> div [ class "dropdown-menu dropdown-menu-right" ]
+            |> div [ class "dropdown-menu dropdown-menu-right show" ]
         ]
 
 
