@@ -41,22 +41,36 @@ const serviceName = "alertmanager"
 
 var tracingEnabled atomic.Bool
 
-var noopSpan = noop.Span{}
+// noopSpan is boxed into the trace.Span interface here:
+// converting a fresh copy to the interface on every Start
+// call would heap-allocate even with tracing off.
+var noopSpan trace.Span = noop.Span{}
 
-// conditionalTracer wraps the global OTel tracer and short-circuits
-// Start when tracing is disabled, avoiding allocations entirely.
-type conditionalTracer struct {
-	noop.Tracer
+// Enabled reports whether a tracer provider is currently installed. Hot
+// paths use it to skip work that only exists to feed spans, such as
+// injecting propagation headers.
+func Enabled() bool {
+	return tracingEnabled.Load()
+}
+
+// Tracer starts spans for one instrumentation scope and short-circuits
+// when tracing is disabled, avoiding allocations entirely. Spans that
+// carry attributes have a dedicated Start method in spans.go so that
+// callers never build attributes on the disabled path.
+type Tracer struct {
 	name string
 }
 
-// NewTracer returns a trace.Tracer that skips span creation when
-// tracing is disabled. Use this instead of otel.Tracer().
-func NewTracer(name string) trace.Tracer {
-	return &conditionalTracer{name: name}
+// NewTracer returns a Tracer that skips span creation when tracing is
+// disabled. Use this instead of otel.Tracer(). Attributes set after Start
+// are unavailable to samplers and SpanProcessor.OnStart.
+func NewTracer(name string) Tracer {
+	return Tracer{name: name}
 }
 
-func (t *conditionalTracer) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+// Start starts a span without attributes. Use the span-specific Start
+// methods when the span carries attributes.
+func (t Tracer) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	if !tracingEnabled.Load() {
 		return ctx, noopSpan
 	}
@@ -200,6 +214,8 @@ func buildTracerProvider(ctx context.Context, tracingCfg TracingConfig) (trace.T
 		return nil, nil, err
 	}
 
+	// Attributes are populated after Start, so sampling must depend only on
+	// the parent and trace ID.
 	tp := tracesdk.NewTracerProvider(
 		tracesdk.WithBatcher(exp),
 		tracesdk.WithSampler(tracesdk.ParentBased(
