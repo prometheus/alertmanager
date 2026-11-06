@@ -148,11 +148,18 @@ func (a *Alerts) Get(fp model.Fingerprint) (*alert.Alert, error) {
 
 // Set unconditionally sets the alert in memory.
 func (a *Alerts) Set(alrt *alert.Alert) error {
+	_, err := a.Swap(alrt)
+	return err
+}
+
+// Swap unconditionally sets the alert in memory, like Set, and returns the
+// alert it replaced, or nil if no alert with the same fingerprint was stored.
+func (a *Alerts) Swap(alrt *alert.Alert) (*alert.Alert, error) {
 	a.Lock()
 	defer a.Unlock()
 
 	if a.destroyed {
-		return ErrDestroyed
+		return nil, ErrDestroyed
 	}
 
 	fp := alrt.Fingerprint()
@@ -166,12 +173,13 @@ func (a *Alerts) Set(alrt *alert.Alert) error {
 			a.limits[name] = bucket
 		}
 		if !bucket.Upsert(fp, alrt.EndsAt) {
-			return ErrLimited
+			return nil, ErrLimited
 		}
 	}
 
+	prev := a.alerts[fp]
 	a.alerts[fp] = alrt
-	return nil
+	return prev, nil
 }
 
 // DeleteIfNotModified deletes the slice of Alerts from the store if not
