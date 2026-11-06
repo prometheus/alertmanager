@@ -24,7 +24,9 @@ import (
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 )
 
-func validateMatcher(m *pb.Matcher) error {
+// ValidateMatcher applies the silence store's rules for matcher definitions.
+// Label names follow the configured matcher parser mode.
+func ValidateMatcher(m *pb.Matcher) error {
 	if !compat.IsValidLabelName(model.LabelName(m.Name)) {
 		return fmt.Errorf("invalid label name %q", m.Name)
 	}
@@ -70,7 +72,7 @@ func validateSilence(s *pb.Silence) error {
 		allMatchEmpty := true
 
 		for i, m := range ms.Matchers {
-			if err := validateMatcher(m); err != nil {
+			if err := ValidateMatcher(m); err != nil {
 				return fmt.Errorf("invalid label matcher %d in set %d: %w", i, setIdx, err)
 			}
 			allMatchEmpty = allMatchEmpty && matchesEmpty(m)
