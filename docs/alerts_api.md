@@ -57,6 +57,45 @@ Alertmanager sets `endsAt` to the current time + `resolve_timeout`.
 The `generatorURL` is a unique URL which links to the source of the alert. For
 example, it might link to the firing rule in Prometheus.
 
+## Listing alerts
+
+To list current alerts, make a GET request to `/api/v2/alerts`. The query
+parameters are defined in the [OpenAPI specification](https://github.com/prometheus/alertmanager/blob/main/api/v2/openapi.yaml).
+An interactive HTML version is available in the [Swagger UI](http://petstore.swagger.io/?url=https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml).
+
+Without query parameters this returns the full list of alerts. The boolean
+parameters `active`, `silenced`, `inhibited`, and `unprocessed` all default to
+`true`:
+
+```
+curl http://localhost:9093/api/v2/alerts
+```
+
+Filter alerts with the `filter` query parameter. Each value is a matcher
+expression, for example `alertname="MyAlert"`. Repeat the parameter to apply
+multiple matchers:
+
+```
+curl 'http://localhost:9093/api/v2/alerts?filter=alertname="MyAlert"'
+curl 'http://localhost:9093/api/v2/alerts?filter=alertname="MyAlert"&filter=severity="critical"'
+```
+
+Query parameters such as `name=` or `alertname=` are not filters and are
+ignored. Use `filter` as shown above.
+
+The `receiver` query parameter is a regular expression matching receiver names:
+
+```
+curl 'http://localhost:9093/api/v2/alerts?receiver=team-.*'
+```
+
+Setting `active=false` excludes active alerts and returns only suppressed
+(silenced or inhibited) alerts:
+
+```
+curl 'http://localhost:9093/api/v2/alerts?active=false'
+```
+
 ## Expectations from clients
 
 Clients are expected to re-send firing alerts to the Alertmanager at regular
