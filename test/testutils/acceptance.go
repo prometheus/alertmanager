@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -76,6 +77,7 @@ type AcceptanceTest struct {
 	opts *AcceptanceOpts
 
 	amc        *AlertmanagerCluster
+	joiners    []*Alertmanager
 	collectors []*Collector
 
 	actions map[float64][]func()
@@ -103,33 +105,46 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 	amc := AlertmanagerCluster{}
 
 	for range size {
-		am := &Alertmanager{
-			T:    t,
-			Opts: t.opts,
-		}
-
-		dir, err := os.MkdirTemp("", "am_test")
-		if err != nil {
-			t.Fatal(err)
-		}
-		am.dir = dir
-
-		cf, err := os.Create(filepath.Join(dir, "config.yml"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		am.confFile = cf
-		am.UpdateConfig(conf)
-
-		// apiAddr and clusterAddr will be discovered during Start()
-		// clientV2 will be created during Start() with the discovered address
-
-		amc.ams = append(amc.ams, am)
+		amc.ams = append(amc.ams, t.newAlertmanager(conf))
 	}
 
 	t.amc = &amc
 
 	return &amc
+}
+
+// Joiner returns an Alertmanager instance that is not started by Run. It can
+// be started later and joined to the running cluster via
+// AlertmanagerCluster.Join.
+func (t *AcceptanceTest) Joiner(conf string) *Alertmanager {
+	am := t.newAlertmanager(conf)
+	t.joiners = append(t.joiners, am)
+	return am
+}
+
+func (t *AcceptanceTest) newAlertmanager(conf string) *Alertmanager {
+	am := &Alertmanager{
+		T:    t,
+		Opts: t.opts,
+	}
+
+	dir, err := os.MkdirTemp("", "am_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	am.dir = dir
+
+	cf, err := os.Create(filepath.Join(dir, "config.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	am.confFile = cf
+	am.UpdateConfig(conf)
+
+	// apiAddr and clusterAddr will be discovered during Start()
+	// clientV2 will be created during Start() with the discovered address
+
+	return am
 }
 
 // Collector returns a new collector bound to the test instance.
@@ -145,7 +160,7 @@ func (t *AcceptanceTest) Collector(name string) *Collector {
 func (t *AcceptanceTest) Run(additionalArgs ...string) {
 	errc := make(chan error)
 
-	for _, am := range t.amc.ams {
+	for _, am := range slices.Concat(t.amc.ams, t.joiners) {
 		am.errc = errc
 		t.Cleanup(am.Terminate)
 		t.Cleanup(am.cleanup)
@@ -280,6 +295,18 @@ func (amc *AlertmanagerCluster) Start(additionalArgs ...string) error {
 		}
 	}
 
+	return nil
+}
+
+// Join starts the given Alertmanager with the first cluster member as its
+// peer and adds it to the cluster. It does not wait for the cluster to
+// converge.
+func (amc *AlertmanagerCluster) Join(am *Alertmanager, additionalArgs ...string) error {
+	args := slices.Concat(additionalArgs, []string{"--cluster.peer=" + amc.ams[0].ClusterAddr()})
+	if err := am.Start(args); err != nil {
+		return err
+	}
+	amc.ams = append(amc.ams, am)
 	return nil
 }
 
