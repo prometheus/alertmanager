@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     elm(),
     compression({
-      include: [/\.(eot|ttf|ico|js|mjs|json|css|html|svg)$/],
+      include: [/\.(eot|ttf|ico|js|mjs|json|css|svg)$/],
       threshold: 0,
       deleteOriginalAssets: true,
       algorithms: [
@@ -19,6 +19,14 @@ export default defineConfig({
           params: { 1: 11 }, // zlib.constants.BROTLI_PARAM_QUALITY = 1
         }),
       ],
+    }),
+    // HTML is only gzip-compressed, since proxies that rewrite HTML, such as
+    // the Kubernetes API server proxy, do not support Brotli.
+    compression({
+      include: [/\.html$/],
+      threshold: 0,
+      deleteOriginalAssets: true,
+      algorithms: [defineAlgorithm("gzip", { level: 9 })],
     }),
   ],
 });
