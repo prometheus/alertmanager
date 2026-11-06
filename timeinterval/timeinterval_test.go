@@ -156,6 +156,36 @@ var timeIntervalTestCases = []struct {
 			"30 Mar 21 12:00 -0400",
 		},
 	},
+	{
+		// The 28th to the last day of the month.
+		timeInterval: TimeInterval{
+			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: 28, End: -1}}},
+		},
+		validTimeStrings: []string{
+			"28 Feb 21 12:00 +0000",
+			"29 Feb 20 12:00 +0000",
+			"31 Jan 21 12:00 +0000",
+		},
+		invalidTimeStrings: []string{
+			"27 Feb 21 12:00 +0000",
+			"01 Mar 21 12:00 +0000",
+		},
+	},
+	{
+		// The 30th to the last day of the month, which never matches in February.
+		timeInterval: TimeInterval{
+			DaysOfMonth: []DayOfMonthRange{{InclusiveRange{Begin: 30, End: -1}}},
+		},
+		validTimeStrings: []string{
+			"30 Apr 21 12:00 +0000",
+			"31 Jan 21 12:00 +0000",
+		},
+		invalidTimeStrings: []string{
+			"28 Feb 21 12:00 +0000",
+			"29 Feb 20 12:00 +0000",
+			"29 Apr 21 12:00 +0000",
+		},
+	},
 }
 
 var timeStringTestCases = []struct {
@@ -475,6 +505,42 @@ var yamlUnmarshalTestCases = []struct {
 `,
 		expectError: true,
 		err:         "end day -25 is always before start day 10",
+	},
+	{
+		// Negative end date that is never before the start date, e.g. the 28th to
+		// the last day of the month.
+		in: `
+---
+- days_of_month: ['28:-1']
+`,
+		intervals: []TimeInterval{
+			{
+				DaysOfMonth: []DayOfMonthRange{{InclusiveRange{28, -1}}},
+			},
+		},
+		expectError: false,
+	},
+	{
+		// Negative end date that is only after the start date in longer months.
+		in: `
+---
+- days_of_month: ['30:-1']
+`,
+		intervals: []TimeInterval{
+			{
+				DaysOfMonth: []DayOfMonthRange{{InclusiveRange{30, -1}}},
+			},
+		},
+		expectError: false,
+	},
+	{
+		// Negative end date before positive start date even in a 31 day month.
+		in: `
+---
+- days_of_month: ['31:-2']
+`,
+		expectError: true,
+		err:         "end day -2 is always before start day 31",
 	},
 	{
 		// Months should work regardless of case
