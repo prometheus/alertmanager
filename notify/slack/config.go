@@ -178,7 +178,9 @@ type SlackConfig struct {
 	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
 
 	// PostUpdatesToThread posts subsequent notifications for an alert group as
-	// replies in the thread of the initial message. Requires a bot token.
+	// replies in the thread of the initial message. If UpdateMessage is set too,
+	// the initial message is also posted as the first reply.
+	// Requires a bot token.
 	PostUpdatesToThread bool `yaml:"post_updates_to_thread" json:"post_updates_to_thread,omitempty"`
 
 	// Timeout is the maximum time allowed to invoke the slack. Setting this to 0
