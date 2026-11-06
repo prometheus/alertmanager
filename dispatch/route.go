@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,10 @@ type Route struct {
 
 	// Idx contains the index of this route in the config
 	Idx int
+
+	// slot holds the groups of this route in the dispatcher the route is
+	// bound to, shared with the routes with the same key and equal options.
+	slot *slot
 }
 
 // NewRoute returns a new route.
@@ -142,28 +147,34 @@ func newRoutes(croutes []*config.Route, parent *Route, counter *int) []*Route {
 // Match does a depth-first left-to-right search through the route tree
 // and returns the matching routing nodes.
 func (r *Route) Match(lset model.LabelSet) []*Route {
+	var all []*Route
+	r.match(lset, func(m *Route) { all = append(all, m) })
+	return all
+}
+
+// match calls visit for every route of the tree the label set is routed to,
+// in Walk order, and reports whether r itself matched the label set.
+func (r *Route) match(lset model.LabelSet, visit func(*Route)) bool {
 	if !r.Matchers.Matches(lset) {
-		return nil
+		return false
 	}
 
-	var all []*Route
-
+	matched := false
 	for _, cr := range r.Routes {
-		matches := cr.Match(lset)
-
-		all = append(all, matches...)
-
-		if matches != nil && !cr.Continue {
+		if !cr.match(lset, visit) {
+			continue
+		}
+		matched = true
+		if !cr.Continue {
 			break
 		}
 	}
 
 	// If no child nodes were matches, the current node itself is a match.
-	if len(all) == 0 {
-		all = append(all, r)
+	if !matched {
+		visit(r)
 	}
-
-	return all
+	return true
 }
 
 // Key returns a key for the route. It does not uniquely identify the route in general.
@@ -236,6 +247,26 @@ type RouteOpts struct {
 
 	// Merged labels from this route and all of its parent routes.
 	Labels model.LabelSet
+}
+
+// equal reports whether ro and p are the same routing options: routes with
+// the same key and equal options produce the same groups and notify them the
+// same way.
+func (ro *RouteOpts) equal(p *RouteOpts) bool {
+	return ro.Receiver == p.Receiver &&
+		ro.GroupByAll == p.GroupByAll &&
+		maps.Equal(ro.GroupBy, p.GroupBy) &&
+		ro.GroupWait == p.GroupWait &&
+		ro.GroupInterval == p.GroupInterval &&
+		ro.RepeatInterval == p.RepeatInterval &&
+		sameNames(ro.MuteTimeIntervals, p.MuteTimeIntervals) &&
+		sameNames(ro.ActiveTimeIntervals, p.ActiveTimeIntervals) &&
+		maps.Equal(ro.Labels, p.Labels)
+}
+
+// sameNames reports whether a and b hold the same names, in any order.
+func sameNames(a, b []string) bool {
+	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
 }
 
 func (ro *RouteOpts) String() string {

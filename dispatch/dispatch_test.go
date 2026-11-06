@@ -31,6 +31,7 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/config"
@@ -157,7 +158,7 @@ func TestAggrGroup(t *testing.T) {
 
 	// Test regular situation where we wait for group_wait to send out alerts.
 	createdAt := time.Now()
-	ag := newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
+	ag := newAggrGroup(context.Background(), lset, newSlot(route), nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
 	go ag.run(ntfy)
 
 	ctx := context.Background()
@@ -176,7 +177,7 @@ func TestAggrGroup(t *testing.T) {
 	// Finally, set all alerts to be resolved. After successful notify the aggregation group
 	// should empty itself.
 	createdAt = time.Now()
-	ag = newAggrGroup(context.Background(), lset, route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
+	ag = newAggrGroup(context.Background(), lset, newSlot(route), nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
 	go ag.run(ntfy)
 
 	ag.insert(ctx, a1)
@@ -236,7 +237,7 @@ func TestGroupLabels(t *testing.T) {
 		"b": "v2",
 	}
 
-	ls := getGroupLabels(a, route)
+	ls := getGroupLabels(a, &route.RouteOpts)
 
 	if !reflect.DeepEqual(ls, expLs) {
 		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
@@ -265,7 +266,7 @@ func TestGroupByAllLabels(t *testing.T) {
 		"c": "v3",
 	}
 
-	ls := getGroupLabels(a, route)
+	ls := getGroupLabels(a, &route.RouteOpts)
 
 	if !reflect.DeepEqual(ls, expLs) {
 		t.Fatalf("expected labels are %v, but got %v", expLs, ls)
@@ -597,6 +598,184 @@ route:
 	}, receivers)
 }
 
+// TestIdenticalRoutesShareGroups checks that routes with the same key and
+// equal options feed one slot: an alert matched by both is grouped once.
+func TestIdenticalRoutesShareGroups(t *testing.T) {
+	confData := `receivers:
+- name: 'default'
+- name: 'team'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10ms
+  group_interval: 10ms
+  receiver: 'default'
+  routes:
+  - matchers: [service=api]
+    receiver: 'team'
+    continue: true
+  - matchers: [service=api]
+    receiver: 'team'`
+	conf, err := config.Load(confData)
+	require.NoError(t, err)
+
+	logger := promslog.NewNopLogger()
+	route := NewRoute(conf.Route, nil)
+	reg := prometheus.NewRegistry()
+	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+	require.NoError(t, err)
+	defer alerts.Close()
+
+	timeout := func(d time.Duration) time.Duration { return time.Duration(0) }
+	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
+	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+	require.Len(t, dispatcher.slots, 2)
+	require.Same(t, route.Routes[0].slot, route.Routes[1].slot)
+	go dispatcher.Run(time.Now())
+	defer dispatcher.Stop()
+
+	a := newAlert(model.LabelSet{"alertname": "HighErrorRate", "service": "api"})
+	require.NoError(t, alerts.Put(context.Background(), a))
+	require.Eventually(t, func() bool { return len(recorder.Alerts()) == 1 }, 5*time.Second, 10*time.Millisecond)
+
+	// Both routes matched the alert, but it was grouped once.
+	require.Equal(t, int32(1), dispatcher.aggrGroupsNum.Load())
+	el, ok := route.Routes[0].slot.groups.Load(model.LabelSet{"alertname": "HighErrorRate"}.Fingerprint())
+	require.True(t, ok)
+	require.Equal(t, uint64(1), el.(*aggrGroup).routeLabelsGen.Load(), "the alert must be inserted once, not once per route")
+	groups, receivers, err := dispatcher.Groups(context.Background(),
+		func(*Route) bool { return true },
+		func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true },
+	)
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+	require.Equal(t, "team", groups[0].Receiver)
+	require.Equal(t, []string{"team"}, receivers[a.Fingerprint()])
+
+	// Filtering by either route finds the shared group.
+	for _, r := range route.Routes {
+		groups, _, err := dispatcher.Groups(context.Background(),
+			func(m *Route) bool { return m == r },
+			func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true },
+		)
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+	}
+}
+
+// TestAssignSlots checks that routes share a slot iff they have the same key
+// and equal options.
+func TestAssignSlots(t *testing.T) {
+	confData := `receivers:
+- name: 'default'
+- name: 'team'
+- name: 'other'
+
+time_intervals:
+- name: nights
+  time_intervals: [{times: [{start_time: '00:00', end_time: '06:00'}]}]
+- name: weekends
+  time_intervals: [{weekdays: ['saturday', 'sunday']}]
+
+route:
+  group_by: ['alertname']
+  receiver: 'default'
+  routes:
+  - matchers: [service=api]
+    receiver: 'team'
+    mute_time_intervals: [nights, weekends]
+    continue: true
+  - matchers: [service=api]
+    receiver: 'team'
+    mute_time_intervals: [weekends, nights]
+    continue: true
+  - matchers: [service=api]
+    receiver: 'team'
+    group_wait: 1m
+    continue: true
+  - matchers: [service=api]
+    receiver: 'other'
+    continue: true
+  - matchers: [service=api]
+    receiver: 'team'
+    group_by: ['alertname', 'instance']
+    continue: true
+  - matchers: [service=api]
+    receiver: 'team'
+    mute_time_intervals: [nights, weekends]
+    routes:
+    - matchers: [service=api]
+      receiver: 'team'
+      mute_time_intervals: [nights, weekends]`
+	conf, err := config.Load(confData)
+	require.NoError(t, err)
+	route := NewRoute(conf.Route, nil)
+	d := &Dispatcher{route: route}
+	d.assignSlots()
+
+	var slots []*slot
+	route.Walk(func(r *Route) { slots = append(slots, r.slot) })
+	root, same, sameOrder, wait, other, groupBy, parent, child := slots[0], slots[1], slots[2], slots[3], slots[4], slots[5], slots[6], slots[7]
+
+	require.Same(t, same, sameOrder, "the order of the time intervals does not matter")
+	require.Same(t, same, parent, "the same options under the same key share a slot")
+	for _, s := range []*slot{root, wait, other, groupBy, child} {
+		require.NotSame(t, same, s)
+	}
+	require.NotSame(t, child, parent, "the child has a different key")
+	require.Len(t, d.slots, 6)
+	require.Equal(t, []*Route{route.Routes[0], route.Routes[1], route.Routes[5]}, same.routes)
+	require.Equal(t, "team", same.opts.Receiver)
+	require.Equal(t, route.Routes[0].Key(), same.key)
+}
+
+// TestMatchRoutes checks that the dispatcher groups an alert once per matched
+// slot, and that a route is still matched when another route of its slot is
+// shadowed by a sibling: the deduplication must happen on the matches, not by
+// picking one route per slot up front.
+func TestMatchRoutes(t *testing.T) {
+	confData := `receivers:
+- name: 'default'
+- name: 'team'
+- name: 'shadow'
+
+route:
+  group_by: ['alertname']
+  receiver: 'default'
+  routes:
+  - matchers: [env=prod]
+    continue: true
+    routes:
+    - matchers: [service=api]
+      receiver: 'shadow'
+    - matchers: [service=api]
+      receiver: 'team'
+  - matchers: [env=prod]
+    routes:
+    - matchers: [service=api]
+      receiver: 'team'`
+	conf, err := config.Load(confData)
+	require.NoError(t, err)
+	route := NewRoute(conf.Route, nil)
+	d := &Dispatcher{route: route}
+	d.assignSlots()
+
+	shadow, team, twin := route.Routes[0].Routes[0], route.Routes[0].Routes[1], route.Routes[1].Routes[0]
+	require.Same(t, team.slot, twin.slot)
+	require.NotSame(t, shadow.slot, team.slot)
+
+	span := trace.SpanFromContext(context.Background())
+	// The first team route is shadowed by its sibling, the second one is not:
+	// the alert is grouped in both slots, once each.
+	require.Equal(t, []*Route{shadow, twin}, d.matchRoutes(model.LabelSet{"env": "prod", "service": "api"}, span))
+	// Nothing below the parents matches, so they are matched themselves. They
+	// have the same key and inherit the same options, so they share a slot and
+	// the alert is grouped once, through the first of them.
+	require.Same(t, route.Routes[0].slot, route.Routes[1].slot)
+	require.Equal(t, []*Route{route.Routes[0]}, d.matchRoutes(model.LabelSet{"env": "prod"}, span))
+	require.Equal(t, []*Route{route}, d.matchRoutes(model.LabelSet{"service": "api"}, span))
+}
+
 func TestGroupsWithLimits(t *testing.T) {
 	synctest.Test(t, testGroupsWithLimits)
 }
@@ -913,16 +1092,11 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 
 	ctx := context.Background()
 	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, promslog.NewNopLogger(), eventrecorder.NopRecorder(), NewDispatcherMetrics(false, r, nil), nil)
-	// Manually create the routeAggrGroups structure since we are not calling Run().
-	dispatcher.routeGroupsSlice = make([]routeAggrGroups, route.Idx+1)
-	dispatcher.routeGroupsSlice[route.Idx] = routeAggrGroups{
-		route: route,
-	}
 
 	// Insert an aggregation group with one resolved alert.
 	labels := model.LabelSet{"alertname": "1"}
-	aggrGroup1 := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
-	dispatcher.routeGroupsSlice[route.Idx].groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
+	aggrGroup1 := newAggrGroup(ctx, labels, route.slot, timeout, eventrecorder.NopRecorder(), promslog.NewNopLogger(), nil)
+	route.slot.groups.Store(aggrGroup1.fingerprint(), aggrGroup1)
 
 	// Add a resolved alert
 	resolvedAlert := alert.New(model.Alert{
@@ -946,13 +1120,13 @@ func TestDispatcher_DoMaintenance(t *testing.T) {
 	// Must run otherwise doMaintenance blocks on aggrGroup1.stop().
 	go aggrGroup1.run(func(context.Context, ...*alert.Alert) bool { return true })
 
-	_, ok := dispatcher.routeGroupsSlice[route.Idx].groups.Load(aggrGroup1.fingerprint())
+	_, ok := route.slot.groups.Load(aggrGroup1.fingerprint())
 	require.True(t, ok)
 
 	// Run the maintenance and the empty group should be removed.
 	dispatcher.doMaintenance()
-	_, ok = dispatcher.routeGroupsSlice[route.Idx].groups.Load(aggrGroup1.fingerprint())
-	require.False(t, ok)
+	_, ok = route.slot.groups.Load(aggrGroup1.fingerprint())
+	require.False(t, ok, "the destroyed group must be removed")
 }
 
 // TestGroupAlert_RecoversWhenCASFails reproduces a bug where groupAlert would
@@ -996,17 +1170,16 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 	// Don't call Run — put the dispatcher manually in  the DispatcherStateWaitingToStart
 	// state so groupAlert's final switch falls through the default branch and the
 	// aggregation group's run goroutine is never started.
-	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
 	dispatcher.state.Store(DispatcherStateWaitingToStart) // silences the warn that would happen in unknown mode.
 	rounds := 0
 	for rounds < maxRounds && testutil.ToFloat64(metrics.aggrGroupCreationRetries) == 0 {
 		groupLabels := model.LabelSet{"alertname": model.LabelValue(fmt.Sprintf("shared-%d", rounds))}
-		destroyedAg := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		destroyedAg := newAggrGroup(context.Background(), groupLabels, route.slot, timeout, eventrecorder.NopRecorder(), logger, nil)
 		// Mark the store destroyed: empty store + destroyIfEmpty=true.
 		require.NoError(t, destroyedAg.alerts.DeleteIfNotModified(alert.AlertSlice{}, true))
 		require.True(t, destroyedAg.destroyed())
 		fp := destroyedAg.fingerprint()
-		dispatcher.routeGroupsSlice[0].groups.Store(fp, destroyedAg)
+		route.slot.groups.Store(fp, destroyedAg)
 
 		var ready, done sync.WaitGroup
 		ready.Add(alertsPerRound)
@@ -1028,7 +1201,7 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 		close(start)
 		done.Wait()
 
-		el, ok := dispatcher.routeGroupsSlice[0].groups.Load(fp)
+		el, ok := route.slot.groups.Load(fp)
 		require.True(t, ok, "round %d: a live group must occupy the fp after the race", rounds)
 		finalAg := el.(*aggrGroup)
 		require.False(t, finalAg.destroyed(), "round %d: the final group must not be destroyed", rounds)
@@ -1078,18 +1251,17 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	timeout := func(d time.Duration) time.Duration { return d }
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
 	dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, featurecontrol.NoopFlags{}), nil)
-	dispatcher.routeGroupsSlice = []routeAggrGroups{{route: route}}
 	// WaitingToStart so groupAlert won't auto-start the new ag — keeps the
 	// test focused on the displaced group.
 	dispatcher.state.Store(DispatcherStateWaitingToStart)
 
 	groupLabels := model.LabelSet{"alertname": "displaced"}
-	displaced := newAggrGroup(context.Background(), groupLabels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+	displaced := newAggrGroup(context.Background(), groupLabels, route.slot, timeout, eventrecorder.NopRecorder(), logger, nil)
 	// Mark destroyed so groupAlert can't insert into it and is forced down
 	// the CAS-replace path.
 	require.NoError(t, displaced.alerts.DeleteIfNotModified(alert.AlertSlice{}, true))
 	require.True(t, displaced.destroyed())
-	dispatcher.routeGroupsSlice[0].groups.Store(displaced.fingerprint(), displaced)
+	route.slot.groups.Store(displaced.fingerprint(), displaced)
 
 	// Start the run goroutine on the displaced group — this is the orphan
 	// candidate. Without the fix it would never exit.
@@ -1099,7 +1271,7 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	dispatcher.groupAlert(context.Background(), newAlert(groupLabels), route)
 
 	// The displaced group should have been swapped out for a fresh one.
-	el, ok := dispatcher.routeGroupsSlice[0].groups.Load(displaced.fingerprint())
+	el, ok := route.slot.groups.Load(displaced.fingerprint())
 	require.True(t, ok)
 	require.NotSame(t, displaced, el.(*aggrGroup), "destroyed group must have been replaced")
 
@@ -1128,7 +1300,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		ag := newAggrGroup(ctx, labels, newSlot(route), timeout, eventrecorder.NopRecorder(), logger, nil)
 
 		// Create test alerts: one active and one resolved
 		now := time.Now()
@@ -1190,7 +1362,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		ag := newAggrGroup(ctx, labels, newSlot(route), timeout, eventrecorder.NopRecorder(), logger, nil)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -1240,7 +1412,7 @@ func TestDispatcher_DeleteResolvedAlertsFromMarker(t *testing.T) {
 		logger := promslog.NewNopLogger()
 
 		// Create an aggregation group
-		ag := newAggrGroup(ctx, labels, route, timeout, eventrecorder.NopRecorder(), logger, nil)
+		ag := newAggrGroup(ctx, labels, newSlot(route), timeout, eventrecorder.NopRecorder(), logger, nil)
 
 		// Create a resolved alert
 		now := time.Now()
@@ -1390,7 +1562,7 @@ func TestGetGroupLabels(t *testing.T) {
 				},
 			},
 		}
-		labels := getGroupLabels(alrt, route)
+		labels := getGroupLabels(alrt, &route.RouteOpts)
 		require.Len(t, labels, 2)
 		require.Equal(t, model.LabelValue("TestAlert"), labels["alertname"])
 		require.Equal(t, model.LabelValue("prometheus"), labels["job"])
@@ -1402,7 +1574,7 @@ func TestGetGroupLabels(t *testing.T) {
 				GroupByAll: true,
 			},
 		}
-		labels := getGroupLabels(alrt, route)
+		labels := getGroupLabels(alrt, &route.RouteOpts)
 		require.Len(t, labels, 4)
 		require.Equal(t, alrt.Labels, labels)
 	})
@@ -1444,7 +1616,7 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			_ = getGroupLabels(alrt, route)
+			_ = getGroupLabels(alrt, &route.RouteOpts)
 		}
 	})
 
@@ -1459,7 +1631,7 @@ func BenchmarkGetGroupLabels(b *testing.B) {
 		b.ReportAllocs()
 
 		for i := 0; i < b.N; i++ {
-			_ = getGroupLabels(alrt, route)
+			_ = getGroupLabels(alrt, &route.RouteOpts)
 		}
 	})
 }
@@ -1486,7 +1658,7 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	require.NoError(t, err)
 	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
 
-	ag := newAggrGroup(context.Background(), lset, route, nil,
+	ag := newAggrGroup(context.Background(), lset, newSlot(route), nil,
 		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
 
 	alertsCh := make(chan alert.AlertSlice)
@@ -1567,7 +1739,7 @@ func TestRouteLabelsInNotifyContext(t *testing.T) {
 	require.NoError(t, err)
 	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
 
-	ag := newAggrGroup(context.Background(), lset, route, nil,
+	ag := newAggrGroup(context.Background(), lset, newSlot(route), nil,
 		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
 
 	type result struct {
@@ -1622,7 +1794,7 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 	require.NoError(t, err)
 	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
 
-	ag := newAggrGroup(context.Background(), lset, route, nil,
+	ag := newAggrGroup(context.Background(), lset, newSlot(route), nil,
 		eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
 
 	ctx := context.Background()
@@ -1682,7 +1854,7 @@ func TestRouteLabelsPerGroupOverride(t *testing.T) {
 			},
 		}}
 		ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "x"},
-			route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+			newSlot(route), nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
 		ag.insert(context.Background(), alert.New(model.Alert{
 			Labels:   model.LabelSet{"alertname": "x"},
 			StartsAt: time.Now(),
