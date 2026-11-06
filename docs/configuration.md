@@ -515,11 +515,16 @@ See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#in
 An inhibition rule mutes an alert (target) matching a set of matchers
 when an alert (source) exists that matches another set of matchers.
 Both target and source alerts must have the same label values
-for the label names in the `equal` list.
+for the label names in the `equal` list, and for every entry of the
+`equal_pairs` list, the value of its `source_label` on the source alert
+must equal the value of its `target_label` on the target alert.
+All `equal` labels and all label pairs must match for the inhibition
+to apply.
 
 Semantically, a missing label and a label with an empty value are the same
-thing. Therefore, if all the label names listed in `equal` are missing from
-both the source and target alerts, the inhibition rule will apply.
+thing. Therefore, if all the label names listed in `equal` and all
+`equal_pairs` labels are missing from both the source and target alerts, the
+inhibition rule will apply.
 
 To prevent an alert from inhibiting itself, an alert that matches _both_ the
 target and the source side of a rule cannot be inhibited by alerts for which
@@ -562,7 +567,43 @@ source_matchers:
 # Labels that must have an equal value in the source and target
 # alert for the inhibition to take effect.
 [ equal: '[' <labelname>, ... ']' ]
+
+# Pairs of a source and a target label whose values must be equal between
+# the source and the target alert for the inhibition to take effect: the
+# value of source_label in the source alert must equal the value of
+# target_label in the target alert. All pairs must match in addition to all
+# the labels listed in equal.
+[ equal_pairs:
+    [ - source_label: <labelname>
+      target_label: <labelname>
+    ] ]
 ```
+
+`equal_pairs` also allows comparing values of differently named labels on the
+source and target alerts, for example the `hostname` label of a source alert
+against the `remote` label of a target alert:
+
+```yaml
+inhibit_rules:
+  # Mute alerts for interfaces located on a router that is down.
+  - source_matchers: [ alertname="RouterDown" ]
+    target_matchers: [ alertname="InterfaceDown" ]
+    equal: [ hostname ]
+  # Mute alerts for interfaces on other routers that face a router that is down.
+  - source_matchers: [ alertname="RouterDown" ]
+    target_matchers: [ alertname="InterfaceDown" ]
+    equal: [ site ]
+    equal_pairs:
+      - source_label: hostname
+        target_label: remote
+```
+
+Here, a `RouterDown{hostname="r1", site="fra"}` alert mutes the
+`InterfaceDown` alerts of `r1` itself through the first rule, and through the
+second rule the `InterfaceDown{hostname="r2", remote="r1", site="fra"}` alert
+of the neighbouring router `r2`, whose link towards `r1` went down with it.
+An `InterfaceDown{hostname="r2", remote="r3", site="fra"}` alert is not muted,
+as its `remote` is not the router that is down.
 
 ## Label matchers
 

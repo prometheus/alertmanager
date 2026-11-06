@@ -50,6 +50,17 @@ target_matchers: ['bar=baz']
 equal: ['qux🙂', 'corge']
 `
 
+const inhibitRuleEqualPairsYAML = `
+source_matchers: ['foo=bar']
+target_matchers: ['bar=baz']
+equal: ['qux']
+equal_pairs:
+  - source_label: hostname
+    target_label: remote
+  - source_label: interface
+    target_label: port
+`
+
 func TestInhibitRuleEqual(t *testing.T) {
 	r := mustUnmarshalInhibitRule(t, inhibitRuleEqualYAML)
 
@@ -81,4 +92,33 @@ func TestInhibitRuleEqual(t *testing.T) {
 
 	// The inhibition rule should have the expected equal labels.
 	require.Equal(t, []string{"qux🙂", "corge"}, r.Equal)
+}
+
+func TestInhibitRuleEqualPairs(t *testing.T) {
+	r := mustUnmarshalInhibitRule(t, inhibitRuleEqualPairsYAML)
+
+	// The inhibition rule should have the expected equal labels and pairs.
+	require.Equal(t, []string{"qux"}, r.Equal)
+	require.Equal(t, []LabelPair{
+		{SourceLabel: "hostname", TargetLabel: "remote"},
+		{SourceLabel: "interface", TargetLabel: "port"},
+	}, r.EqualPairs)
+
+	// Should not be able to unmarshal a configuration with an invalid source label.
+	_, err := unmarshalInhibitRule(`
+equal_pairs:
+  - source_label: "bad name"
+    target_label: remote
+`)
+	require.Error(t, err)
+	require.Equal(t, `invalid label name "bad name" in equal_pairs`, err.Error())
+
+	// Should not be able to unmarshal a configuration with an invalid target label.
+	_, err = unmarshalInhibitRule(`
+equal_pairs:
+  - source_label: hostname
+    target_label: "1bad"
+`)
+	require.Error(t, err)
+	require.Equal(t, `invalid label name "1bad" in equal_pairs`, err.Error())
 }
