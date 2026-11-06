@@ -147,7 +147,8 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 			tlsConfig.ServerName = n.conf.Smarthost.Host
 		}
 
-		conn, err = tls.Dial("tcp", n.conf.Smarthost.String(), tlsConfig)
+		d := tls.Dialer{Config: tlsConfig}
+		conn, err = d.DialContext(ctx, "tcp", n.conf.Smarthost.String())
 		if err != nil {
 			return notify.Retry(0, fmt.Errorf("establish TLS connection to server: %w", err), notify.DefaultReason)
 		}
