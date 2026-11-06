@@ -1351,6 +1351,15 @@ project: <tmpl_string>
 labels:
   [ - <tmpl_string> ... ]
 
+# If set to true, no labels are sent to Jira. Use this when the project's
+# issue screens do not include the Labels field. The alert group ID
+# (ALERT{<hash>}) is appended to the summary instead, and existing issues are
+# found by searching the summary. Cannot be combined with `labels`,
+# `fields.labels` or `fields.summary`.
+# NOTE: Changing this on an existing receiver means open issues are no longer
+# found, so new issues are created.
+[ disable_labels: <boolean> | default = false ]
+
 # Priority of the issue.
 [ priority: <tmpl_string> | default = '{{ template "jira.default.priority" . }}' ]
 

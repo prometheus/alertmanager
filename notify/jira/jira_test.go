@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -157,6 +158,18 @@ func TestSearchExistingIssue(t *testing.T) {
 			groupKey:    "1",
 			firing:      true,
 			expectedJQL: `(resolution is EMPTY or resolution != "Won't Do") and statusCategory != Done and project="PROJ" and labels="ALERT{1}" order by status ASC,resolutiondate DESC`,
+		},
+		{
+			title: "search existing issue by summary when labels are disabled",
+			cfg: &JiraConfig{
+				Summary:       JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:   JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				Project:       `{{ .CommonLabels.project }}`,
+				DisableLabels: true,
+			},
+			groupKey:    "1",
+			firing:      true,
+			expectedJQL: `statusCategory != Done and project="PROJ" and summary ~ "1" order by status ASC,resolutiondate DESC`,
 		},
 	} {
 		t.Run(tc.title, func(t *testing.T) {
@@ -532,6 +545,44 @@ func TestJiraNotify(t *testing.T) {
 			},
 			customFieldAssetFn: func(t *testing.T, issue map[string]any) {},
 			errMsg:             "",
+		},
+		{
+			title: "create new issue with labels disabled",
+			cfg: &JiraConfig{
+				Summary:       JiraFieldConfig{Template: `{{ template "jira.default.summary" . }}`},
+				Description:   JiraFieldConfig{Template: `{{ template "jira.default.description" . }}`},
+				IssueType:     "Incident",
+				Project:       "OPS",
+				Priority:      `{{ template "jira.default.priority" . }}`,
+				DisableLabels: true,
+			},
+			alert: alert.New(model.Alert{
+				Labels: model.LabelSet{
+					"alertname": "test",
+					"instance":  "vm1",
+					"severity":  "critical",
+				},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false),
+			searchResponse: issueSearchResult{
+				Issues: []issue{},
+			},
+			issue: issue{
+				Key: "",
+				Fields: &issueFields{
+					Summary:     new("[FIRING:1] test (vm1 critical) ALERT{6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b}"),
+					Description: jiraStringDescription("\n\n# Alerts Firing:\n\nLabels:\n  - alertname = test\n  - instance = vm1\n  - severity = critical\n\nAnnotations:\n\nSource: \n\n\n\n\n"),
+					Issuetype:   &idNameValue{Name: "Incident"},
+					Project:     &issueProject{Key: "OPS"},
+					Priority:    &idNameValue{Name: "High"},
+				},
+			},
+			customFieldAssetFn: func(t *testing.T, issue map[string]any) {
+				_, hasLabels := issue["labels"]
+				require.False(t, hasLabels, "labels should not be present in request")
+			},
+			errMsg: "",
 		},
 		{
 			title: "update existing issue with disabled summary and description",
@@ -1301,4 +1352,51 @@ func TestPrepareIssueRequestBodyAPIv3DescriptionValidation(t *testing.T) {
 			require.JSONEq(t, tc.descriptionTemplate, string(issue.Fields.Description.RawJSONDescription))
 		})
 	}
+}
+
+func TestPrepareIssueRequestBodyDisableLabelsTruncation(t *testing.T) {
+	t.Parallel()
+
+	cfg := &JiraConfig{
+		Summary:       JiraFieldConfig{Template: strings.Repeat("界", 300)},
+		IssueType:     "Incident",
+		Project:       "OPS",
+		DisableLabels: true,
+		APIURL:        &amcommoncfg.URL{URL: &url.URL{Scheme: "https", Host: "jira.example.com", Path: "/rest/api/2"}},
+		HTTPConfig:    &commoncfg.HTTPClientConfig{},
+	}
+
+	notifier, err := New(cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+	require.NoError(t, err)
+
+	groupID := notify.Key("1").Hash()
+	tmplTextFunc := func(tmpl string) (string, error) { return tmpl, nil }
+
+	issue, err := notifier.prepareIssueRequestBody(context.Background(), notifier.logger, groupID, tmplTextFunc)
+	require.NoError(t, err)
+	require.Nil(t, issue.Fields.Labels)
+	require.Equal(t, maxSummaryLenRunes, utf8.RuneCountInString(*issue.Fields.Summary))
+	require.True(t, strings.HasSuffix(*issue.Fields.Summary, "… ALERT{"+groupID+"}"))
+}
+
+func TestJiraConfigValidateDisableLabels(t *testing.T) {
+	t.Parallel()
+
+	cfg := JiraConfig{
+		APIType:       "auto",
+		Project:       "OPS",
+		IssueType:     "Incident",
+		DisableLabels: true,
+	}
+	require.NoError(t, cfg.Validate())
+
+	cfg.Labels = []string{"alertmanager"}
+	require.EqualError(t, cfg.Validate(), "labels cannot be set when disable_labels is true in jira_config")
+
+	cfg.Labels = nil
+	cfg.Fields = map[string]any{"labels": []string{"alertmanager"}}
+	require.EqualError(t, cfg.Validate(), "fields.labels cannot be set when disable_labels is true in jira_config")
+
+	cfg.Fields = map[string]any{"summary": "custom"}
+	require.EqualError(t, cfg.Validate(), "fields.summary cannot be set when disable_labels is true in jira_config")
 }
