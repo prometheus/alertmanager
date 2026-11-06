@@ -1,0 +1,2 @@
+# Substituted by `git archive`, so source tarballs carry their version (see Makefile).
+VERSION.in export-subst

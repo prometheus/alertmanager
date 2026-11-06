@@ -16,6 +16,26 @@ DOCKER_ARCHS ?= amd64 armv7 arm64 ppc64le s390x
 
 include Makefile.common
 
+# Match promu's version selection (VERSION file, else git describe) for the
+# web UI tarball name and Makefile.common's DOCKER_MAJOR_VERSION_TAG.
+ifneq ($(wildcard VERSION),)
+  VERSION := $(strip $(file <VERSION))
+  ifneq ($(wildcard .git),)
+    $(warning Using version $(VERSION) from VERSION; remove the file to use git)
+  endif
+else ifneq ($(wildcard .git),)
+  VERSION := $(patsubst v%,%,$(shell git describe --tags --always --dirty))
+else
+  # Source tarballs made by `git archive` have no git metadata, so they carry
+  # the version in VERSION.in (export-subst). Write it to VERSION for promu.
+  VERSION := $(patsubst v%,%,$(strip $(file <VERSION.in)))
+VERSION: VERSION.in
+	@case '$(VERSION)' in ''|'$$Format'*) echo "VERSION.in was not substituted by git archive; write the version to VERSION by hand." >&2; exit 1;; esac
+	echo '$(VERSION)' > $@
+common-build common-tarball assets-tarball: VERSION
+endif
+DOCKER_MAJOR_VERSION_TAG = $(firstword $(subst ., ,$(VERSION)))
+
 FRONTEND_DIR             = $(BIN_DIR)/ui/app
 MANTINE_UI_DIR            = $(BIN_DIR)/ui/mantine-ui
 TEMPLATE_DIR             = $(BIN_DIR)/template
@@ -43,7 +63,7 @@ assets: $(FRONTEND_DIR)/src/Data ui-elm ui-mantine-assets template/email.tmpl
 .PHONY: assets-tarball
 assets-tarball: ui-elm ui-mantine-assets
 	mkdir -p .tarballs
-	tar czf ".tarballs/alertmanager-web-ui-$(file <VERSION).tar.gz" -C ui/app dist
+	tar czf ".tarballs/alertmanager-web-ui-$(VERSION).tar.gz" -C ui/app dist
 
 .PHONY: ui-elm
 ui-elm:
