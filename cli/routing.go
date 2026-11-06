@@ -39,6 +39,7 @@ Will print whole routing tree in form of ASCII tree view.
 
 Routing is loaded from a local configuration file or a running Alertmanager configuration.
 Specifying --config.file takes precedence over --alertmanager.url.
+Use --config.file=- to read the configuration from stdin.
 
 Example:
 
@@ -53,9 +54,9 @@ func configureRoutingCmd(app *kingpin.CmdClause) {
 		c              = &routingShow{}
 		routingCmd     = app.Command("routes", routingHelp)
 		routingShowCmd = routingCmd.Command("show", routingHelp).Default()
-		configFlag     = routingCmd.Flag("config.file", "Config file to be tested.")
+		configFlag     = routingCmd.Flag("config.file", "Config file to be tested. Use '-' to read from stdin.")
 	)
-	configFlag.ExistingFileVar(&c.configFile)
+	configFlag.StringVar(&c.configFile)
 	routingShowCmd.Action(execWithTimeout(c.routingShowAction))
 	configureRoutingTestCmd(routingCmd, c)
 }
