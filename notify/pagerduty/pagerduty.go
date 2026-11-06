@@ -36,7 +36,7 @@ import (
 
 const (
 	maxEventSize int = 512000
-	// https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTc4-send-a-v1-event - 1024 characters or runes.
+	// https://docs.pagerduty.com/developer/send-v1-event - 1024 characters or runes.
 	maxV1DescriptionLenRunes = 1024
 	// https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event - 1024 characters or runes.
 	maxV2SummaryLenRunes = 1024
