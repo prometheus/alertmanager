@@ -1934,6 +1934,16 @@ attributes:
 # no timeout should be applied.
 # NOTE: This will have no effect if set higher than the group_interval.
 [ timeout: <duration> | default = 0s ]
+
+# Edits the existing Telegram message for an alert group instead of sending a new one
+# when the group is updated or resolved. The message id and chat id are stored in the
+# notification log. A new message is sent when the chat id changes, when the previous
+# message can no longer be edited, and again after the group has fully resolved and fires
+# once more.
+# NOTE: Telegram does not push a notification when a message is edited, so alerts that
+# join the group and resolutions are silent. With send_resolved set to false the edited
+# message keeps its firing text, because a resolved notification is never sent.
+[ update_message: <boolean> | default = false ]
 ```
 
 ### `<victorops_config>`
