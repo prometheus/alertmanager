@@ -84,6 +84,12 @@ type GetSilencesParams struct {
 	*/
 	Active *bool
 
+	/* CreatedBy.
+
+	   Only include silences whose `createdBy` is exactly this value. It cannot be empty or repeated.
+	*/
+	CreatedBy *string
+
 	/* Expired.
 
 	   Include expired silences in results. If false, excludes expired silences.
@@ -187,6 +193,17 @@ func (o *GetSilencesParams) SetActive(active *bool) {
 	o.Active = active
 }
 
+// WithCreatedBy adds the createdBy to the get silences params
+func (o *GetSilencesParams) WithCreatedBy(createdBy *string) *GetSilencesParams {
+	o.SetCreatedBy(createdBy)
+	return o
+}
+
+// SetCreatedBy adds the createdBy to the get silences params
+func (o *GetSilencesParams) SetCreatedBy(createdBy *string) {
+	o.CreatedBy = createdBy
+}
+
 // WithExpired adds the expired to the get silences params
 func (o *GetSilencesParams) WithExpired(expired *bool) *GetSilencesParams {
 	o.SetExpired(expired)
@@ -240,6 +257,23 @@ func (o *GetSilencesParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.R
 		if qActive != "" {
 
 			if err := r.SetQueryParam("active", qActive); err != nil {
+				return err
+			}
+		}
+	}
+
+	if o.CreatedBy != nil {
+
+		// query param created_by
+		var qrCreatedBy string
+
+		if o.CreatedBy != nil {
+			qrCreatedBy = *o.CreatedBy
+		}
+		qCreatedBy := qrCreatedBy
+		if qCreatedBy != "" {
+
+			if err := r.SetQueryParam("created_by", qCreatedBy); err != nil {
 				return err
 			}
 		}

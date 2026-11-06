@@ -20,9 +20,11 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -712,6 +714,7 @@ func (api *API) receiverLabelsMap() map[string]open_api_models.LabelSet {
 	return m
 }
 
+// getSilencesHandler returns the silences that match the filter, created_by and state parameters.
 func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middleware.Responder {
 	logger := api.requestLogger(params.HTTPRequest)
 
@@ -721,6 +724,11 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	matchers, err := parseFilter(params.Filter)
 	if err != nil {
 		logger.Debug("Failed to parse matchers", "err", err)
+		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
+	}
+
+	if err := validateCreatedByFilter(params.HTTPRequest.URL.RawQuery); err != nil {
+		logger.Debug("Failed to parse created_by", "err", err)
 		return silence_ops.NewGetSilencesBadRequest().WithPayload(err.Error())
 	}
 
@@ -749,6 +757,9 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 		if !CheckSilenceMatchesFilterLabels(ps, matchers) {
 			continue
 		}
+		if params.CreatedBy != nil && ps.CreatedBy != *params.CreatedBy {
+			continue
+		}
 		sil, err := gettableSilenceFromProtoAt(ps, now)
 		if err != nil {
 			logger.Error("Failed to unmarshal silence from proto", "err", err)
@@ -760,6 +771,35 @@ func (api *API) getSilencesHandler(params silence_ops.GetSilencesParams) middlew
 	SortSilences(sils)
 
 	return silence_ops.NewGetSilencesOK().WithPayload(sils)
+}
+
+// validateCreatedByFilter rejects created_by values that the generated parameter
+// binding would discard. An empty or malformed value would otherwise return every
+// silence, and a repeated value would silently apply only the last one.
+func validateCreatedByFilter(rawQuery string) error {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil && hasCreatedByKey(rawQuery) {
+		return fmt.Errorf("invalid query string: %w", err)
+	}
+	values := query["created_by"]
+	if len(values) > 1 {
+		return errors.New("created_by must not be repeated")
+	}
+	if len(values) == 1 && values[0] == "" {
+		return errors.New("created_by must not be empty")
+	}
+	return nil
+}
+
+// hasCreatedByKey reports whether any pair in rawQuery has the created_by key once
+// decoded. It also splits on semicolons, because url.ParseQuery drops those pairs.
+func hasCreatedByKey(rawQuery string) bool {
+	pairs := strings.FieldsFunc(rawQuery, func(r rune) bool { return r == '&' || r == ';' })
+	return slices.ContainsFunc(pairs, func(pair string) bool {
+		rawKey, _, _ := strings.Cut(pair, "=")
+		key, err := url.QueryUnescape(rawKey)
+		return err == nil && key == "created_by"
+	})
 }
 
 var silenceStateOrder = map[silence.SilenceState]int{
