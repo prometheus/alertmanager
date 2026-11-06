@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 
@@ -52,12 +53,17 @@ func checkRoutingConfigInputFlags(alertmanagerURL *url.URL, configFile string) {
 
 func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, configFile string) (*config.Config, error) {
 	checkRoutingConfigInputFlags(alertmanagerURL, configFile)
-	if configFile != "" {
-		cfg, err := config.LoadFile(configFile)
+	if configFile == "-" {
+		stat, err := os.Stdin.Stat()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to stat standard input: %w", err)
 		}
-		return cfg, nil
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			return nil, errors.New("failed to read from standard input")
+		}
+	}
+	if configFile != "" {
+		return loadConfigFile(configFile, os.Stdin)
 	}
 	if alertmanagerURL == nil {
 		return nil, errors.New("failed to get Alertmanager configuration")
@@ -67,6 +73,19 @@ func loadAlertmanagerConfig(ctx context.Context, alertmanagerURL *url.URL, confi
 		return nil, err
 	}
 	return config.Load(*configStatus.Config.Original)
+}
+
+// loadConfigFile loads the Alertmanager configuration from configFile, or
+// from stdin if configFile is "-".
+func loadConfigFile(configFile string, stdin io.Reader) (*config.Config, error) {
+	if configFile != "-" {
+		return config.LoadFile(configFile)
+	}
+	content, err := io.ReadAll(stdin)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config from stdin: %w", err)
+	}
+	return config.Load(string(content))
 }
 
 // convertClientToCommonLabelSet converts client.LabelSet to model.Labelset.
