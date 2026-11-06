@@ -64,6 +64,7 @@ require (
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/telebot.v3 v3.3.8
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (

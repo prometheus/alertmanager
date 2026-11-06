@@ -1038,6 +1038,35 @@ A `tls_config` allows configuring TLS connections.
 
 These settings allow configuring specific receiver integrations.
 
+Every integration also takes `mute_action`, alongside its own `send_resolved`:
+
+```yaml
+# What this integration is told about an alert group that is over because every
+# alert in it is muted by a silence, an inhibition or a time interval. By default
+# such a group is delivered to nobody, so an integration that deduplicates, such
+# as PagerDuty, holds an incident open for as long as the mute lasts.
+#
+# This is about the group ending rather than individual alerts resolving, so
+# unlike `send_resolved` it applies even where `send_resolved` is false.
+#
+#   ignore
+#     Say nothing, which is how Alertmanager has always behaved.
+#
+#   send_resolved_when_muted
+#     Always resolve a group this integration was notified about, even if muting
+#     hid its alerts before they resolved. The alerts carry their own end. A
+#     group never shown stays silent, as does one still holding a firing alert.
+#
+#   treat_mute_as_resolved
+#     Everything `send_resolved_when_muted` does, plus resolving a group as soon
+#     as every alert in it is muted, even if those alerts are still firing. Such
+#     an alert is presented with its end set to the time the group went quiet.
+#
+# Requires the `muted-alerts-in-nflog` feature; without it the option has no
+# effect.
+[ mute_action: <ignore|send_resolved_when_muted|treat_mute_as_resolved> | default = ignore ]
+```
+
 ### `<discord_config>`
 
 Discord notifications are sent via the [Discord webhook API](https://discord.com/developers/docs/resources/webhook). See Discord's ["Intro to Webhooks" article](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) to learn how to configure a webhook integration for a channel.

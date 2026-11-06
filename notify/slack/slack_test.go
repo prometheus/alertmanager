@@ -36,7 +36,6 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
 	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/notify"
@@ -531,8 +530,10 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		nl, err := nflog.New(nflog.Options{Retention: time.Hour, Metrics: prometheus.NewRegistry()})
 		require.NoError(t, err)
 		recv := &nflogpb.Receiver{GroupName: "test", Integration: "slack"}
-		dedup := notify.NewDedupStage(notifier.conf, nl, recv)
-		setNotifies := notify.NewSetNotifiesStage(nl, recv, featurecontrol.NoopFlags{})
+		// This test is about thread replies, not muted alerts, so the pipeline
+		// is built in the legacy mode the muted-alerts feature flag is off in.
+		dedup := notify.NewDedupStage(notifier.conf, nl, recv, false)
+		setNotifies := notify.NewSetNotifiesStage(nl, recv, false)
 
 		notifyGroup := func(a *alert.Alert) []capturedRequest {
 			t.Helper()
