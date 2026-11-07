@@ -112,7 +112,7 @@ func TestValidateClassicMatcher(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		checkErr(t, c.err, validateMatcher(c.m))
+		checkErr(t, c.err, ValidateMatcher(c.m))
 	}
 }
 
@@ -212,7 +212,7 @@ func TestValidateUTF8Matcher(t *testing.T) {
 	defer compat.InitFromFlags(promslog.NewNopLogger(), ff)
 
 	for _, c := range cases {
-		checkErr(t, c.err, validateMatcher(c.m))
+		checkErr(t, c.err, ValidateMatcher(c.m))
 	}
 }
 

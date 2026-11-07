@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 )
 
@@ -78,6 +79,89 @@ func QMatches(set model.LabelSet) QueryParam {
 			return m.Matches(set), nil
 		}
 		q.filters = append(q.filters, f)
+		return nil
+	}
+}
+
+// HasMatchers reports whether one stored matcher set contains every matcher
+// from one of the requested sets. Matchers must have the same name, type, and pattern.
+// No requested sets means every silence matches.
+// A nil or empty requested set also matches every silence.
+// Nil matchers do not match.
+func HasMatchers(sil *pb.Silence, sets ...*pb.MatcherSet) bool {
+	if len(sets) == 0 {
+		return true
+	}
+	for _, requested := range sets {
+		if len(requested.GetMatchers()) == 0 {
+			return true
+		}
+		for _, stored := range sil.GetMatcherSets() {
+			if containsMatchers(stored.GetMatchers(), requested.GetMatchers(), protoMatcherEqual) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasLabelMatchers reports whether one stored matcher set contains every requested
+// label matcher with the same name, type, and value. It compares definitions
+// without evaluating label values. A silence with no matcher sets does not match.
+// Nil matchers do not match.
+func HasLabelMatchers(sil *pb.Silence, matchers []*labels.Matcher) bool {
+	for _, stored := range sil.GetMatcherSets() {
+		if containsMatchers(stored.GetMatchers(), matchers, labelMatcherEqual) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsMatchers[T any](stored []*pb.Matcher, requested []T, equal func(T, *pb.Matcher) bool) bool {
+	for _, matcher := range requested {
+		if !slices.ContainsFunc(stored, func(candidate *pb.Matcher) bool {
+			return equal(matcher, candidate)
+		}) {
+			return false
+		}
+	}
+	return true
+}
+
+func protoMatcherEqual(requested, stored *pb.Matcher) bool {
+	return requested != nil && stored != nil &&
+		requested.Name == stored.Name && requested.Type == stored.Type && requested.Pattern == stored.Pattern
+}
+
+func labelMatcherEqual(requested *labels.Matcher, stored *pb.Matcher) bool {
+	if requested == nil || stored == nil {
+		return false
+	}
+	if requested.Name != stored.Name || requested.Value != stored.Pattern {
+		return false
+	}
+	switch requested.Type {
+	case labels.MatchEqual:
+		return stored.Type == pb.Matcher_EQUAL
+	case labels.MatchNotEqual:
+		return stored.Type == pb.Matcher_NOT_EQUAL
+	case labels.MatchRegexp:
+		return stored.Type == pb.Matcher_REGEXP
+	case labels.MatchNotRegexp:
+		return stored.Type == pb.Matcher_NOT_REGEXP
+	default:
+		return false
+	}
+}
+
+// QHasMatchers filters silences by matcher definitions using HasMatchers.
+// It compares names, types, and patterns without evaluating label values.
+func QHasMatchers(sets ...*pb.MatcherSet) QueryParam {
+	return func(q *query) error {
+		q.filters = append(q.filters, func(sil *pb.Silence, _ *Silences, _ time.Time) (bool, error) {
+			return HasMatchers(sil, sets...), nil
+		})
 		return nil
 	}
 }
