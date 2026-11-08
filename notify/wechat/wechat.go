@@ -92,10 +92,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 
 	data := notify.GetTemplateData(ctx, n.tmpl, as, logger)
 
-	tmpl := notify.TmplText(n.tmpl, data, &err)
-	if err != nil {
-		return notify.Unrecoverable(err, notify.DefaultReason)
-	}
+	var tmplErr error
+	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
 	// Refresh AccessToken over 2 hours
 	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
@@ -106,8 +104,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		}
 		parameters.Add("corpsecret", tmpl(apiSecret))
 		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
-		if err != nil {
-			return notify.Unrecoverable(fmt.Errorf("templating error: %w", err), notify.DefaultReason)
+		if tmplErr != nil {
+			return notify.Unrecoverable(fmt.Errorf("templating error: %w", tmplErr), notify.TemplateErrorReason)
 		}
 
 		u := n.conf.APIURL.Copy()
@@ -152,8 +150,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 			Content: tmpl(n.conf.Message),
 		}
 	}
-	if err != nil {
-		return notify.Unrecoverable(fmt.Errorf("templating error: %w", err), notify.DefaultReason)
+	if tmplErr != nil {
+		return notify.Unrecoverable(fmt.Errorf("templating error: %w", tmplErr), notify.TemplateErrorReason)
 	}
 
 	var buf bytes.Buffer
