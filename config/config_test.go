@@ -1398,6 +1398,41 @@ func TestSlackPostUpdatesToThreadWebhookURL(t *testing.T) {
 	require.EqualError(t, err, "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 }
 
+func TestSlackRedactedConfigUpdateMessage(t *testing.T) {
+	// A redacted config (e.g. from /api/v2/status) has api_url: <secret>.
+	// SecretURL.UnmarshalYAML deserialises this into an empty *url.URL.
+	// The update_message validation must not reject it.
+	in := `
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+        api_url: <secret>
+        update_message: true
+`
+	conf, err := Load(in)
+	require.NoError(t, err)
+	require.True(t, conf.Receivers[0].SlackConfigs[0].UpdateMessage)
+}
+
+func TestSlackRedactedConfigPostUpdatesToThread(t *testing.T) {
+	in := `
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+        api_url: <secret>
+        post_updates_to_thread: true
+`
+	conf, err := Load(in)
+	require.NoError(t, err)
+	require.True(t, conf.Receivers[0].SlackConfigs[0].PostUpdatesToThread)
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
