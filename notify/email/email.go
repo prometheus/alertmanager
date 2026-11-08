@@ -162,6 +162,12 @@ func (n *Email) Notify(ctx context.Context, as ...*alert.Alert) notify.NotifyVer
 			return notify.Retry(0, fmt.Errorf("establish connection to server: %w", err), notify.DefaultReason)
 		}
 	}
+	// The dialers only watch ctx until the connection is up. Bound the rest of
+	// the SMTP session by ctx too, so a server that never answers cannot block
+	// Notify.
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })
+	defer stop()
+
 	c, err = smtp.NewClient(conn, n.conf.Smarthost.Host)
 	if err != nil {
 		conn.Close()
