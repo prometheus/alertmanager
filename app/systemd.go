@@ -38,11 +38,13 @@ type SystemdNotifier struct {
 	socket           string
 	watchdogInterval time.Duration
 
-	mtx        sync.Mutex
-	ready      bool
-	stopped    bool
-	workerStop chan struct{}
-	workerDone chan struct{}
+	mtx          sync.Mutex
+	ready        bool
+	stopped      bool
+	pendingReady string
+	workerWake   chan struct{}
+	workerStop   chan struct{}
+	workerDone   chan struct{}
 }
 
 // NewSystemdNotifier enables notifications when NOTIFY_SOCKET is set.
@@ -72,16 +74,9 @@ func (n *SystemdNotifier) Ready() {
 	if n.socket == "" || n.ready || n.workerDone != nil || n.stopped {
 		return
 	}
-	n.ready = n.notify("STATUS=Ready", daemon.SdNotifyReady)
-	interval := n.watchdogInterval
-	if !n.ready {
-		interval = systemdReadyRetryInterval
-	}
-	if interval > 0 {
-		n.workerStop = make(chan struct{})
-		n.workerDone = make(chan struct{})
-		go n.run(interval)
-	}
+	n.pendingReady = "Ready"
+	n.notifyReady()
+	n.wakeWorker()
 }
 
 // Reloading reports the start of a reload with its monotonic timestamp.
@@ -92,11 +87,15 @@ func (n *SystemdNotifier) Reloading() {
 	if !n.ready || n.stopped {
 		return
 	}
+	// An older completion must not end this reload.
+	n.pendingReady = ""
 	n.notify(daemon.SdNotifyReloading, strings.TrimSuffix(daemon.SdNotifyMonotonicUsec(), "\n"))
+	n.wakeWorker()
 }
 
 // Reloaded reports the reload result and restores the ready state.
 // A failed reload leaves the previous configuration active.
+// Failed sends are retried until success, another reload, or shutdown.
 func (n *SystemdNotifier) Reloaded(err error) {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
@@ -108,7 +107,9 @@ func (n *SystemdNotifier) Reloaded(err error) {
 	if err != nil {
 		status = "Configuration reload failed: " + sanitizeStatus(err.Error()) + " (previous configuration remains active)"
 	}
-	n.notify("STATUS="+status, daemon.SdNotifyReady)
+	n.pendingReady = status
+	n.notifyReady()
+	n.wakeWorker()
 }
 
 // Stopping cancels readiness retries and the watchdog, then reports shutdown.
@@ -131,35 +132,84 @@ func (n *SystemdNotifier) Stopping() {
 	}
 }
 
-// run retries readiness, then sends watchdog notifications until shutdown.
-func (n *SystemdNotifier) run(interval time.Duration) {
-	timer := time.NewTimer(interval)
-	defer timer.Stop()
+// notifyReady sends the pending completion and retains it on failure.
+// The caller must hold n.mtx.
+func (n *SystemdNotifier) notifyReady() {
+	if n.pendingReady != "" && n.notify("STATUS="+n.pendingReady, daemon.SdNotifyReady) {
+		n.ready = true
+		n.pendingReady = ""
+	}
+}
+
+// wakeWorker starts or wakes the notification worker. The caller must hold n.mtx.
+func (n *SystemdNotifier) wakeWorker() {
+	if n.workerDone == nil {
+		if n.pendingReady == "" && n.watchdogInterval <= 0 {
+			return
+		}
+		n.workerWake = make(chan struct{}, 1)
+		n.workerStop = make(chan struct{})
+		n.workerDone = make(chan struct{})
+		go n.run()
+		return
+	}
+	select {
+	case n.workerWake <- struct{}{}:
+	default:
+	}
+}
+
+// run retries pending completions and sends watchdog notifications until shutdown.
+// Separate timers keep retries from changing the watchdog interval.
+func (n *SystemdNotifier) run() {
 	defer close(n.workerDone)
+	retry := time.NewTimer(systemdReadyRetryInterval)
+	retry.Stop()
+	defer retry.Stop()
+	var retryCh, watchdogCh <-chan time.Time
+	var watchdog *time.Ticker
+	defer func() {
+		if watchdog != nil {
+			watchdog.Stop()
+		}
+	}()
 
 	for {
+		n.mtx.Lock()
+		if n.stopped {
+			n.mtx.Unlock()
+			return
+		}
+		if n.pendingReady == "" {
+			retry.Stop()
+			retryCh = nil
+		} else if retryCh == nil {
+			retry.Reset(systemdReadyRetryInterval)
+			retryCh = retry.C
+		}
+		if n.ready && n.watchdogInterval > 0 && watchdog == nil {
+			watchdog = time.NewTicker(n.watchdogInterval)
+			watchdogCh = watchdog.C
+		}
+		n.mtx.Unlock()
+
 		select {
 		case <-n.workerStop:
 			return
-		case <-timer.C:
+		case <-n.workerWake:
+		case <-retryCh:
+			retryCh = nil
 			n.mtx.Lock()
-			if n.stopped {
-				n.mtx.Unlock()
-				return
-			}
-			if n.ready {
-				n.notify(daemon.SdNotifyWatchdog)
-			} else {
-				n.ready = n.notify("STATUS=Ready", daemon.SdNotifyReady)
-				if n.ready {
-					interval = n.watchdogInterval
-				}
+			if !n.stopped {
+				n.notifyReady()
 			}
 			n.mtx.Unlock()
-			if interval <= 0 {
-				return
+		case <-watchdogCh:
+			n.mtx.Lock()
+			if !n.stopped {
+				n.notify(daemon.SdNotifyWatchdog)
 			}
-			timer.Reset(interval)
+			n.mtx.Unlock()
 		}
 	}
 }

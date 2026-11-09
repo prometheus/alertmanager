@@ -22,8 +22,10 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -49,14 +51,28 @@ func systemdSocket(t *testing.T) *net.UnixConn {
 	return conn
 }
 
-// readSystemdMessage reads one datagram with a bounded wait.
-func readSystemdMessage(t *testing.T, conn *net.UnixConn) string {
+// pauseSystemdSocket makes sends fail until the returned function restores the socket.
+func pauseSystemdSocket(t *testing.T, conn *net.UnixConn) func() {
+	t.Helper()
+	path := conn.LocalAddr().String()
+	require.NoError(t, os.Rename(path, path+"-paused"))
+	resume := sync.OnceFunc(func() { require.NoError(t, os.Rename(path+"-paused", path)) })
+	t.Cleanup(resume)
+	return resume
+}
+
+// readSystemdMessage reads the next non-ignored datagram with a bounded wait.
+func readSystemdMessage(t *testing.T, conn *net.UnixConn, ignored ...string) string {
 	t.Helper()
 	require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
 	buf := make([]byte, 2048)
-	n, err := conn.Read(buf)
-	require.NoError(t, err)
-	return string(buf[:n])
+	for {
+		n, err := conn.Read(buf)
+		require.NoError(t, err)
+		if message := string(buf[:n]); !slices.Contains(ignored, message) {
+			return message
+		}
+	}
 }
 
 // expectNoSystemdMessage checks that an inactive notifier sends no datagrams.
@@ -220,6 +236,10 @@ func TestSystemdNotifierRetriesReadiness(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, conn.Close()) })
 			if !stop {
 				require.Equal(t, "STATUS=Ready\nREADY=1", readSystemdMessage(t, conn))
+				n.Ready()
+				expectNoSystemdMessage(t, conn)
+				n.Stopping()
+				require.Equal(t, "STOPPING=1", readSystemdMessage(t, conn))
 			}
 			select {
 			case <-n.workerDone:
@@ -230,6 +250,82 @@ func TestSystemdNotifierRetriesReadiness(t *testing.T) {
 			expectNoSystemdMessage(t, conn)
 		})
 	}
+}
+
+// TestSystemdNotifierRetriesReloadCompletion checks retry payloads with and without a watchdog.
+func TestSystemdNotifierRetriesReloadCompletion(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		watchdog string
+		err      error
+		status   string
+	}{
+		{name: "without watchdog", status: "Configuration reloaded"},
+		{
+			name:     "with watchdog",
+			watchdog: "100000",
+			err:      errors.New("bad\nconfig"),
+			status:   "Configuration reload failed: bad config (previous configuration remains active)",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := systemdSocket(t)
+			t.Setenv("WATCHDOG_USEC", tc.watchdog)
+			n := NewSystemdNotifier(promslog.NewNopLogger())
+			t.Cleanup(n.Stopping)
+			n.Ready()
+			require.Equal(t, "STATUS=Ready\nREADY=1", readSystemdMessage(t, conn))
+			n.Reloading()
+			require.Regexp(t, `^RELOADING=1\nMONOTONIC_USEC=[0-9]+$`, readSystemdMessage(t, conn, "WATCHDOG=1"))
+
+			resume := pauseSystemdSocket(t, conn)
+			n.Reloaded(tc.err)
+			resume()
+			require.Equal(t, "STATUS="+tc.status+"\nREADY=1", readSystemdMessage(t, conn, "WATCHDOG=1"))
+			if tc.watchdog != "" {
+				require.Equal(t, "WATCHDOG=1", readSystemdMessage(t, conn))
+			}
+			n.Stopping()
+			require.Equal(t, "STOPPING=1", readSystemdMessage(t, conn, "WATCHDOG=1"))
+			expectNoSystemdMessage(t, conn)
+		})
+	}
+}
+
+// TestSystemdNotifierReloadRetryOrdering rejects stale completions during reload and shutdown.
+func TestSystemdNotifierReloadRetryOrdering(t *testing.T) {
+	conn := systemdSocket(t)
+	n := NewSystemdNotifier(promslog.NewNopLogger())
+	t.Cleanup(n.Stopping)
+	n.Ready()
+	require.Equal(t, "STATUS=Ready\nREADY=1", readSystemdMessage(t, conn))
+	n.Reloading()
+	require.Regexp(t, `^RELOADING=1\nMONOTONIC_USEC=[0-9]+$`, readSystemdMessage(t, conn))
+
+	resume := pauseSystemdSocket(t, conn)
+	n.Reloaded(errors.New("old reload error"))
+	// Start another reload before notification delivery recovers.
+	n.Reloading()
+	resume()
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(2*systemdReadyRetryInterval)))
+	_, err := conn.Read(make([]byte, 2048))
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	n.Reloaded(nil)
+	require.Equal(t, "STATUS=Configuration reloaded\nREADY=1", readSystemdMessage(t, conn))
+
+	n.Reloading()
+	require.Regexp(t, `^RELOADING=1\nMONOTONIC_USEC=[0-9]+$`, readSystemdMessage(t, conn))
+	resume = pauseSystemdSocket(t, conn)
+	n.Reloaded(nil)
+	n.Stopping()
+	resume()
+	select {
+	case <-n.workerDone:
+	default:
+		t.Fatal("notification worker still running after shutdown")
+	}
+	n.Reloaded(nil)
+	expectNoSystemdMessage(t, conn)
 }
 
 // TestSystemdNotifyTimeout checks that a full receive queue cannot block a send indefinitely.
