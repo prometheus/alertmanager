@@ -51,6 +51,9 @@ import (
 // start serving HTTP yet. On error, partial setup is rolled back via the
 // same cleanup stack that Stop would drain on success.
 func New(opts Options) (*App, error) {
+	if opts.Lifecycle == nil {
+		opts.Lifecycle = noopLifecycleNotifier{}
+	}
 	a := &App{
 		opts:      opts,
 		serveErrc: make(chan error, 1),
@@ -132,6 +135,9 @@ type App struct {
 	// anything at all. mtx also guards started, stopped, startErr, stopErr
 	// and the router channels below.
 	mtx sync.Mutex
+
+	// reloadMtx serializes reloads and their lifecycle notifications.
+	reloadMtx sync.Mutex
 
 	// started records whether Start launched the serve/reload goroutines;
 	// stopped records whether Stop has run. Stop uses started to decide

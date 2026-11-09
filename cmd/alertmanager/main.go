@@ -42,6 +42,7 @@ func main() {
 	os.Exit(run())
 }
 
+// run starts Alertmanager and returns its process exit code.
 func run() int {
 	if os.Getenv("DEBUG") != "" {
 		runtime.SetBlockProfileRate(20)
@@ -228,6 +229,9 @@ func run() int {
 		Registerer: prometheus.DefaultRegisterer,
 		Flagger:    ff,
 		Reload:     reload,
+	}
+	if os.Getenv("NOTIFY_SOCKET") != "" {
+		opts.Lifecycle = app.NewSystemdNotifier(logger)
 	}
 
 	if err := app.Run(ctx, opts); err != nil {
