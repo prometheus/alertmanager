@@ -2109,7 +2109,6 @@ url_file: <filepath>
 
 WeChat notifications are sent via the [WeChat Work
 API](https://developer.work.weixin.qq.com/document/path/90236).
-An [English-language archive](https://web.archive.org/web/20240919094455/https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Service_Center_messages.html) of WeChat messaging docs is also available.
 
 ```yaml
 # Whether to notify about resolved alerts.
