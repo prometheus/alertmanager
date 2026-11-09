@@ -22,9 +22,20 @@ jobs:
           cache-dependency-path: |
             .nvmrc
             **/package-lock.json
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: elm-cache
+        with:
+          path: ~/.elm
+          key: elm-${{ hashFiles('ui/app/elm.json', 'ui/app/review/elm.json') }}
+          restore-keys: elm-
       - run: make clean
       - run: make all
         working-directory: ./ui/app
+      - if: steps.elm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.elm
+          key: ${{ steps.elm-cache.outputs.cache-primary-key }}
       - run: make assets
       - run: make apiv2
       - run: git diff --exit-code
