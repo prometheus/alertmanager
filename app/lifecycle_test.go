@@ -126,11 +126,19 @@ type lifecycleEvent struct {
 
 type lifecycleRecorder chan lifecycleEvent
 
-func (r lifecycleRecorder) Ready()             { r <- lifecycleEvent{name: "ready"} }
-func (r lifecycleRecorder) Reloading()         { r <- lifecycleEvent{name: "reloading"} }
-func (r lifecycleRecorder) Reloaded(err error) { r <- lifecycleEvent{name: "reloaded", err: err} }
-func (r lifecycleRecorder) Stopping()          { r <- lifecycleEvent{name: "stopping"} }
+// Ready records startup completion.
+func (r lifecycleRecorder) Ready() { r <- lifecycleEvent{name: "ready"} }
 
+// Reloading records the start of a reload.
+func (r lifecycleRecorder) Reloading() { r <- lifecycleEvent{name: "reloading"} }
+
+// Reloaded records the reload result without changing the error.
+func (r lifecycleRecorder) Reloaded(err error) { r <- lifecycleEvent{name: "reloaded", err: err} }
+
+// Stopping records the start of shutdown.
+func (r lifecycleRecorder) Stopping() { r <- lifecycleEvent{name: "stopping"} }
+
+// expect checks the next lifecycle event with a bounded wait.
 func (r lifecycleRecorder) expect(t *testing.T, name string, err error) {
 	t.Helper()
 	select {
@@ -142,10 +150,21 @@ func (r lifecycleRecorder) expect(t *testing.T, name string, err error) {
 	}
 }
 
+// expectNone checks that a blocked transition does not send a lifecycle event.
+func (r lifecycleRecorder) expectNone(t *testing.T) {
+	t.Helper()
+	select {
+	case event := <-r:
+		t.Fatalf("unexpected lifecycle event: %s", event.name)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// TestApp_LifecycleNotifications checks readiness and serialized reload notifications.
 func TestApp_LifecycleNotifications(t *testing.T) {
 	opts := testOptions(t)
 	events := make(lifecycleRecorder, 8)
-	reloads := make(chan struct{}, 1)
+	reloads := make(chan struct{})
 	opts.Lifecycle = events
 	opts.Reload = reloads
 	opts.WebConfig.WebListenAddresses = &[]string{"127.0.0.1:0", "127.0.0.1:0"}
@@ -153,15 +172,65 @@ func TestApp_LifecycleNotifications(t *testing.T) {
 	a, err := New(opts)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, a.Stop(context.Background())) })
+	secondStarting := make(chan struct{})
+	releaseListener := make(chan struct{})
+	resumeListener := sync.OnceFunc(func() { close(releaseListener) })
+	t.Cleanup(resumeListener)
+	a.servers[1].BaseContext = func(net.Listener) context.Context {
+		close(secondStarting)
+		<-releaseListener
+		return context.Background()
+	}
 	require.Empty(t, events)
 	require.NoError(t, a.Start())
+	select {
+	case <-secondStarting:
+	case <-time.After(5 * time.Second):
+		t.Fatal("second listener did not start")
+	}
+	waitHealthy(t, a.Addr())
+	events.expectNone(t)
+	resumeListener()
 	events.expect(t, "ready", nil)
 	require.NoError(t, a.Start())
 	for _, addr := range a.Addrs() {
 		waitHealthy(t, addr)
 	}
 
-	require.NoError(t, a.Reload())
+	reloadStarted := make(chan struct{})
+	releaseReload := make(chan struct{})
+	resumeReload := sync.OnceFunc(func() { close(releaseReload) })
+	t.Cleanup(resumeReload)
+	var firstReload sync.Once
+	a.coordinator.Subscribe(func(*config.Config) error {
+		firstReload.Do(func() {
+			close(reloadStarted)
+			<-releaseReload
+		})
+		return nil
+	})
+	reloadDone := make(chan error, 1)
+	go func() { reloadDone <- a.Reload() }()
+	select {
+	case <-reloadStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("programmatic reload did not start")
+	}
+	events.expect(t, "reloading", nil)
+	select {
+	case reloads <- struct{}{}:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reload router did not receive the concurrent trigger")
+	}
+	events.expectNone(t)
+	resumeReload()
+	select {
+	case err := <-reloadDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("programmatic reload did not finish")
+	}
+	events.expect(t, "reloaded", nil)
 	events.expect(t, "reloading", nil)
 	events.expect(t, "reloaded", nil)
 
@@ -172,10 +241,6 @@ func TestApp_LifecycleNotifications(t *testing.T) {
 	events.expect(t, "reloaded", err)
 
 	require.NoError(t, os.WriteFile(opts.ConfigFile, []byte(minimalConfig), 0o600))
-	reloads <- struct{}{}
-	events.expect(t, "reloading", nil)
-	events.expect(t, "reloaded", nil)
-
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Post("http://"+a.Addr()+"/-/reload", "", nil)
 	require.NoError(t, err)
 	_, _ = io.Copy(io.Discard, resp.Body)
@@ -190,6 +255,7 @@ func TestApp_LifecycleNotifications(t *testing.T) {
 	require.Empty(t, events)
 }
 
+// TestApp_WebConfigFailureDoesNotNotifyReady rejects readiness after invalid web setup.
 func TestApp_WebConfigFailureDoesNotNotifyReady(t *testing.T) {
 	opts := testOptions(t)
 	events := make(lifecycleRecorder, 2)
@@ -295,6 +361,7 @@ func TestApp_serveLoop(t *testing.T) {
 	})
 }
 
+// TestApp_reloadRouterClosedReloadChannel checks that closed triggers do not repeat reloads.
 func TestApp_reloadRouterClosedReloadChannel(t *testing.T) {
 	// A closed Options.Reload channel must not spin reloadRouter into a
 	// hot loop calling coordinator.Reload on every iteration. We assert
@@ -378,6 +445,7 @@ func TestApp_ConcurrentStartStop(t *testing.T) {
 	}
 }
 
+// TestApp_StartAfterStopFails checks that stopping before startup sends no notifications.
 func TestApp_StartAfterStopFails(t *testing.T) {
 	// Once Stop has run, Start must refuse to launch its goroutines (which
 	// would otherwise be leaked, since the only thing that tears them down
@@ -545,6 +613,7 @@ func TestApp_EmbeddedReloadDoesNotDeadlock(t *testing.T) {
 	}
 }
 
+// TestApp_New_SetupFailureDoesNotDeadlock checks rollback without lifecycle notifications.
 func TestApp_New_SetupFailureDoesNotDeadlock(t *testing.T) {
 	// Regression: setup failure in New triggers the rollback path which
 	// calls Stop. Stop must not block draining a.serveErrc because Start has

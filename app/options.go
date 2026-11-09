@@ -130,10 +130,17 @@ type LifecycleNotifier interface {
 
 type noopLifecycleNotifier struct{}
 
-func (noopLifecycleNotifier) Ready()         {}
-func (noopLifecycleNotifier) Reloading()     {}
+// Ready ignores startup notifications when lifecycle notifications are disabled.
+func (noopLifecycleNotifier) Ready() {}
+
+// Reloading ignores reload-start notifications.
+func (noopLifecycleNotifier) Reloading() {}
+
+// Reloaded ignores reload results.
 func (noopLifecycleNotifier) Reloaded(error) {}
-func (noopLifecycleNotifier) Stopping()      {}
+
+// Stopping ignores shutdown notifications.
+func (noopLifecycleNotifier) Stopping() {}
 
 // DefaultOptions returns an Options value pre-populated with the same
 // defaults as the cmd/alertmanager kingpin flags. Clustering is disabled

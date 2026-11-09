@@ -63,30 +63,22 @@ func (a *App) Start() error {
 
 	go func() {
 		errCh := make(chan error, len(a.listeners))
-		readyCh := make(chan struct{}, len(a.listeners))
+		readiness := &listenerReadiness{remaining: len(a.listeners), notifier: a.opts.Lifecycle}
 		for idx, listener := range a.listeners {
 			server := a.servers[idx]
 			go func() {
-				errCh <- web.Serve(&readyListener{Listener: listener, ready: readyCh}, server, a.opts.WebConfig, a.logger)
+				err := web.Serve(&readyListener{Listener: listener, readiness: readiness}, server, a.opts.WebConfig, a.logger)
+				readiness.stop()
+				errCh <- err
 			}()
 		}
 		reported := false
-		ready := 0
-		for running := len(a.listeners); running > 0; {
-			select {
-			case <-readyCh:
-				ready++
-				if ready == len(a.listeners) && running == len(a.listeners) {
-					a.opts.Lifecycle.Ready()
-				}
-			case err := <-errCh:
-				running--
-				if err != nil && !errors.Is(err, http.ErrServerClosed) {
-					a.logger.Error("Listen error", "err", err)
-					if !reported {
-						a.serveErrc <- err
-						reported = true
-					}
+		for range a.listeners {
+			if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+				a.logger.Error("Listen error", "err", err)
+				if !reported {
+					a.serveErrc <- err
+					reported = true
 				}
 			}
 		}
@@ -181,6 +173,7 @@ func (a *App) Reload() error {
 	return a.reloadConfig()
 }
 
+// reloadConfig keeps each reload and its lifecycle notifications together.
 func (a *App) reloadConfig() error {
 	a.reloadMtx.Lock()
 	defer a.reloadMtx.Unlock()

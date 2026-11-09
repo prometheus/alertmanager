@@ -15,6 +15,7 @@ package app
 
 import (
 	"log/slog"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -23,28 +24,35 @@ import (
 	"github.com/coreos/go-systemd/v22/daemon"
 )
 
+const (
+	systemdNotifyTimeout      = 100 * time.Millisecond
+	systemdReadyRetryInterval = time.Second
+	// The reload error limit includes the truncation marker.
+	maxStatusErrLen = 1024
+)
+
 // SystemdNotifier sends lifecycle and watchdog notifications to systemd.
 // Use NewSystemdNotifier to create one notifier per process.
 type SystemdNotifier struct {
 	logger           *slog.Logger
-	enabled          bool
+	socket           string
 	watchdogInterval time.Duration
 
-	mtx          sync.Mutex
-	ready        bool
-	stopped      bool
-	watchdogStop chan struct{}
-	watchdogDone chan struct{}
+	mtx        sync.Mutex
+	ready      bool
+	stopped    bool
+	workerStop chan struct{}
+	workerDone chan struct{}
 }
 
 // NewSystemdNotifier enables notifications when NOTIFY_SOCKET is set.
 // WATCHDOG_USEC and WATCHDOG_PID control watchdog notifications.
 func NewSystemdNotifier(logger *slog.Logger) *SystemdNotifier {
 	n := &SystemdNotifier{
-		logger:  logger,
-		enabled: os.Getenv("NOTIFY_SOCKET") != "",
+		logger: logger,
+		socket: os.Getenv("NOTIFY_SOCKET"),
 	}
-	if n.enabled {
+	if n.socket != "" {
 		interval, err := daemon.SdWatchdogEnabled(false)
 		if err != nil {
 			logger.Warn("Failed to read systemd watchdog configuration", "err", err)
@@ -55,20 +63,24 @@ func NewSystemdNotifier(logger *slog.Logger) *SystemdNotifier {
 	return n
 }
 
-// Ready reports startup completion and starts the watchdog, if enabled.
+// Ready reports startup completion and retries failed sends until success or shutdown.
+// The watchdog starts after the readiness notification succeeds.
 func (n *SystemdNotifier) Ready() {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
-	if !n.enabled || n.ready || n.stopped {
+	if n.socket == "" || n.ready || n.workerDone != nil || n.stopped {
 		return
 	}
-	n.ready = true
-	n.notify("STATUS=Ready\n" + daemon.SdNotifyReady)
-	if n.watchdogInterval > 0 {
-		n.watchdogStop = make(chan struct{})
-		n.watchdogDone = make(chan struct{})
-		go n.watchdog()
+	n.ready = n.notify("STATUS=Ready", daemon.SdNotifyReady)
+	interval := n.watchdogInterval
+	if !n.ready {
+		interval = systemdReadyRetryInterval
+	}
+	if interval > 0 {
+		n.workerStop = make(chan struct{})
+		n.workerDone = make(chan struct{})
+		go n.run(interval)
 	}
 }
 
@@ -77,10 +89,10 @@ func (n *SystemdNotifier) Reloading() {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
-	if !n.enabled || !n.ready || n.stopped {
+	if !n.ready || n.stopped {
 		return
 	}
-	n.notify(daemon.SdNotifyReloading + "\n" + daemon.SdNotifyMonotonicUsec())
+	n.notify(daemon.SdNotifyReloading, strings.TrimSuffix(daemon.SdNotifyMonotonicUsec(), "\n"))
 }
 
 // Reloaded reports the reload result and restores the ready state.
@@ -89,67 +101,104 @@ func (n *SystemdNotifier) Reloaded(err error) {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 
-	if !n.enabled || !n.ready || n.stopped {
+	if !n.ready || n.stopped {
 		return
 	}
 	status := "Configuration reloaded"
 	if err != nil {
-		status = "Configuration reload failed: " + err.Error() + " (previous configuration remains active)"
+		status = "Configuration reload failed: " + sanitizeStatus(err.Error()) + " (previous configuration remains active)"
 	}
-	n.notify("STATUS=" + sanitizeStatus(status) + "\n" + daemon.SdNotifyReady)
+	n.notify("STATUS="+status, daemon.SdNotifyReady)
 }
 
-// Stopping stops the watchdog and reports shutdown. Later calls send nothing.
+// Stopping cancels readiness retries and the watchdog, then reports shutdown.
+// It waits for the notification worker to exit. Later calls send nothing.
 func (n *SystemdNotifier) Stopping() {
 	n.mtx.Lock()
 	if !n.stopped {
 		n.stopped = true
-		if n.watchdogStop != nil {
-			close(n.watchdogStop)
+		if n.workerStop != nil {
+			close(n.workerStop)
 		}
 		if n.ready {
 			n.notify(daemon.SdNotifyStopping)
 		}
 	}
-	done := n.watchdogDone
+	done := n.workerDone
 	n.mtx.Unlock()
 	if done != nil {
 		<-done
 	}
 }
 
-func (n *SystemdNotifier) watchdog() {
-	ticker := time.NewTicker(n.watchdogInterval)
-	defer ticker.Stop()
-	defer close(n.watchdogDone)
+// run retries readiness, then sends watchdog notifications until shutdown.
+func (n *SystemdNotifier) run(interval time.Duration) {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	defer close(n.workerDone)
 
 	for {
 		select {
-		case <-n.watchdogStop:
+		case <-n.workerStop:
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			n.mtx.Lock()
-			if !n.stopped {
+			if n.stopped {
+				n.mtx.Unlock()
+				return
+			}
+			if n.ready {
 				n.notify(daemon.SdNotifyWatchdog)
+			} else {
+				n.ready = n.notify("STATUS=Ready", daemon.SdNotifyReady)
+				if n.ready {
+					interval = n.watchdogInterval
+				}
 			}
 			n.mtx.Unlock()
+			if interval <= 0 {
+				return
+			}
+			timer.Reset(interval)
 		}
 	}
 }
 
-func (n *SystemdNotifier) notify(state string) {
-	if _, err := daemon.SdNotify(false, state); err != nil {
+// notify sends newline-separated assignments and reports success.
+// It logs send failures.
+func (n *SystemdNotifier) notify(assignments ...string) bool {
+	if err := sendSystemdNotification(n.socket, strings.Join(assignments, "\n")); err != nil {
 		n.logger.Warn("Failed to notify systemd", "err", err)
+		return false
 	}
+	return true
 }
 
-// sanitizeStatus keeps STATUS on one line and limits it to 256 UTF-8 bytes.
+// sendSystemdNotification bounds both connection setup and the datagram write.
+// The daemon.SdNotify function does not expose a timeout or a connection deadline.
+func sendSystemdNotification(socket, state string) error {
+	deadline := time.Now().Add(systemdNotifyTimeout)
+	conn, err := (&net.Dialer{Deadline: deadline}).Dial("unixgram", socket)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if err := conn.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
+	_, err = conn.Write([]byte(state))
+	return err
+}
+
+// sanitizeStatus returns single-line UTF-8 error text within maxStatusErrLen bytes.
+// Truncated text ends with an ellipsis.
 func sanitizeStatus(status string) string {
 	status = strings.ToValidUTF8(status, "\uFFFD")
 	status = strings.ReplaceAll(status, "\x00", " ")
 	status = strings.Join(strings.Fields(status), " ")
-	if len(status) > 256 {
-		status = strings.ToValidUTF8(status[:256], "")
+	if len(status) > maxStatusErrLen {
+		const ellipsis = "…"
+		status = strings.ToValidUTF8(status[:maxStatusErrLen-len(ellipsis)], "") + ellipsis
 	}
 	return status
 }
