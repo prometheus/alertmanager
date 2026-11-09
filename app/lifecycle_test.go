@@ -119,6 +119,97 @@ func TestApp_StartStop(t *testing.T) {
 	require.NoError(t, a.Stop(t.Context()))
 }
 
+type lifecycleEvent struct {
+	name string
+	err  error
+}
+
+type lifecycleRecorder chan lifecycleEvent
+
+func (r lifecycleRecorder) Ready()             { r <- lifecycleEvent{name: "ready"} }
+func (r lifecycleRecorder) Reloading()         { r <- lifecycleEvent{name: "reloading"} }
+func (r lifecycleRecorder) Reloaded(err error) { r <- lifecycleEvent{name: "reloaded", err: err} }
+func (r lifecycleRecorder) Stopping()          { r <- lifecycleEvent{name: "stopping"} }
+
+func (r lifecycleRecorder) expect(t *testing.T, name string, err error) {
+	t.Helper()
+	select {
+	case event := <-r:
+		require.Equal(t, name, event.name)
+		require.ErrorIs(t, event.err, err)
+	case <-time.After(5 * time.Second):
+		t.Fatalf("missing lifecycle event: %s", name)
+	}
+}
+
+func TestApp_LifecycleNotifications(t *testing.T) {
+	opts := testOptions(t)
+	events := make(lifecycleRecorder, 8)
+	reloads := make(chan struct{}, 1)
+	opts.Lifecycle = events
+	opts.Reload = reloads
+	opts.WebConfig.WebListenAddresses = &[]string{"127.0.0.1:0", "127.0.0.1:0"}
+
+	a, err := New(opts)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, a.Stop(context.Background())) })
+	require.Empty(t, events)
+	require.NoError(t, a.Start())
+	events.expect(t, "ready", nil)
+	require.NoError(t, a.Start())
+	for _, addr := range a.Addrs() {
+		waitHealthy(t, addr)
+	}
+
+	require.NoError(t, a.Reload())
+	events.expect(t, "reloading", nil)
+	events.expect(t, "reloaded", nil)
+
+	require.NoError(t, os.WriteFile(opts.ConfigFile, []byte("route: ["), 0o600))
+	err = a.Reload()
+	require.Error(t, err)
+	events.expect(t, "reloading", nil)
+	events.expect(t, "reloaded", err)
+
+	require.NoError(t, os.WriteFile(opts.ConfigFile, []byte(minimalConfig), 0o600))
+	reloads <- struct{}{}
+	events.expect(t, "reloading", nil)
+	events.expect(t, "reloaded", nil)
+
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Post("http://"+a.Addr()+"/-/reload", "", nil)
+	require.NoError(t, err)
+	_, _ = io.Copy(io.Discard, resp.Body)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	events.expect(t, "reloading", nil)
+	events.expect(t, "reloaded", nil)
+
+	require.NoError(t, a.Stop(t.Context()))
+	events.expect(t, "stopping", nil)
+	require.NoError(t, a.Stop(t.Context()))
+	require.Empty(t, events)
+}
+
+func TestApp_WebConfigFailureDoesNotNotifyReady(t *testing.T) {
+	opts := testOptions(t)
+	events := make(lifecycleRecorder, 2)
+	opts.Lifecycle = events
+	webConfig := filepath.Join(opts.DataDir, "web.yml")
+	require.NoError(t, os.WriteFile(webConfig, []byte("tls_server_config:\n  cert_file: missing.crt\n  key_file: missing.key\n"), 0o600))
+	opts.WebConfig.WebConfigFile = &webConfig
+
+	a, err := New(opts)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, a.Stop(context.Background())) })
+	require.NoError(t, a.Start())
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.ErrorContains(t, a.serveLoop(ctx), "failed to read cert_file")
+	require.NoError(t, a.Stop(t.Context()))
+	events.expect(t, "stopping", nil)
+	require.Empty(t, events)
+}
+
 func TestApp_StartReportsFirstListenerFailure(t *testing.T) {
 	opts := testOptions(t)
 	opts.WebConfig.WebListenAddresses = &[]string{"127.0.0.1:0", "127.0.0.1:0", "127.0.0.1:0"}
@@ -227,7 +318,7 @@ func TestApp_reloadRouterClosedReloadChannel(t *testing.T) {
 
 	a := &App{
 		logger:      promslog.NewNopLogger(),
-		opts:        Options{Reload: reloadCh},
+		opts:        Options{Reload: reloadCh, Lifecycle: noopLifecycleNotifier{}},
 		coordinator: coord,
 		routerQuit:  make(chan struct{}),
 		routerDone:  make(chan struct{}),
@@ -292,7 +383,10 @@ func TestApp_StartAfterStopFails(t *testing.T) {
 	// would otherwise be leaked, since the only thing that tears them down
 	// has already run). This is the deterministic half of the
 	// Start/Stop-race invariant exercised by TestApp_ConcurrentStartStop.
-	a, err := New(testOptions(t))
+	opts := testOptions(t)
+	events := make(lifecycleRecorder, 2)
+	opts.Lifecycle = events
+	a, err := New(opts)
 	require.NoError(t, err)
 
 	require.NoError(t, a.Stop(t.Context()))
@@ -300,6 +394,7 @@ func TestApp_StartAfterStopFails(t *testing.T) {
 	err = a.Start()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "called after Stop")
+	require.Empty(t, events)
 }
 
 func TestApp_TwoSequentialInstances(t *testing.T) {
@@ -455,10 +550,11 @@ func TestApp_New_SetupFailureDoesNotDeadlock(t *testing.T) {
 	// calls Stop. Stop must not block draining a.serveErrc because Start has
 	// not run and nothing will ever close that channel.
 	errCh := make(chan error, 1)
+	events := make(lifecycleRecorder, 2)
 	go func() {
 		// Empty Options fails validate (Logger required), exercising
 		// the earliest setup-failure path.
-		_, err := New(Options{})
+		_, err := New(Options{Lifecycle: events})
 		errCh <- err
 	}()
 	select {
@@ -467,6 +563,7 @@ func TestApp_New_SetupFailureDoesNotDeadlock(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("New deadlocked on setup-failure rollback")
 	}
+	require.Empty(t, events)
 }
 
 func TestApp_Run_ContextCancel(t *testing.T) {

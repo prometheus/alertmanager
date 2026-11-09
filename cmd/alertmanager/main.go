@@ -227,6 +227,7 @@ func run() int {
 		Logger:     logger,
 		Registerer: prometheus.DefaultRegisterer,
 		Flagger:    ff,
+		Lifecycle:  app.NewSystemdNotifier(logger),
 		Reload:     reload,
 	}
 

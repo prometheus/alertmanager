@@ -63,19 +63,30 @@ func (a *App) Start() error {
 
 	go func() {
 		errCh := make(chan error, len(a.listeners))
+		readyCh := make(chan struct{}, len(a.listeners))
 		for idx, listener := range a.listeners {
 			server := a.servers[idx]
 			go func() {
-				errCh <- web.Serve(listener, server, a.opts.WebConfig, a.logger)
+				errCh <- web.Serve(&readyListener{Listener: listener, ready: readyCh}, server, a.opts.WebConfig, a.logger)
 			}()
 		}
 		reported := false
-		for range a.listeners {
-			if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
-				a.logger.Error("Listen error", "err", err)
-				if !reported {
-					a.serveErrc <- err
-					reported = true
+		ready := 0
+		for running := len(a.listeners); running > 0; {
+			select {
+			case <-readyCh:
+				ready++
+				if ready == len(a.listeners) && running == len(a.listeners) {
+					a.opts.Lifecycle.Ready()
+				}
+			case err := <-errCh:
+				running--
+				if err != nil && !errors.Is(err, http.ErrServerClosed) {
+					a.logger.Error("Listen error", "err", err)
+					if !reported {
+						a.serveErrc <- err
+						reported = true
+					}
 				}
 			}
 		}
@@ -111,7 +122,7 @@ func (a *App) reloadRouter() {
 				reloadCh = nil
 				continue
 			}
-			if err := a.coordinator.Reload(); err != nil {
+			if err := a.reloadConfig(); err != nil {
 				a.logger.Error("configuration reload failed", "err", err)
 			}
 		// webReload is the request/response trigger from the /-/reload
@@ -120,7 +131,7 @@ func (a *App) reloadRouter() {
 		// instead of logging it. This channel is App-owned (allocated in
 		// New, never closed externally), so it needs no comma-ok guard.
 		case errc := <-a.webReload:
-			errc <- a.coordinator.Reload()
+			errc <- a.reloadConfig()
 		}
 	}
 }
@@ -167,7 +178,17 @@ func (a *App) Reload() error {
 	if a.stopped {
 		return errors.New("alertmanager/app: App.Reload called after Stop")
 	}
-	return a.coordinator.Reload()
+	return a.reloadConfig()
+}
+
+func (a *App) reloadConfig() error {
+	a.reloadMtx.Lock()
+	defer a.reloadMtx.Unlock()
+
+	a.opts.Lifecycle.Reloading()
+	err := a.coordinator.Reload()
+	a.opts.Lifecycle.Reloaded(err)
+	return err
 }
 
 // cleanup is a single named teardown step on the LIFO shutdown stack.
@@ -201,6 +222,9 @@ func (a *App) Stop(ctx context.Context) error {
 	// mtx across both bodies guarantees we observe a consistent view (and
 	// that no Start can launch goroutines after this point).
 	started := a.started
+	if started {
+		a.opts.Lifecycle.Stopping()
+	}
 
 	var stopErr error
 	// Bound the whole teardown by shutdownTimeout. Deriving it from ctx

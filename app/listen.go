@@ -20,11 +20,25 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/mdlayher/vsock"
 	"github.com/prometheus/exporter-toolkit/web"
 )
+
+// readyListener reports when the HTTP server enters its accept loop.
+// At this point, the server has completed TLS and authentication setup.
+type readyListener struct {
+	net.Listener
+	ready chan<- struct{}
+	once  sync.Once
+}
+
+func (l *readyListener) Accept() (net.Conn, error) {
+	l.once.Do(func() { l.ready <- struct{}{} })
+	return l.Listener.Accept()
+}
 
 // listenAll eagerly binds every listener described by flags so that the
 // bound addresses are known before serving begins (Addr/Addrs can then

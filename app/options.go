@@ -104,12 +104,36 @@ type Options struct {
 	Registerer prometheus.Registerer
 	Flagger    featurecontrol.Flagger
 
+	// Lifecycle receives lifecycle notifications. A nil value disables them.
+	Lifecycle LifecycleNotifier
+
 	// Reload triggers a configuration reload each time it receives a
 	// value. The binary translates SIGHUP into sends on this channel;
 	// callers can also drive reloads programmatically. A nil channel
 	// disables external reloads (the /-/reload HTTP endpoint still works).
 	Reload <-chan struct{}
 }
+
+// LifecycleNotifier receives lifecycle transitions of an App.
+// Methods must support concurrent calls and return promptly. Startup and
+// reload completion can overlap with Stopping.
+type LifecycleNotifier interface {
+	// Ready reports that all HTTP servers have started with the initial config.
+	Ready()
+	// Reloading reports that a configuration reload has started.
+	Reloading()
+	// Reloaded reports the reload result. A nil error means success.
+	Reloaded(err error)
+	// Stopping reports that shutdown has started.
+	Stopping()
+}
+
+type noopLifecycleNotifier struct{}
+
+func (noopLifecycleNotifier) Ready()         {}
+func (noopLifecycleNotifier) Reloading()     {}
+func (noopLifecycleNotifier) Reloaded(error) {}
+func (noopLifecycleNotifier) Stopping()      {}
 
 // DefaultOptions returns an Options value pre-populated with the same
 // defaults as the cmd/alertmanager kingpin flags. Clustering is disabled
