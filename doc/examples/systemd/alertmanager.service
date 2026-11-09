@@ -1,0 +1,29 @@
+# Create the alertmanager user and group before starting this service.
+# Type=notify-reload requires systemd 253 or later.
+# For older versions, use Type=notify and add:
+# ExecReload=/bin/kill -HUP $MAINPID
+#
+# Readiness means all HTTP servers have started with the initial configuration.
+# Cluster convergence can continue after readiness.
+# The watchdog checks process liveness, not notification delivery.
+# Reload failures appear in systemctl status. The previous configuration stays active.
+# systemctl reload can succeed even when Alertmanager rejects the new configuration.
+
+[Unit]
+Description=Prometheus Alertmanager
+Documentation=https://prometheus.io/docs/alerting/latest/alertmanager/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=notify-reload
+NotifyAccess=main
+User=alertmanager
+Group=alertmanager
+StateDirectory=alertmanager
+ExecStart=/usr/local/bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/var/lib/alertmanager
+WatchdogSec=30s
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
