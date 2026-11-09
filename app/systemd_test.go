@@ -252,7 +252,7 @@ func TestSystemdNotifierRetriesReadiness(t *testing.T) {
 	}
 }
 
-// TestSystemdNotifierRetriesReloadCompletion checks retry payloads with and without a watchdog.
+// TestSystemdNotifierRetriesReloadCompletion checks repeated failures and heartbeats during retries.
 func TestSystemdNotifierRetriesReloadCompletion(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -273,6 +273,34 @@ func TestSystemdNotifierRetriesReloadCompletion(t *testing.T) {
 			t.Setenv("WATCHDOG_USEC", tc.watchdog)
 			n := NewSystemdNotifier(promslog.NewNopLogger())
 			t.Cleanup(n.Stopping)
+			failures := make(chan struct{}, 2)
+			allowCompletion := make(chan struct{})
+			allowHeartbeat := make(chan struct{})
+			gates := map[string]<-chan struct{}{
+				"STATUS=" + tc.status + "\nREADY=1": allowCompletion,
+				"WATCHDOG=1":                        allowHeartbeat,
+			}
+			blocked := errors.New("notification blocked by test")
+			n.send = func(socket, state string) error {
+				var err error
+				if gate := gates[state]; tc.watchdog != "" && gate != nil {
+					select {
+					case <-gate:
+					default:
+						err = blocked
+					}
+				}
+				if err == nil {
+					err = sendSystemdNotification(socket, state)
+				}
+				if strings.HasPrefix(state, "STATUS=Configuration ") && err != nil {
+					select {
+					case failures <- struct{}{}:
+					default:
+					}
+				}
+				return err
+			}
 			n.Ready()
 			require.Equal(t, "STATUS=Ready\nREADY=1", readSystemdMessage(t, conn))
 			n.Reloading()
@@ -280,7 +308,25 @@ func TestSystemdNotifierRetriesReloadCompletion(t *testing.T) {
 
 			resume := pauseSystemdSocket(t, conn)
 			n.Reloaded(tc.err)
-			resume()
+			if tc.watchdog != "" {
+				resume()
+			}
+			// Observe the synchronous failure and a background failure before recovery.
+			for range 2 {
+				select {
+				case <-failures:
+				case <-time.After(5 * time.Second):
+					t.Fatal("reload completion did not retry while delivery was blocked")
+				}
+			}
+			if tc.watchdog == "" {
+				resume()
+			} else {
+				// No heartbeat was sent earlier, so this one must arrive during the pending completion.
+				close(allowHeartbeat)
+				require.Equal(t, "WATCHDOG=1", readSystemdMessage(t, conn))
+				close(allowCompletion)
+			}
 			require.Equal(t, "STATUS="+tc.status+"\nREADY=1", readSystemdMessage(t, conn, "WATCHDOG=1"))
 			if tc.watchdog != "" {
 				require.Equal(t, "WATCHDOG=1", readSystemdMessage(t, conn))

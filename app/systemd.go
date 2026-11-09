@@ -36,6 +36,7 @@ const (
 type SystemdNotifier struct {
 	logger           *slog.Logger
 	socket           string
+	send             func(socket, state string) error
 	watchdogInterval time.Duration
 
 	mtx          sync.Mutex
@@ -53,6 +54,7 @@ func NewSystemdNotifier(logger *slog.Logger) *SystemdNotifier {
 	n := &SystemdNotifier{
 		logger: logger,
 		socket: os.Getenv("NOTIFY_SOCKET"),
+		send:   sendSystemdNotification,
 	}
 	if n.socket != "" {
 		interval, err := daemon.SdWatchdogEnabled(false)
@@ -217,7 +219,7 @@ func (n *SystemdNotifier) run() {
 // notify sends newline-separated assignments and reports success.
 // It logs send failures.
 func (n *SystemdNotifier) notify(assignments ...string) bool {
-	if err := sendSystemdNotification(n.socket, strings.Join(assignments, "\n")); err != nil {
+	if err := n.send(n.socket, strings.Join(assignments, "\n")); err != nil {
 		n.logger.Warn("Failed to notify systemd", "err", err)
 		return false
 	}
