@@ -312,7 +312,7 @@ func (a *App) setup() error {
 
 	silenceOpts := silence.Options{
 		SnapshotFile: filepath.Join(opts.DataDir, "silences"),
-		Retention:    opts.Retention,
+		Retention:    opts.silenceRetention(),
 		Limits: silence.Limits{
 			MaxSilences:         func() int { return opts.MaxSilences },
 			MaxSilenceSizeBytes: func() int { return opts.MaxSilenceSizeBytes },

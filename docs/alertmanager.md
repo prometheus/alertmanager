@@ -69,6 +69,14 @@ If they do, no notifications will be sent out for that alert.
 
 Silences are configured in the web interface of the Alertmanager.
 
+Deleting a silence expires it rather than removing it, so that the deletion
+can be gossiped to the other members of a cluster. Expired silences are kept
+for `--data.retention` (5 days by default), the same as the notification log.
+Set `--silences.retention` to keep them for a shorter or longer time without
+changing how long the notification log is kept. Don't set it lower than the
+time it takes a change to reach every cluster member, or a deleted silence can
+come back from a peer that hasn't seen the deletion yet.
+
 
 ## Client behavior
 
