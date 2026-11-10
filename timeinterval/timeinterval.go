@@ -487,6 +487,7 @@ func resolveDayOfMonth(day, daysInMonth int) int {
 	return day
 }
 
+// clamp restricts n to the inclusive range [min, max].
 func clamp(n, min, max int) int {
 	if n <= min {
 		return min
