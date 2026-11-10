@@ -49,9 +49,14 @@ func matchesEmpty(m *pb.Matcher) bool {
 	switch m.Type {
 	case pb.Matcher_EQUAL:
 		return m.Pattern == ""
+	case pb.Matcher_NOT_EQUAL:
+		return m.Pattern != ""
 	case pb.Matcher_REGEXP:
 		matched, _ := regexp.MatchString(m.Pattern, "")
 		return matched
+	case pb.Matcher_NOT_REGEXP:
+		matched, _ := regexp.MatchString(m.Pattern, "")
+		return !matched
 	default:
 		return false
 	}

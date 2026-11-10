@@ -279,6 +279,71 @@ func TestValidateSilence(t *testing.T) {
 			err: "at least one matcher must not match the empty string",
 		},
 		{
+			// An absent label is evaluated as the empty string, so a lone
+			// negative matcher still matches alerts that never carry the label.
+			s: &pb.Silence{
+				Id: "some_id",
+				Matchers: []*pb.Matcher{
+					{Name: "a", Pattern: "b", Type: pb.Matcher_NOT_EQUAL},
+				},
+				StartsAt:  validTimestamp,
+				EndsAt:    validTimestamp,
+				UpdatedAt: validTimestamp,
+			},
+			err: "at least one matcher must not match the empty string",
+		},
+		{
+			s: &pb.Silence{
+				Id: "some_id",
+				Matchers: []*pb.Matcher{
+					{Name: "a", Pattern: "b", Type: pb.Matcher_NOT_REGEXP},
+				},
+				StartsAt:  validTimestamp,
+				EndsAt:    validTimestamp,
+				UpdatedAt: validTimestamp,
+			},
+			err: "at least one matcher must not match the empty string",
+		},
+		{
+			s: &pb.Silence{
+				Id: "some_id",
+				Matchers: []*pb.Matcher{
+					{Name: "a", Pattern: ""},
+					{Name: "b", Pattern: "c", Type: pb.Matcher_NOT_EQUAL},
+				},
+				StartsAt:  validTimestamp,
+				EndsAt:    validTimestamp,
+				UpdatedAt: validTimestamp,
+			},
+			err: "at least one matcher must not match the empty string",
+		},
+		{
+			// a!="" requires the label to be present, so it does not match the
+			// empty string and the silence stays valid.
+			s: &pb.Silence{
+				Id: "some_id",
+				Matchers: []*pb.Matcher{
+					{Name: "a", Pattern: "", Type: pb.Matcher_NOT_EQUAL},
+				},
+				StartsAt:  validTimestamp,
+				EndsAt:    validTimestamp,
+				UpdatedAt: validTimestamp,
+			},
+			err: "",
+		},
+		{
+			s: &pb.Silence{
+				Id: "some_id",
+				Matchers: []*pb.Matcher{
+					{Name: "a", Pattern: ".*", Type: pb.Matcher_NOT_REGEXP},
+				},
+				StartsAt:  validTimestamp,
+				EndsAt:    validTimestamp,
+				UpdatedAt: validTimestamp,
+			},
+			err: "",
+		},
+		{
 			s: &pb.Silence{
 				Id: "some_id",
 				MatcherSets: []*pb.MatcherSet{{
