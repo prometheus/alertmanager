@@ -16,11 +16,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"maps"
-	"slices"
 
 	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/tracing"
 )
@@ -30,32 +27,15 @@ import (
 type SetNotifiesStage struct {
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
-	ff    featurecontrol.Flagger
 }
 
-// NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver, ff featurecontrol.Flagger) *SetNotifiesStage {
+// NewSetNotifiesStage returns a new instance of a SetNotifiesStage. The log
+// entry also records the alerts a mute stage removed from the pipeline.
+func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver) *SetNotifiesStage {
 	return &SetNotifiesStage{
 		nflog: l,
 		recv:  recv,
-		ff:    ff,
 	}
-}
-
-// mutedAlerts returns the hashes of the alerts a mute stage removed from the
-// pipeline. The hashes are sorted so that an unchanged muted set
-// always serializes to the same bytes.
-func (n SetNotifiesStage) mutedAlerts(ctx context.Context) []uint64 {
-	if !n.ff.EnableMutedAlertsInNflog() {
-		return nil
-	}
-
-	muted, ok := MutedAlerts(ctx)
-	if !ok || len(muted) == 0 {
-		return nil
-	}
-
-	return slices.Sorted(maps.Keys(muted))
 }
 
 // Exec implements the Stage interface.
@@ -84,7 +64,8 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 	}
 	expiry := 2 * repeat
 
-	muted := n.mutedAlerts(ctx)
+	// In hash order, so that an unchanged group produces the same entry.
+	muted, _ := sortedMutedAlerts(ctx)
 
 	tracing.SetNotifiesCounts(span, len(firing), len(resolved), len(muted))
 
