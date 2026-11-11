@@ -76,6 +76,8 @@ Set `--silences.retention` to keep them for a shorter or longer time without
 changing how long the notification log is kept. Don't set it lower than the
 time it takes a change to reach every cluster member, or a deleted silence can
 come back from a peer that hasn't seen the deletion yet.
+The retention is applied when a silence is created, updated or expired, so
+changing it doesn't affect silences that have already expired.
 
 
 ## Client behavior
