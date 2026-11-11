@@ -259,12 +259,6 @@ func (pb *PipelineBuilder) New(
 ) RoutingStage {
 	rs := make(RoutingStage, len(receivers))
 
-	// The muted-alerts feature is read once, here, and every stage below is
-	// built already knowing the answer. Nothing downstream consults the flag
-	// again, so a pipeline cannot be assembled half in one mode, half in the
-	// other.
-	mutedAware := pb.ff.EnableMutedAlertsInNflog()
-
 	ms := NewClusterGossipSettleStage(peer)
 	is := NewMuteStage(inhibitor, pb.metrics)
 	tas := NewTimeActiveStage(intervener, pb.metrics)
@@ -272,8 +266,8 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder, mutedAware)
-		rs[name] = newMultiStage(mutedAware, ms, is, tas, tms, ss, st)
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder)
+		rs[name] = MutedMultiStage{ms, is, tas, tms, ss, st}
 	}
 
 	pb.metrics.InitializeFor(receivers)
@@ -289,7 +283,6 @@ func createReceiverStage(
 	notificationLog NotificationLog,
 	metrics *Metrics,
 	recorder eventrecorder.Recorder,
-	mutedAware bool,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -298,12 +291,12 @@ func createReceiverStage(
 			Integration: integrations[i].Name(),
 			Idx:         uint32(integrations[i].Index()),
 		}
-		fs = append(fs, newMultiStage(mutedAware,
+		fs = append(fs, MutedMultiStage{
 			NewClusterWaitStage(wait),
-			NewDedupStage(&integrations[i], notificationLog, recv, mutedAware),
+			NewDedupStage(&integrations[i], notificationLog, recv),
 			NewRetryStage(integrations[i], name, metrics, recorder),
-			NewSetNotifiesStage(notificationLog, recv, mutedAware),
-		))
+			NewSetNotifiesStage(notificationLog, recv),
+		})
 	}
 	return fs
 }
@@ -334,17 +327,6 @@ func (rs RoutingStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*aler
 	}
 
 	return s.Exec(ctx, l, alerts...)
-}
-
-// newMultiStage chains the given stages with the sequencing rule the
-// muted-alerts feature asks for. It is the only place that pairing is made, so
-// that a mute-aware chain cannot be built around stages that are not, or the
-// other way round.
-func newMultiStage(mutedAware bool, stages ...Stage) Stage {
-	if mutedAware {
-		return MutedMultiStage(stages)
-	}
-	return MultiStage(stages)
 }
 
 // A MultiStage executes a series of stages sequentially. It stops as soon as

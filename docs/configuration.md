@@ -1049,6 +1049,10 @@ Every integration also takes `mute_action`, alongside its own `send_resolved`:
 # This is about the group ending rather than individual alerts resolving, so
 # unlike `send_resolved` it applies even where `send_resolved` is false.
 #
+# Whatever the action, once such a group has a firing alert that is no longer
+# muted, the integration is notified on the next flush instead of waiting for
+# `repeat_interval`.
+#
 #   ignore
 #     Say nothing, which is how Alertmanager has always behaved.
 #
@@ -1061,9 +1065,6 @@ Every integration also takes `mute_action`, alongside its own `send_resolved`:
 #     Everything `send_resolved_when_muted` does, plus resolving a group as soon
 #     as every alert in it is muted, even if those alerts are still firing. Such
 #     an alert is presented with its end set to the time the group went quiet.
-#
-# Requires the `muted-alerts-in-nflog` feature; without it the option has no
-# effect.
 [ mute_action: <ignore|send_resolved_when_muted|treat_mute_as_resolved> | default = ignore ]
 ```
 

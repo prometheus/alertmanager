@@ -34,72 +34,21 @@ type DedupStage struct {
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
 
-	// mutedAware is the muted-alerts-in-nflog feature, resolved once by the
-	// pipeline builder. See newMultiStage.
-	mutedAware bool
-
 	now  func() time.Time
 	hash func(*alert.Alert) uint64
 }
 
 // NewDedupStage wraps a DedupStage that runs against the given notification log.
-// When mutedAware is set the stage decides what to notify from the whole group,
-// muted alerts included, and records the group's state in the notification log.
-func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver, mutedAware bool) *DedupStage {
+// The stage decides what to notify from the whole group, muted alerts included,
+// and records the group's state in the notification log.
+func NewDedupStage(rs ResolvedSender, l NotificationLog, recv *nflogpb.Receiver) *DedupStage {
 	return &DedupStage{
-		rs:         rs,
-		nflog:      l,
-		recv:       recv,
-		mutedAware: mutedAware,
-		now:        utcNow,
-		hash:       hashAlert,
+		rs:    rs,
+		nflog: l,
+		recv:  recv,
+		now:   utcNow,
+		hash:  hashAlert,
 	}
-}
-
-func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, firing, resolved map[uint64]struct{}, repeat time.Duration, now time.Time) NotifyReason {
-	// If we haven't notified about the alert group before, notify right away
-	// unless we only have resolved alerts.
-	if entry == nil {
-		if len(firing) > 0 {
-			return ReasonFirstNotification
-		}
-		return ReasonDoNotNotify
-	}
-
-	// new alerts in the group
-	if !entry.IsFiringSubset(firing) {
-		// If the previous entry has no firing alerts, it was a resolution and we
-		// should treat this as the first notification for the group.
-		if len(entry.FiringAlerts) == 0 {
-			return ReasonFirstNotification
-		}
-		return ReasonNewAlertsInGroup
-	}
-
-	// Notify about all alerts being resolved.
-	// This is done irrespective of the send_resolved flag to make sure that
-	// the firing alerts are cleared from the notification log.
-	if len(firing) == 0 {
-		// If the current alert group and last notification contain no firing
-		// alert, it means that some alerts have been fired and resolved during the
-		// last interval. In this case, there is no need to notify the receiver
-		// since it doesn't know about them.
-		if len(entry.FiringAlerts) > 0 {
-			return ReasonAllAlertsResolved
-		}
-		return ReasonDoNotNotify
-	}
-
-	if n.rs.SendResolved() && !entry.IsResolvedSubset(resolved) {
-		return ReasonNewResolvedAlerts
-	}
-
-	// Nothing changed, only notify if the repeat interval has passed.
-	isRepeatIntervalElapsed := entry.Timestamp.AsTime().Before(now.Add(-repeat))
-	if isRepeatIntervalElapsed {
-		return ReasonRepeatIntervalElapsed
-	}
-	return ReasonDoNotNotify
 }
 
 // groupState is the state of an alert group at a flush. Muting decides whether
@@ -139,9 +88,9 @@ func withoutMuted(set, muted map[uint64]struct{}) map[uint64]struct{} {
 	return visible
 }
 
-// newGroupState partitions the group this flush is about. With the feature
-// enabled the alerts a mute stage removed are partitioned too, so that the
-// notification log records the whole group.
+// newGroupState partitions the group this flush is about. The alerts a mute
+// stage removed are partitioned too, so that the notification log records the
+// whole group.
 func (n *DedupStage) newGroupState(ctx context.Context, alerts []*alert.Alert) groupState {
 	firing, resolved, firingSet, resolvedSet := partitionAlertsByState(alerts, n.hash)
 	s := groupState{
@@ -149,10 +98,6 @@ func (n *DedupStage) newGroupState(ctx context.Context, alerts []*alert.Alert) g
 		resolved:    resolved,
 		firingSet:   firingSet,
 		resolvedSet: resolvedSet,
-	}
-
-	if !n.mutedAware {
-		return s
 	}
 
 	// In hash order, so that an unchanged group produces the same entry.
@@ -171,11 +116,11 @@ func (n *DedupStage) newGroupState(ctx context.Context, alerts []*alert.Alert) g
 	return s
 }
 
-// needsUpdateMuteAware asks the same questions as needsUpdate, but each against
-// the set that answers it: whether the group is over is decided by every alert
-// in it, muted or not, and whether the receiver already knows about an alert by
-// the alerts it was shown.
-func (n *DedupStage) needsUpdateMuteAware(entry *nflogpb.Entry, s groupState, repeat time.Duration, now time.Time) NotifyReason {
+// needsUpdate decides whether the group needs a notification. Each question is
+// asked against the set that answers it: whether the group is over is decided
+// by every alert in it, muted or not, and whether the receiver already knows
+// about an alert by the alerts it was shown.
+func (n *DedupStage) needsUpdate(entry *nflogpb.Entry, s groupState, repeat time.Duration, now time.Time) NotifyReason {
 	visibleFiring := s.visibleFiring()
 
 	// If we haven't notified about the alert group before, notify right away
@@ -307,13 +252,8 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 	if ctxNow, ok := Now(ctx); ok {
 		now = ctxNow
 	}
-	var updateReason NotifyReason
-	if n.mutedAware {
-		updateReason = n.needsUpdateMuteAware(entry, state, repeatInterval, now)
-		ctx = WithNotificationSequence(ctx, newNotificationSequence(entry, state, updateReason))
-	} else {
-		updateReason = n.needsUpdate(entry, state.firingSet, state.resolvedSet, repeatInterval, now)
-	}
+	updateReason := n.needsUpdate(entry, state, repeatInterval, now)
+	ctx = WithNotificationSequence(ctx, newNotificationSequence(entry, state, updateReason))
 	ctx = WithNotificationReason(ctx, updateReason)
 
 	if updateReason == ReasonFirstNotification {

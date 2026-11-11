@@ -18,7 +18,6 @@ package notify
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -76,8 +75,7 @@ type mutedPipeline struct {
 	// writes counts the flushes that wrote to the notification log.
 	writes int
 
-	// sequence is the notification sequence recorded by the last flush, only
-	// populated with the feature enabled.
+	// sequence is the notification sequence recorded by the last flush.
 	sequence NotificationSequence
 
 	// now is the timestamp of the flush currently in progress.
@@ -91,23 +89,17 @@ type mutedPipeline struct {
 	stage Stage
 }
 
-// newMutedPipeline returns a pipeline with the muted alerts feature disabled,
+// newMutedPipeline returns a pipeline wired the way PipelineBuilder wires it,
 // whose notification log is empty and whose receiver sends resolved
 // notifications if sendsResolved is true.
 func newMutedPipeline(t *testing.T, sendsResolved bool) *mutedPipeline {
-	return newMutedPipelineMuteAware(t, sendsResolved, false)
+	return newMutedPipelineWithSender(t, sendResolved(sendsResolved))
 }
 
-// newMutedPipelineMuteAware returns a pipeline wired the way PipelineBuilder
-// wires it for the given setting of the muted alerts feature.
-func newMutedPipelineMuteAware(t *testing.T, sendsResolved, mutedAware bool) *mutedPipeline {
-	return newMutedPipelineWithSender(t, sendResolved(sendsResolved), mutedAware)
-}
-
-// newMutedPipelineWithSender is newMutedPipelineMuteAware for a receiver that
-// decides for itself which notifications it wants, such as one configured with
-// a mute_action.
-func newMutedPipelineWithSender(t *testing.T, rs ResolvedSender, mutedAware bool) *mutedPipeline {
+// newMutedPipelineWithSender is newMutedPipeline for a receiver that decides for
+// itself which notifications it wants, such as one configured with a
+// mute_action.
+func newMutedPipelineWithSender(t *testing.T, rs ResolvedSender) *mutedPipeline {
 	p := &mutedPipeline{
 		t:     t,
 		muted: map[model.LabelValue]struct{}{},
@@ -142,12 +134,12 @@ func newMutedPipelineWithSender(t *testing.T, rs ResolvedSender, mutedAware bool
 		return Success()
 	}), rs, "webhook", 0, "test")
 
-	p.stage = newMultiStage(mutedAware,
+	p.stage = MutedMultiStage{
 		NewMuteStage(muter, metrics),
-		NewDedupStage(&integration, p.nflog, recv, mutedAware),
+		NewDedupStage(&integration, p.nflog, recv),
 		NewRetryStage(integration, "test", metrics, eventrecorder.NopRecorder()),
-		NewSetNotifiesStage(p.nflog, recv, mutedAware),
-	)
+		NewSetNotifiesStage(p.nflog, recv),
+	}
 
 	return p
 }
@@ -173,8 +165,7 @@ func (p *mutedPipeline) flush(now time.Time, alerts ...*alert.Alert) ([]*alert.A
 	p.sequence, _ = NotificationSequenceFor(ctx)
 
 	// The dedup stage records its reason in the context. If it is missing, the
-	// mute stage emptied the group and MultiStage short-circuited before the
-	// dedup stage was reached.
+	// chain stopped before the dedup stage was reached.
 	reason, ok := NotificationReason(ctx)
 	return p.delivered, reason, ok
 }
@@ -268,269 +259,124 @@ func TestTimeStagesRecordMutedAlerts(t *testing.T) {
 func TestPipelineBuilderTimeIntervalMuteReasons(t *testing.T) {
 	t.Parallel()
 
-	for _, feature := range []struct {
-		name  string
-		flags featurecontrol.Flagger
+	for _, test := range []struct {
+		name                     string
+		active, mute             []string
+		wantMutedByActive        []string
+		wantMutedByMuteIntervals []string
 	}{
-		{name: "feature disabled", flags: featurecontrol.NoopFlags{}},
-		{name: "feature enabled", flags: mutedAlertsFlags{}},
+		{name: "active interval only", active: []string{"business_hours"}, wantMutedByActive: []string{"business_hours"}},
+		{name: "nonmatching mute interval", active: []string{"business_hours"}, mute: []string{"lunch"}, wantMutedByActive: []string{"business_hours"}},
+		{name: "matching mute interval", active: []string{"business_hours"}, mute: []string{"night"}, wantMutedByActive: []string{"business_hours"}, wantMutedByMuteIntervals: []string{"night"}},
+		{name: "overlapping active and mute intervals", active: []string{"business_hours", "night"}, mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
+		{name: "mute interval only", mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
 	} {
-		for _, test := range []struct {
-			name                     string
-			active, mute             []string
-			wantMutedByActive        []string
-			wantMutedByMuteIntervals []string
-		}{
-			{name: "active interval only", active: []string{"business_hours"}, wantMutedByActive: []string{"business_hours"}},
-			{name: "nonmatching mute interval", active: []string{"business_hours"}, mute: []string{"lunch"}, wantMutedByActive: []string{"business_hours"}},
-			{name: "matching mute interval", active: []string{"business_hours"}, mute: []string{"night"}, wantMutedByActive: []string{"business_hours"}, wantMutedByMuteIntervals: []string{"night"}},
-			{name: "overlapping active and mute intervals", active: []string{"business_hours", "night"}, mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
-			{name: "mute interval only", mute: []string{"night"}, wantMutedByMuteIntervals: []string{"night"}},
-		} {
-			t.Run(feature.name+"/"+test.name, func(t *testing.T) {
-				t.Parallel()
-				logger := promslog.NewNopLogger()
-				reg := prometheus.NewRegistry()
-				recorder := eventrecorder.NopRecorder()
-				silences, err := silence.New(silence.Options{Logger: logger, Metrics: reg})
-				require.NoError(t, err)
-				intervener := timeinterval.NewIntervener(map[string][]timeinterval.TimeInterval{
-					"business_hours": {{Times: []timeinterval.TimeRange{{StartMinute: 9 * 60, EndMinute: 17 * 60}}}},
-					"lunch":          {{Times: []timeinterval.TimeRange{{StartMinute: 12 * 60, EndMinute: 13 * 60}}}},
-					"night":          {{Times: []timeinterval.TimeRange{{StartMinute: 20 * 60, EndMinute: 21 * 60}}}},
-				})
-
-				var (
-					now      time.Time
-					logged   bool
-					notified []*alert.Alert
-				)
-				notificationLog := &testNflog{qerr: nflog.ErrNotFound}
-				notificationLog.logFunc = func(_ *nflogpb.Receiver, _ string, firing, resolved, muted []uint64, _ *nflog.Store, _ time.Duration) error {
-					logged = true
-					notificationLog.qerr = nil
-					notificationLog.qres = []*nflogpb.Entry{{
-						FiringAlerts: firing, ResolvedAlerts: resolved, MutedAlerts: muted, Timestamp: timestamppb.New(now),
-					}}
-					return nil
-				}
-				integration := NewIntegration(notifierFunc(func(_ context.Context, alerts ...*alert.Alert) NotifyVerdict {
-					notified = append(notified, alerts...)
-					return Success()
-				}), sendResolved(true), "test", 0, "test")
-				pipeline := NewPipelineBuilder(reg, feature.flags, recorder).New(
-					map[string][]Integration{"test": {integration}},
-					func() time.Duration { return 0 },
-					inhibit.NewInhibitor(nil, nil, logger, recorder),
-					silence.NewSilencer(silences, logger, recorder),
-					intervener, notificationLog, nil,
-				)
-				a := firingAlert("test")
-				am := marker.NewAlertMarker()
-
-				// Flush through two muted/unmuted cycles. Query-time reasons
-				// and delivery must agree regardless of the feature flag.
-				for _, flush := range []struct {
-					day, hour int
-					muted     bool
-					// logWhenMuted needs a sequence open for the mute to close.
-					logWhenMuted bool
-				}{
-					{day: 1, hour: 20, muted: true},
-					{day: 2, hour: 10},
-					{day: 2, hour: 20, muted: true, logWhenMuted: true},
-					{day: 3, hour: 10},
-				} {
-					now = time.Date(2026, time.January, flush.day, flush.hour, 30, 0, 0, time.UTC)
-					logged = false
-					notified = nil
-					ctx := marker.WithContext(context.Background(), am)
-					ctx = WithNow(ctx, now)
-					ctx = WithReceiverName(ctx, "test")
-					ctx = WithGroupKey(ctx, "group")
-					// Short enough that the unmuted flush on day 3 repeats the
-					// notification even when the feature-disabled pipeline did not
-					// touch nflog the night before.
-					ctx = WithRepeatInterval(ctx, time.Hour)
-					ctx = WithActiveTimeIntervals(ctx, test.active)
-					ctx = WithMuteTimeIntervals(ctx, test.mute)
-
-					_, remaining, err := pipeline.Exec(ctx, logger, a)
-					require.NoError(t, err)
-					mutedByActive, mutedByMute, err := MutedByTimeIntervals(intervener, test.active, test.mute, now)
-					require.NoError(t, err)
-					require.Equal(t, flush.muted, len(mutedByActive)+len(mutedByMute) > 0)
-					// Muted flushes only reach nflog with the feature enabled.
-					wantLogged := !flush.muted ||
-						(feature.flags.EnableMutedAlertsInNflog() && flush.logWhenMuted)
-					require.Equal(t, wantLogged, logged)
-					if flush.muted {
-						require.Equal(t, test.wantMutedByActive, mutedByActive)
-						require.Equal(t, test.wantMutedByMuteIntervals, mutedByMute)
-						require.Empty(t, remaining)
-						require.Empty(t, notified)
-						if logged {
-							require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].MutedAlerts)
-							// Recorded as firing, since a muted alert keeps the group open.
-							require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
-							require.Empty(t, notificationLog.qres[0].NotifiedFiringAlerts())
-						}
-					} else {
-						require.Empty(t, mutedByActive)
-						require.Empty(t, mutedByMute)
-						require.Equal(t, []*alert.Alert{a}, notified)
-						require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
-						require.Empty(t, notificationLog.qres[0].MutedAlerts)
-					}
-				}
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			logger := promslog.NewNopLogger()
+			reg := prometheus.NewRegistry()
+			recorder := eventrecorder.NopRecorder()
+			silences, err := silence.New(silence.Options{Logger: logger, Metrics: reg})
+			require.NoError(t, err)
+			intervener := timeinterval.NewIntervener(map[string][]timeinterval.TimeInterval{
+				"business_hours": {{Times: []timeinterval.TimeRange{{StartMinute: 9 * 60, EndMinute: 17 * 60}}}},
+				"lunch":          {{Times: []timeinterval.TimeRange{{StartMinute: 12 * 60, EndMinute: 13 * 60}}}},
+				"night":          {{Times: []timeinterval.TimeRange{{StartMinute: 20 * 60, EndMinute: 21 * 60}}}},
 			})
-		}
+
+			var (
+				now      time.Time
+				logged   bool
+				notified []*alert.Alert
+			)
+			notificationLog := &testNflog{qerr: nflog.ErrNotFound}
+			notificationLog.logFunc = func(_ *nflogpb.Receiver, _ string, firing, resolved, muted []uint64, _ *nflog.Store, _ time.Duration) error {
+				logged = true
+				notificationLog.qerr = nil
+				notificationLog.qres = []*nflogpb.Entry{{
+					FiringAlerts: firing, ResolvedAlerts: resolved, MutedAlerts: muted, Timestamp: timestamppb.New(now),
+				}}
+				return nil
+			}
+			integration := NewIntegration(notifierFunc(func(_ context.Context, alerts ...*alert.Alert) NotifyVerdict {
+				notified = append(notified, alerts...)
+				return Success()
+			}), sendResolved(true), "test", 0, "test")
+			pipeline := NewPipelineBuilder(reg, featurecontrol.NoopFlags{}, recorder).New(
+				map[string][]Integration{"test": {integration}},
+				func() time.Duration { return 0 },
+				inhibit.NewInhibitor(nil, nil, logger, recorder),
+				silence.NewSilencer(silences, logger, recorder),
+				intervener, notificationLog, nil,
+			)
+			a := firingAlert("test")
+			am := marker.NewAlertMarker()
+
+			// Flush through two muted/unmuted cycles. Query-time reasons
+			// and delivery must agree.
+			for _, flush := range []struct {
+				day, hour int
+				muted     bool
+				// logWhenMuted needs a sequence open for the mute to close.
+				logWhenMuted bool
+			}{
+				{day: 1, hour: 20, muted: true},
+				{day: 2, hour: 10},
+				{day: 2, hour: 20, muted: true, logWhenMuted: true},
+				{day: 3, hour: 10},
+			} {
+				now = time.Date(2026, time.January, flush.day, flush.hour, 30, 0, 0, time.UTC)
+				logged = false
+				notified = nil
+				ctx := marker.WithContext(context.Background(), am)
+				ctx = WithNow(ctx, now)
+				ctx = WithReceiverName(ctx, "test")
+				ctx = WithGroupKey(ctx, "group")
+				ctx = WithRepeatInterval(ctx, time.Hour)
+				ctx = WithActiveTimeIntervals(ctx, test.active)
+				ctx = WithMuteTimeIntervals(ctx, test.mute)
+
+				_, remaining, err := pipeline.Exec(ctx, logger, a)
+				require.NoError(t, err)
+				mutedByActive, mutedByMute, err := MutedByTimeIntervals(intervener, test.active, test.mute, now)
+				require.NoError(t, err)
+				require.Equal(t, flush.muted, len(mutedByActive)+len(mutedByMute) > 0)
+				// A muted flush reaches nflog only when it closes a sequence.
+				wantLogged := !flush.muted || flush.logWhenMuted
+				require.Equal(t, wantLogged, logged)
+				if flush.muted {
+					require.Equal(t, test.wantMutedByActive, mutedByActive)
+					require.Equal(t, test.wantMutedByMuteIntervals, mutedByMute)
+					require.Empty(t, remaining)
+					require.Empty(t, notified)
+					if logged {
+						require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].MutedAlerts)
+						// Recorded as firing, since a muted alert keeps the group open.
+						require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
+						require.Empty(t, notificationLog.qres[0].NotifiedFiringAlerts())
+					}
+				} else {
+					require.Empty(t, mutedByActive)
+					require.Empty(t, mutedByMute)
+					require.Equal(t, []*alert.Alert{a}, notified)
+					require.Equal(t, []uint64{hashAlert(a)}, notificationLog.qres[0].FiringAlerts)
+					require.Empty(t, notificationLog.qres[0].MutedAlerts)
+				}
+			}
+		})
 	}
-}
-
-// TestMultiStage_ShortCircuitsWhenAllAlertsMuted asserts that once the mute
-// stage has removed every alert from the group, MultiStage stops and the
-// stages after it, including the dedup stage, never run. "All alerts are
-// muted" is therefore invisible to the notification log.
-func TestMultiStage_ShortCircuitsWhenAllAlertsMuted(t *testing.T) {
-	muter := MuteFunc(func(context.Context, labelset.LabelSet) bool { return true })
-
-	var reached bool
-	stage := MultiStage{
-		NewMuteStage(muter, NewMetrics(prometheus.NewRegistry(), featurecontrol.NoopFlags{})),
-		StageFunc(func(ctx context.Context, l *slog.Logger, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
-			reached = true
-			return ctx, alerts, nil
-		}),
-	}
-
-	_, alerts, err := stage.Exec(context.Background(), promslog.NewNopLogger(), firingAlert("test"))
-	require.NoError(t, err)
-	require.Empty(t, alerts)
-	require.False(t, reached, "stages after the mute stage should not run when every alert is muted")
-}
-
-// TestDedup_MutedAlertVanishesFromNflog asserts that a muted alert is dropped
-// from the notification log entry the next time the group is notified about,
-// even though the alert is still firing. Nothing downstream can then tell it
-// apart from an alert that stopped firing.
-func TestDedup_MutedAlertVanishesFromNflog(t *testing.T) {
-	p := newMutedPipeline(t, true)
-	base := utcNow()
-
-	a, b := firingAlert("a"), firingAlert("b")
-
-	// Both alerts fire and the receiver is notified about both.
-	notified, reason, _ := p.flush(base, a, b)
-	require.Equal(t, ReasonFirstNotification, reason)
-	require.Equal(t, []*alert.Alert{a, b}, notified)
-	require.Equal(t, []uint64{hashAlert(a), hashAlert(b)}, p.entry.FiringAlerts)
-
-	// Mute a. Both alerts are still firing, so the group is notified about
-	// again once the repeat interval has elapsed, but for b only.
-	p.muted[a.Labels["alertname"]] = struct{}{}
-
-	notified, reason, _ = p.flush(base.Add(2*time.Hour), a, b)
-	require.Equal(t, ReasonRepeatIntervalElapsed, reason)
-	require.Equal(t, []*alert.Alert{b}, notified)
-
-	// a is now absent from the notification log despite still firing.
-	require.Equal(t, []uint64{hashAlert(b)}, p.entry.FiringAlerts)
-}
-
-// TestDedup_NoResolvedNotificationForMutedAlert illustrates
-// https://github.com/prometheus/alertmanager/issues/226. An alert
-// that has already been notified about and is then muted never
-// produces the matching resolved notification, because the mute stage
-// empties the group before the dedup stage can notice that everything
-// has resolved.
-func TestDedup_NoResolvedNotificationForMutedAlert(t *testing.T) {
-	base := utcNow()
-	a, aResolved := firingAlert("a"), resolvedAlert("a")
-
-	t.Run("muted", func(t *testing.T) {
-		p := newMutedPipeline(t, true)
-
-		notified, reason, _ := p.flush(base, a)
-		require.Equal(t, ReasonFirstNotification, reason)
-		require.Equal(t, []*alert.Alert{a}, notified)
-
-		p.muted[a.Labels["alertname"]] = struct{}{}
-
-		notified, _, dedupRan := p.flush(base.Add(time.Minute), aResolved)
-		require.Empty(t, notified, "no resolved notification should be sent for a muted alert")
-		require.False(t, dedupRan, "the dedup stage should not be reached")
-
-		// The notification log still records the alert as firing, so a
-		// stateful receiver is left permanently out of sync.
-		require.Equal(t, []uint64{hashAlert(a)}, p.entry.FiringAlerts)
-		require.Empty(t, p.entry.ResolvedAlerts)
-	})
-
-	t.Run("not muted", func(t *testing.T) {
-		// The same sequence without the mute sends the resolved notification.
-		p := newMutedPipeline(t, true)
-
-		_, reason, _ := p.flush(base, a)
-		require.Equal(t, ReasonFirstNotification, reason)
-
-		notified, reason, _ := p.flush(base.Add(time.Minute), aResolved)
-		require.Equal(t, ReasonAllAlertsResolved, reason)
-		require.Equal(t, []*alert.Alert{aResolved}, notified)
-
-		require.Empty(t, p.entry.FiringAlerts)
-		require.Equal(t, []uint64{hashAlert(a)}, p.entry.ResolvedAlerts)
-	})
-}
-
-// TestDedup_MutedAlertBreaksNotificationSequence asserts the sequence
-// discussed in
-// https://github.com/prometheus/alertmanager/issues/5247. Alert a is
-// muted for as long as it is firing, so the group is reported as
-// entirely resolved while a is still firing, and a then arrives as a
-// brand new group once it is unmuted.
-func TestDedup_MutedAlertBreaksNotificationSequence(t *testing.T) {
-	p := newMutedPipeline(t, true)
-	base := utcNow()
-
-	a, b := firingAlert("a"), firingAlert("b")
-	p.muted[a.Labels["alertname"]] = struct{}{}
-
-	// a is muted, so the first notification for the group covers b only.
-	notified, reason, _ := p.flush(base, a, b)
-	require.Equal(t, ReasonFirstNotification, reason)
-	require.Equal(t, []*alert.Alert{b}, notified)
-	require.Equal(t, []uint64{hashAlert(b)}, p.entry.FiringAlerts)
-
-	// b resolves while a is still firing. The dedup stage has only ever seen
-	// b, so it reports the whole group as resolved.
-	bResolved := resolvedAlert("b")
-	notified, reason, _ = p.flush(base.Add(time.Minute), a, bResolved)
-	require.Equal(t, ReasonAllAlertsResolved, reason)
-	require.Equal(t, []*alert.Alert{bResolved}, notified)
-	require.Empty(t, p.entry.FiringAlerts)
-
-	// Unmuting a opens a new sequence instead of continuing the one that was
-	// just closed, so the receiver is notified about a as if it had only
-	// started firing now.
-	delete(p.muted, a.Labels["alertname"])
-
-	notified, reason, _ = p.flush(base.Add(2*time.Minute), a)
-	require.Equal(t, ReasonFirstNotification, reason)
-	require.Equal(t, []*alert.Alert{a}, notified)
-	require.Equal(t, []uint64{hashAlert(a)}, p.entry.FiringAlerts)
 }
 
 // TestSetNotifies_NoWriteWhenNothingIsNotified asserts that a flush the dedup
 // stage found nothing to say about leaves the notification log entry alone.
-// With the feature enabled the stage is reached on such flushes, and writing
-// would refresh the entry's timestamp and defer the repeat interval forever.
+// The stage is reached on such flushes, and writing would refresh the entry's
+// timestamp and defer the repeat interval forever.
 //
 // It is the only flush that is skipped. A group going quiet is recorded even
 // though nothing is delivered, and a repeat interval elapsing over a group with
 // anything visible notifies and writes, as the last step shows.
 func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
-	p := newMutedPipelineMuteAware(t, true, true)
+	p := newMutedPipeline(t, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -565,7 +411,7 @@ func TestSetNotifies_NoWriteWhenNothingIsNotified(t *testing.T) {
 // 2 * repeat_interval, and a group whose entry expired comes back as one the
 // receiver has never been told about.
 func TestSetNotifies_FullyMutedGroupIsRecorded(t *testing.T) {
-	p := newMutedPipelineMuteAware(t, true, true)
+	p := newMutedPipeline(t, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -620,7 +466,7 @@ func TestSetNotifies_FullyMutedGroupIsRecorded(t *testing.T) {
 
 // TestDedup_StillMutedDeliversNothing no alerts should be delivered in this state.
 func TestDedup_StillMutedDeliversNothing(t *testing.T) {
-	p := newMutedPipelineMuteAware(t, true, true)
+	p := newMutedPipeline(t, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -650,11 +496,10 @@ func TestDedup_StillMutedDeliversNothing(t *testing.T) {
 	}
 }
 
-// TestDedup_MutedAlertStaysInNflog is TestDedup_MutedAlertVanishesFromNflog
-// with the feature enabled. A muted alert is still firing, so it stays in the
-// log, marked as muted rather than dropped.
+// TestDedup_MutedAlertStaysInNflog asserts that a muted alert is still firing,
+// so it stays in the notification log, marked as muted rather than dropped.
 func TestDedup_MutedAlertStaysInNflog(t *testing.T) {
-	p := newMutedPipelineMuteAware(t, true, true)
+	p := newMutedPipeline(t, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -680,18 +525,17 @@ func TestDedup_MutedAlertStaysInNflog(t *testing.T) {
 	require.Equal(t, SequenceOpen, p.sequence)
 }
 
-// TestDedup_MutedAlertResolvesTheSequence is
-// TestDedup_NoResolvedNotificationForMutedAlert with the feature enabled. The
-// dedup stage now sees that the group resolved and closes the sequence, where
-// before the mute stage emptied the group first.
+// TestDedup_MutedAlertResolvesTheSequence covers
+// https://github.com/prometheus/alertmanager/issues/226: an alert that was
+// notified about, then muted, and then resolves. The dedup stage sees that the
+// group resolved and closes the sequence, where it used to be emptied by the
+// mute stage first.
 //
-// Nothing is delivered yet: everything in the group is muted, so there is
-// nothing to send until the per-receiver behaviour in
-// https://github.com/prometheus/alertmanager/issues/5247 exists. What changed
-// is that the log records the resolution instead of holding an alert that is
-// no longer firing.
+// With the default mute_action nothing is delivered, since everything in the
+// group is muted. What changed is that the log records the resolution instead
+// of holding an alert that is no longer firing.
 func TestDedup_MutedAlertResolvesTheSequence(t *testing.T) {
-	p := newMutedPipelineMuteAware(t, true, true)
+	p := newMutedPipeline(t, true)
 	base := utcNow()
 	a, aResolved := firingAlert("a"), resolvedAlert("a")
 
@@ -712,18 +556,17 @@ func TestDedup_MutedAlertResolvesTheSequence(t *testing.T) {
 	require.Equal(t, []uint64{hashAlert(a)}, p.entry.MutedAlerts)
 }
 
-// TestDedup_MutedAlertKeepsTheSequenceCoherent is
-// TestDedup_MutedAlertBreaksNotificationSequence with the feature enabled: the
-// sequence from https://github.com/prometheus/alertmanager/issues/5247. The
-// group is no longer reported as resolved while a is firing. It goes quiet
-// instead, as a group every one of whose alerts is muted, and the log says so.
+// TestDedup_MutedAlertKeepsTheSequenceCoherent covers the sequence from
+// https://github.com/prometheus/alertmanager/issues/5247. The group is not
+// reported as resolved while a is firing. It goes quiet instead, as a group
+// every one of whose alerts is muted, and the log says so.
 //
 // Unmuting a then opens a new sequence rather than continuing the closed one,
 // which is what #5247 asks for: muting every alert in a group closes the
-// sequence because none of them is active any more. Nothing is delivered on the
-// close until the per-receiver behaviour that issue describes exists.
+// sequence because none of them is active any more. With the default
+// mute_action nothing is delivered on the close.
 func TestDedup_MutedAlertKeepsTheSequenceCoherent(t *testing.T) {
-	p := newMutedPipelineMuteAware(t, false, true)
+	p := newMutedPipeline(t, false)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -769,7 +612,7 @@ func TestDedup_MutedAlertKeepsTheSequenceCoherent(t *testing.T) {
 // still visible the sequence stays open, so an alert coming out of a mute
 // continues it instead of arriving as a group the receiver has never seen.
 func TestDedup_UnmutedAlertContinuesTheSequence(t *testing.T) {
-	p := newMutedPipelineMuteAware(t, true, true)
+	p := newMutedPipeline(t, true)
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -824,7 +667,7 @@ func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			p := newMutedPipelineWithSender(t, test.rs, true)
+			p := newMutedPipelineWithSender(t, test.rs)
 			base := utcNow()
 			a := firingAlert("a")
 
@@ -866,7 +709,7 @@ func TestRetry_MuteActionOnStillFiringGroup(t *testing.T) {
 // alerts among the firing ones, so a group is only all-resolved when nothing in
 // it fires.
 func TestRetry_TreatMuteAsResolvedOnMixedGroup(t *testing.T) {
-	p := newMutedPipelineWithSender(t, muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true}, true)
+	p := newMutedPipelineWithSender(t, muteActionSender{resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true})
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -929,7 +772,7 @@ func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			p := newMutedPipelineWithSender(t, test.rs, true)
+			p := newMutedPipelineWithSender(t, test.rs)
 			base := utcNow()
 			a, aResolved := firingAlert("a"), resolvedAlert("a")
 
@@ -963,7 +806,7 @@ func TestRetry_MuteActionOnMutedResolution(t *testing.T) {
 func TestRetry_SendResolvedWhenMutedSurvivesAMutedFlush(t *testing.T) {
 	p := newMutedPipelineWithSender(t, muteActionSender{
 		resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: false,
-	}, true)
+	})
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -1006,7 +849,7 @@ func TestRetry_SendResolvedWhenMutedSurvivesAMutedFlush(t *testing.T) {
 func TestRetry_TreatMuteAsResolvedClosesOnce(t *testing.T) {
 	p := newMutedPipelineWithSender(t, muteActionSender{
 		resolved: true, sendResolvedWhenMuted: true, treatsMuteAsResolved: true,
-	}, true)
+	})
 	base := utcNow()
 
 	a, b := firingAlert("a"), firingAlert("b")
@@ -1060,7 +903,7 @@ func TestRetry_MuteActionNeedsAPriorNotification(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			p := newMutedPipelineWithSender(t, test.rs, true)
+			p := newMutedPipelineWithSender(t, test.rs)
 			base := utcNow()
 			a, aResolved := firingAlert("a"), resolvedAlert("a")
 
@@ -1268,12 +1111,11 @@ func TestDedup_NeedsUpdateMuteAware(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			s := &DedupStage{
-				rs:         sendResolved(test.sendsResolved),
-				mutedAware: true,
-				now:        func() time.Time { return now },
+				rs:  sendResolved(test.sendsResolved),
+				now: func() time.Time { return now },
 			}
 			state := mutedGroupState(test.firing, test.resolved, test.muted)
-			require.Equal(t, test.want, s.needsUpdateMuteAware(test.entry, state, repeat, now))
+			require.Equal(t, test.want, s.needsUpdate(test.entry, state, repeat, now))
 		})
 	}
 }

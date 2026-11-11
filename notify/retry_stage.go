@@ -177,8 +177,8 @@ func (r RetryStage) exec(ctx context.Context, l *slog.Logger, closing bool, aler
 	// nothing to send, report them all as successfully notified (we still want
 	// the notification log to log them for the next run of DedupStage). What is
 	// left is decided by the alerts in hand rather than by the firing alerts in
-	// the context, which cover the whole group: with the muted alerts feature
-	// those include alerts a mute stage removed from this pipeline.
+	// the context, which cover the whole group: those include alerts a mute
+	// stage removed from this pipeline.
 	// The close of a muted group is delivered whole: the integration asked for it
 	// with mute_action, so the send_resolved filter does not apply.
 	if !closing && !r.integration.SendResolved() {

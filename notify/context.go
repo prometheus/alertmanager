@@ -244,7 +244,7 @@ func WithNotificationSequence(ctx context.Context, seq NotificationSequence) con
 }
 
 // NotificationSequenceFor extracts the notification sequence the group is in.
-// It is only populated when the muted alerts feature is enabled.
+// The dedup stage populates it.
 func NotificationSequenceFor(ctx context.Context) (NotificationSequence, bool) {
 	v, ok := ctx.Value(keyNotificationSequence).(NotificationSequence)
 	return v, ok

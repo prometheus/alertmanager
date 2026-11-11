@@ -29,32 +29,15 @@ import (
 type SetNotifiesStage struct {
 	nflog NotificationLog
 	recv  *nflogpb.Receiver
-
-	// mutedAware is the muted-alerts-in-nflog feature, resolved once by the
-	// pipeline builder. See newMultiStage.
-	mutedAware bool
 }
 
-// NewSetNotifiesStage returns a new instance of a SetNotifiesStage.
-// When mutedAware is set the log entry also records the alerts a mute stage
-// removed from the pipeline.
-func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver, mutedAware bool) *SetNotifiesStage {
+// NewSetNotifiesStage returns a new instance of a SetNotifiesStage. The log
+// entry also records the alerts a mute stage removed from the pipeline.
+func NewSetNotifiesStage(l NotificationLog, recv *nflogpb.Receiver) *SetNotifiesStage {
 	return &SetNotifiesStage{
-		nflog:      l,
-		recv:       recv,
-		mutedAware: mutedAware,
+		nflog: l,
+		recv:  recv,
 	}
-}
-
-// mutedAlerts returns the hashes of the alerts a mute stage removed from the
-// pipeline, for the log entry to record.
-func (n SetNotifiesStage) mutedAlerts(ctx context.Context) []uint64 {
-	if !n.mutedAware {
-		return nil
-	}
-
-	hashes, _ := sortedMutedAlerts(ctx)
-	return hashes
 }
 
 // Exec implements the Stage interface.
@@ -87,7 +70,8 @@ func (n SetNotifiesStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 	}
 	expiry := 2 * repeat
 
-	muted := n.mutedAlerts(ctx)
+	// In hash order, so that an unchanged group produces the same entry.
+	muted, _ := sortedMutedAlerts(ctx)
 
 	span.SetAttributes(
 		attribute.Int("alerting.alerts.firing.count", len(firing)),

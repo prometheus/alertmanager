@@ -56,8 +56,7 @@ func (a *MuteAction) UnmarshalYAML(unmarshal func(any) error) error {
 type NotifierConfig struct {
 	VSendResolved bool `yaml:"send_resolved" json:"send_resolved"`
 	// VMuteAction decides what this receiver is told about a group that muting
-	// has emptied. It needs the muted-alerts-in-nflog feature, without which the
-	// pipeline never sees such a group.
+	// has emptied.
 	VMuteAction MuteAction `yaml:"mute_action,omitempty" json:"mute_action,omitempty"`
 }
 

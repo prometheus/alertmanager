@@ -53,8 +53,7 @@ func TestNotifyReasonToEvent(t *testing.T) {
 }
 
 // TestMutedAlertDetails asserts the events see the muted alerts in the same
-// fixed order the notification log records them in, whether or not the muted
-// alerts feature is enabled: the event recorder reads this slot either way.
+// fixed order the notification log records them in.
 func TestMutedAlertDetails(t *testing.T) {
 	require.Nil(t, mutedAlertDetails(context.Background()), "no mute stage has run")
 
