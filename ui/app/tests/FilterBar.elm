@@ -98,4 +98,26 @@ update =
                         FilterBarUpdates.update (FilterBarTypes.AddFilterMatcher True edited) editing
                 in
                 Expect.equal [ edited ] updated.keepMatchers
+        , test "clearing the input after editing the only pinned matcher leaves no pins" <|
+            \() ->
+                let
+                    first =
+                        matcher "alertname" "ExampleAlert"
+
+                    other =
+                        matcher "instance" "example:9090"
+
+                    base =
+                        model [ first, other ]
+
+                    initial =
+                        { base | keepMatchers = [ first ] }
+
+                    ( editing, _, _ ) =
+                        FilterBarUpdates.update (FilterBarTypes.DeleteFilterMatcher True first) initial
+
+                    ( cleared, _, _ ) =
+                        FilterBarUpdates.update (FilterBarTypes.UpdateMatcherText "") editing
+                in
+                Expect.equal ( [], [ other ] ) ( cleared.keepMatchers, cleared.matchers )
         ]

@@ -149,12 +149,15 @@ validMatchers { matchers, keepMatchers, matcherText } =
 
     else
         let
+            keptMatchers =
+                List.filter (\matcher -> List.member matcher matchers) keepMatchers
+
             finalMatchers =
-                if List.isEmpty keepMatchers then
+                if List.isEmpty keptMatchers then
                     matchers
 
                 else
-                    List.filter (\matcher -> List.member matcher keepMatchers) matchers
+                    List.filter (\matcher -> List.member matcher keptMatchers) matchers
         in
         case finalMatchers of
             [] ->

@@ -22,14 +22,10 @@ update msg model =
                 , keepMatchers =
                     case model.editing of
                         Just edited ->
-                            List.map
-                                (\existing ->
-                                    if existing == edited then
-                                        matcher
+                            if edited.wasKept && not (List.member matcher model.keepMatchers) then
+                                model.keepMatchers ++ [ matcher ]
 
-                                    else
-                                        existing
-                                )
+                            else
                                 model.keepMatchers
 
                         Nothing ->
@@ -50,23 +46,13 @@ update msg model =
         DeleteFilterMatcher setMatcherText matcher ->
             ( { model
                 | matchers = List.filter ((/=) matcher) model.matchers
-                , keepMatchers =
-                    if setMatcherText then
-                        -- Editing a matcher keeps its pin so it can be transferred to the
-                        -- edited matcher. Drop a previously edited matcher that was never
-                        -- re-added, though.
-                        case model.editing of
-                            Just previous ->
-                                List.filter ((/=) previous) model.keepMatchers
-
-                            Nothing ->
-                                model.keepMatchers
-
-                    else
-                        List.filter ((/=) matcher) model.keepMatchers
+                , keepMatchers = List.filter ((/=) matcher) model.keepMatchers
                 , editing =
                     if setMatcherText then
-                        Just matcher
+                        Just
+                            { matcher = matcher
+                            , wasKept = List.member matcher model.keepMatchers
+                            }
 
                     else
                         model.editing

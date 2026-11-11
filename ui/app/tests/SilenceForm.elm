@@ -142,6 +142,23 @@ toSilence =
                         ]
                     )
                     (Maybe.map .matchers silence)
+        , test "ignores stale pins that no longer match a matcher" <|
+            \() ->
+                let
+                    stale =
+                        matcher "alertname" "Gone"
+
+                    kept =
+                        matcher "instance" "example:9090"
+
+                    silence =
+                        Views.SilenceForm.Types.toSilence
+                            (matcherFilterBarWithKeep [ kept ] [ stale ])
+                            (silenceForm "" "")
+                in
+                Expect.equal
+                    (Just [ { name = "instance", value = "example:9090", isRegex = False, isEqual = Just True } ])
+                    (Maybe.map .matchers silence)
         ]
 
 

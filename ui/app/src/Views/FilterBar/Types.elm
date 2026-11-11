@@ -3,10 +3,16 @@ module Views.FilterBar.Types exposing (Model, Msg(..), initFilterBar)
 import Utils.Filter
 
 
+type alias Editing =
+    { matcher : Utils.Filter.Matcher
+    , wasKept : Bool
+    }
+
+
 type alias Model =
     { matchers : List Utils.Filter.Matcher
     , keepMatchers : List Utils.Filter.Matcher
-    , editing : Maybe Utils.Filter.Matcher
+    , editing : Maybe Editing
     , backspacePressed : Bool
     , matcherText : String
     }
