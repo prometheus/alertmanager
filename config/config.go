@@ -432,7 +432,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc == nil {
-				sc = &slack.SlackConfig{}
+				return errors.New("missing slack config")
 			}
 			sc.AppURL = cmp.Or(sc.AppURL, c.Global.SlackAppURL)
 			if sc.AppURL == nil {
@@ -497,7 +497,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, ogc := range rcv.OpsGenieConfigs {
 			if ogc == nil {
-				ogc = &opsgenie.OpsGenieConfig{}
+				return errors.New("missing opsgenie config")
 			}
 			ogc.HTTPConfig = cmp.Or(ogc.HTTPConfig, c.Global.HTTPConfig)
 			ogc.APIURL = cmp.Or(ogc.APIURL, c.Global.OpsGenieAPIURL)
@@ -517,7 +517,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc == nil {
-				wcc = &wechat.WechatConfig{}
+				return errors.New("missing wechat config")
 			}
 			wcc.HTTPConfig = cmp.Or(wcc.HTTPConfig, c.Global.HTTPConfig)
 			wcc.APIURL = cmp.Or(wcc.APIURL, c.Global.WeChatAPIURL)
@@ -641,7 +641,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		for _, rocketchatcfg := range rcv.RocketchatConfigs {
 			if rocketchatcfg == nil {
-				rocketchatcfg = &rocketchat.RocketchatConfig{}
+				return errors.New("missing rocketchat config")
 			}
 			rocketchatcfg.HTTPConfig = cmp.Or(rocketchatcfg.HTTPConfig, c.Global.HTTPConfig)
 			rocketchatcfg.APIURL = cmp.Or(rocketchatcfg.APIURL, c.Global.RocketchatAPIURL)
