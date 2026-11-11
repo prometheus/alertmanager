@@ -1514,7 +1514,7 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	}
 
 	// Route labels should be rendered from the alert.
-	rl := ag.RouteLabels()
+	rl := ag.RouteLabels(time.Now())
 	require.Equal(t, model.LabelValue("test"), rl["description"],
 		"route label should be rendered from alert")
 
@@ -1539,7 +1539,7 @@ func TestRouteLabelsAfterAllAlertsResolved(t *testing.T) {
 	// render is observable; require.Eventually also fails the test if any call
 	// panics.
 	require.Eventually(t, func() bool {
-		rl = ag.RouteLabels()
+		rl = ag.RouteLabels(time.Now())
 		return rl["description"] == ""
 	}, 2*time.Second, 10*time.Millisecond,
 		"route label should render empty once the group has no alerts")
@@ -1652,7 +1652,7 @@ func TestRouteLabelsInsertConcurrentWithRouteLabels(t *testing.T) {
 	for range goroutines {
 		wg.Go(func() {
 			for range iterations {
-				ag.RouteLabels()
+				ag.RouteLabels(time.Now())
 			}
 		})
 	}
@@ -1696,11 +1696,184 @@ func TestRouteLabelsPerGroupOverride(t *testing.T) {
 
 	// Render the child first, then the parent, to make sure neither group's
 	// resolution is influenced by the other's.
-	childLabels := child.RouteLabels()
-	parentLabels := parent.RouteLabels()
+	childLabels := child.RouteLabels(time.Now())
+	parentLabels := parent.RouteLabels(time.Now())
 
 	require.Equal(t, model.LabelValue("B"), childLabels["team"])
 	require.Equal(t, model.LabelValue("team is B"), childLabels["description"])
 	require.Equal(t, model.LabelValue("A"), parentLabels["team"])
 	require.Equal(t, model.LabelValue("team is A"), parentLabels["description"])
+}
+
+func TestRouteLabelsReinsertDoesNotInvalidate(t *testing.T) {
+	t.Parallel()
+
+	route := &Route{RouteOpts: RouteOpts{
+		Receiver:       "test-receiver",
+		GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+		GroupWait:      1 * time.Hour, // don't flush
+		GroupInterval:  1 * time.Hour,
+		RepeatInterval: 1 * time.Hour,
+		Labels:         model.LabelSet{"count": "{{ len .Alerts }}"},
+	}}
+	tmpl, err := template.FromGlobs([]string{})
+	require.NoError(t, err)
+	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+	ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "test"},
+		route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+
+	ctx := context.Background()
+	now := time.Now()
+	mk := func(instance string) *alert.Alert {
+		return alert.New(model.Alert{
+			Labels:   model.LabelSet{"alertname": "test", "instance": model.LabelValue(instance)},
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   now.Add(time.Hour),
+		}, now, false)
+	}
+
+	ag.insert(ctx, mk("a"))
+	require.Equal(t, uint64(1), ag.routeLabelsGen.Load(), "a new alert invalidates")
+	require.Equal(t, model.LabelSet{"count": "1"}, ag.RouteLabels(time.Now()))
+	cached := ag.routeLabels.Load()
+
+	// A re-send of an alert the group already holds (fresh pointer, later
+	// UpdatedAt and EndsAt) is the steady state while an alert keeps firing
+	// and must reuse the cached render.
+	resent := mk("a")
+	resent.UpdatedAt = now.Add(time.Minute)
+	resent.EndsAt = now.Add(2 * time.Hour)
+	ag.insert(ctx, resent)
+	require.Equal(t, uint64(1), ag.routeLabelsGen.Load(), "a re-insert must not invalidate")
+	require.Same(t, cached, ag.routeLabels.Load(), "cached render must be reused after a re-insert")
+
+	ag.insert(ctx, mk("b"))
+	require.Equal(t, uint64(2), ag.routeLabelsGen.Load(), "a second new alert invalidates")
+	require.Equal(t, model.LabelSet{"count": "2"}, ag.RouteLabels(time.Now()))
+
+	// Changes a template can observe do invalidate, even for a known fingerprint.
+	annotated := mk("b")
+	annotated.Annotations = model.LabelSet{"summary": "changed"}
+	ag.insert(ctx, annotated)
+	require.Equal(t, uint64(3), ag.routeLabelsGen.Load(), "changed annotations invalidate")
+
+	resolved := mk("b")
+	resolved.Annotations = annotated.Annotations
+	resolved.EndsAt = now.Add(-time.Minute)
+	ag.insert(ctx, resolved)
+	require.Equal(t, uint64(4), ag.routeLabelsGen.Load(), "a firing alert re-sent as resolved invalidates")
+
+	again := *resolved
+	ag.insert(ctx, &again)
+	require.Equal(t, uint64(4), ag.routeLabelsGen.Load(), "a resolved alert re-sent unchanged must not invalidate")
+
+	backdated := *resolved
+	backdated.EndsAt = now.Add(-2 * time.Minute)
+	ag.insert(ctx, &backdated)
+	require.Equal(t, uint64(5), ag.routeLabelsGen.Load(), "a resolved alert re-sent with another EndsAt invalidates")
+}
+
+func TestRouteLabelsExpireWhenAlertResolves(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		route := &Route{RouteOpts: RouteOpts{
+			Receiver:       "test-receiver",
+			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:      1 * time.Hour, // don't flush
+			GroupInterval:  1 * time.Hour,
+			RepeatInterval: 1 * time.Hour,
+			Labels: model.LabelSet{
+				"status": "{{ .Status }}",
+				"firing": "{{ len .Alerts.Firing }}",
+			},
+		}}
+		tmpl, err := template.FromGlobs([]string{})
+		require.NoError(t, err)
+		tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+		ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "test"},
+			route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+
+		now := time.Now()
+		endsAt := now.Add(30 * time.Minute)
+		ag.insert(context.Background(), alert.New(model.Alert{
+			Labels:   model.LabelSet{"alertname": "test"},
+			StartsAt: now.Add(-time.Hour),
+			EndsAt:   endsAt,
+		}, now, false))
+
+		require.Equal(t, model.LabelSet{"status": "firing", "firing": "1"}, ag.RouteLabels(time.Now()))
+		cached := ag.routeLabels.Load()
+		require.NotNil(t, cached)
+		require.True(t, endsAt.Equal(cached.validUntil), "render must be valid exactly until the alert resolves")
+
+		// Still firing a bit later: the cached render is reused as is.
+		time.Sleep(10 * time.Minute)
+		require.Equal(t, model.LabelSet{"status": "firing", "firing": "1"}, ag.RouteLabels(time.Now()))
+		require.Same(t, cached, ag.routeLabels.Load(), "render must be served from cache while nothing changed")
+
+		// Past EndsAt the alert is resolved: the cache must miss and re-render
+		// although the generation did not move.
+		time.Sleep(30 * time.Minute)
+		gen := ag.routeLabelsGen.Load()
+		require.Equal(t, model.LabelSet{"status": "resolved", "firing": "0"}, ag.RouteLabels(time.Now()))
+		require.Equal(t, gen, ag.routeLabelsGen.Load())
+
+		// Nothing left to resolve: the new render is valid indefinitely.
+		require.True(t, ag.routeLabels.Load().validUntil.IsZero())
+	})
+}
+
+func TestRouteLabelsExtendedAlertsRefreshWithoutRender(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		route := &Route{RouteOpts: RouteOpts{
+			Receiver:       "test-receiver",
+			GroupBy:        map[model.LabelName]struct{}{"alertname": {}},
+			GroupWait:      1 * time.Hour, // don't flush
+			GroupInterval:  1 * time.Hour,
+			RepeatInterval: 1 * time.Hour,
+			Labels:         model.LabelSet{"status": "{{ .Status }}"},
+		}}
+		tmpl, err := template.FromGlobs([]string{})
+		require.NoError(t, err)
+		tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
+		ag := newAggrGroup(context.Background(), model.LabelSet{"alertname": "test"},
+			route, nil, eventrecorder.NopRecorder(), promslog.NewNopLogger(), tmpl)
+
+		startsAt := time.Now().Add(-time.Hour)
+		mk := func(endsAt time.Time) *alert.Alert {
+			return alert.New(model.Alert{
+				Labels:   model.LabelSet{"alertname": "test"},
+				StartsAt: startsAt,
+				EndsAt:   endsAt,
+			}, time.Now(), false)
+		}
+		ctx := context.Background()
+
+		renderedAt := time.Now()
+		ag.insert(ctx, mk(renderedAt.Add(4*time.Minute)))
+		require.Equal(t, model.LabelSet{"status": "firing"}, ag.RouteLabels(time.Now()))
+		first := ag.routeLabels.Load()
+		require.True(t, renderedAt.Equal(first.renderedAt))
+
+		// The alert is re-sent while firing, as clients do, extending its EndsAt
+		// past the horizon the render recorded. That is not an invalidation.
+		time.Sleep(time.Minute)
+		ag.insert(ctx, mk(time.Now().Add(10*time.Minute)))
+		require.Equal(t, first.gen, ag.routeLabelsGen.Load())
+
+		// Past the recorded horizon the entry has expired, but nothing resolved:
+		// the labels are kept and only the horizon moves, with no new render.
+		time.Sleep(4 * time.Minute)
+		require.Equal(t, model.LabelSet{"status": "firing"}, ag.RouteLabels(time.Now()))
+		refreshed := ag.routeLabels.Load()
+		require.NotSame(t, first, refreshed)
+		require.True(t, renderedAt.Equal(refreshed.renderedAt), "a refresh must keep the original render time")
+		require.True(t, refreshed.validUntil.After(time.Now()), "the refreshed entry must be valid until the new EndsAt")
+
+		// Once the alert really resolves, the next read renders again.
+		time.Sleep(7 * time.Minute)
+		require.Equal(t, model.LabelSet{"status": "resolved"}, ag.RouteLabels(time.Now()))
+		rerendered := ag.routeLabels.Load()
+		require.True(t, time.Now().Equal(rerendered.renderedAt), "a status flip must render again")
+		require.True(t, rerendered.validUntil.IsZero())
+	})
 }

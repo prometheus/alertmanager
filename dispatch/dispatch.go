@@ -451,7 +451,7 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 			// groups filtered out above.
 			alertGroup := &AlertGroup{
 				Labels:      ag.labels,
-				RouteLabels: ag.RouteLabels(),
+				RouteLabels: ag.RouteLabels(now),
 				Receiver:    receiver,
 				GroupKey:    ag.GroupKey(),
 
@@ -688,21 +688,26 @@ type aggrGroup struct {
 	// kept up to date with a generation counter rather than a lock, so that
 	// invalidation on the hot alert-ingestion path is a single atomic add.
 	//
-	// routeLabelsGen is bumped (by invalidateRouteLabels) whenever the alert set
-	// changes. Each cached render is tagged with the generation it was computed
-	// at; RouteLabels() treats the cache as valid only if its tag still equals
-	// the current generation. A render that races an invalidation is therefore
-	// tagged with a now-stale generation: it may be stored, but the next reader
-	// sees the mismatch and re-renders, so a stale value is never served.
+	// routeLabelsGen is bumped by invalidateRouteLabels when an alert is added,
+	// deleted, or re-sent with a change templates can observe (see
+	// templateInputsChanged). A render is tagged with the generation it saw and
+	// is only served while that still matches, so a render that raced an
+	// invalidation may be stored but is never served.
+	//
+	// A render also expires at the earliest EndsAt of the alerts it saw
+	// (validUntil), since an alert resolving changes .Status without an insert.
+	// If nothing has actually resolved by then (re-sends pushed EndsAt out),
+	// RouteLabels keeps the labels and only advances validUntil.
 	routeLabels    atomic.Pointer[renderedRouteLabels]
 	routeLabelsGen atomic.Uint64
 }
 
-// renderedRouteLabels is a cached route-label render tagged with the alert-set
-// generation it was computed at. See aggrGroup.routeLabels.
+// renderedRouteLabels is a cached route-label render. See aggrGroup.routeLabels.
 type renderedRouteLabels struct {
-	gen    uint64
-	labels model.LabelSet
+	gen        uint64 // routeLabelsGen at render time
+	renderedAt time.Time
+	validUntil time.Time // zero means indefinitely
+	labels     model.LabelSet
 }
 
 // newAggrGroup returns a new aggregation group.
@@ -793,27 +798,41 @@ func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
 	return renderedRouteLabels
 }
 
-// RouteLabels returns the route labels rendered against the group's current
-// alerts, caching the result. Both the read and the cache update are lock-free.
-// The cache is invalidated by invalidateRouteLabels (a generation bump) after
-// the alert set changes.
+// RouteLabels returns the route labels rendered against the group's alerts as
+// of now, caching the result. Reads and cache updates are lock-free. The cache
+// is invalidated by invalidateRouteLabels and expires when one of the alerts it
+// was rendered against resolves.
 //
 // Concurrent callers that all miss may render redundantly; that is acceptable
 // because the only caller is the (cold) /alerts/groups API path. What must not
 // happen — serving a render that predates an invalidation — is prevented by the
 // generation tag.
-func (ag *aggrGroup) RouteLabels() model.LabelSet {
+func (ag *aggrGroup) RouteLabels(now time.Time) model.LabelSet {
 	// Load the cached value before the generation: if an invalidation happens
 	// between these two loads, we read the newer generation and treat the cache
 	// as a miss, which is safe. (Loading gen first could let us pair an old gen
 	// with a value cached for that gen and wrongly accept a stale render.)
 	cached := ag.routeLabels.Load()
 	gen := ag.routeLabelsGen.Load()
-	if cached != nil && cached.gen == gen {
+	current := cached != nil && cached.gen == gen
+	if current && (cached.validUntil.IsZero() || now.Before(cached.validUntil)) {
 		return cached.labels
 	}
 
 	alerts := ag.alerts.List()
+
+	if current && !resolvedBetween(alerts, cached.renderedAt, now) {
+		// Expired, but nothing resolved since the render (re-sends extended
+		// EndsAt): keep the labels, only advance validUntil. renderedAt stays
+		// so the next expiry checks the whole window since the render.
+		ag.routeLabels.Store(&renderedRouteLabels{
+			gen:        gen,
+			renderedAt: cached.renderedAt,
+			validUntil: nextResolution(alerts, now),
+			labels:     cached.labels,
+		})
+		return cached.labels
+	}
 
 	var labels model.LabelSet
 	if len(alerts) == 0 {
@@ -829,8 +848,56 @@ func (ag *aggrGroup) RouteLabels() model.LabelSet {
 	// Tag the render with the generation we observed before reading the alerts.
 	// If an invalidation raced this render, gen is already stale, so the next
 	// reader will see the mismatch and re-render rather than serve stale labels.
-	ag.routeLabels.Store(&renderedRouteLabels{gen: gen, labels: labels})
+	ag.routeLabels.Store(&renderedRouteLabels{
+		gen:        gen,
+		renderedAt: now,
+		validUntil: nextResolution(alerts, now),
+		labels:     labels,
+	})
 	return labels
+}
+
+// resolvedBetween reports whether any alert has an EndsAt in (since, now], i.e.
+// may have resolved in that window without an insert. A re-send that changes
+// the status, or the EndsAt of a resolved alert, bumps the generation (see
+// templateInputsChanged), so under an unchanged generation this is exact.
+func resolvedBetween(alerts []*alert.Alert, since, now time.Time) bool {
+	for _, a := range alerts {
+		if a.EndsAt.After(since) && !a.EndsAt.After(now) {
+			return true
+		}
+	}
+	return false
+}
+
+// nextResolution returns the earliest EndsAt after now, or the zero time if
+// there is none. Until then no alert status can change without an insert or
+// a delete.
+func nextResolution(alerts []*alert.Alert, now time.Time) time.Time {
+	var next time.Time
+	for _, a := range alerts {
+		if a.EndsAt.IsZero() || !a.EndsAt.After(now) {
+			continue
+		}
+		if next.IsZero() || a.EndsAt.Before(next) {
+			next = a.EndsAt
+		}
+	}
+	return next
+}
+
+// templateInputsChanged reports whether cur, replacing prev for the same
+// fingerprint, differs in something route label templates can observe:
+// annotations, StartsAt, GeneratorURL, resolved status at now and, once
+// resolved, EndsAt. The EndsAt of a firing alert is not compared: clients
+// extend it on every re-send and templates cannot see it.
+func templateInputsChanged(prev, cur *alert.Alert, now time.Time) bool {
+	if resolved := cur.ResolvedAt(now); resolved != prev.ResolvedAt(now) || (resolved && !prev.EndsAt.Equal(cur.EndsAt)) {
+		return true
+	}
+	return !prev.StartsAt.Equal(cur.StartsAt) ||
+		prev.GeneratorURL != cur.GeneratorURL ||
+		!prev.Annotations.Equal(cur.Annotations)
 }
 
 // invalidateRouteLabels marks the cached route labels stale. It must be called
@@ -933,7 +1000,8 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
-	if err := ag.alerts.Set(alrt); err != nil {
+	prev, err := ag.alerts.Swap(alrt)
+	if err != nil {
 		if errors.Is(err, store.ErrDestroyed) {
 			return false
 		}
@@ -945,8 +1013,12 @@ func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
 		ag.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alrt)
 		})
-		// The alert set changed; the alert is already visible via ag.alerts.
-		ag.invalidateRouteLabels()
+		// The alert is already visible via ag.alerts. A re-send of a known
+		// fingerprint (the common case while an alert keeps firing) only
+		// invalidates if something templates can observe changed.
+		if prev == nil || templateInputsChanged(prev, alrt, time.Now()) {
+			ag.invalidateRouteLabels()
+		}
 	}
 	return true
 }
