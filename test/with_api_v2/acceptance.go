@@ -63,6 +63,17 @@ func (t *AcceptanceTest) AlertmanagerCluster(conf string, size int) *Alertmanage
 	}
 }
 
+// Joiner returns an Alertmanager that is not started by Run. Start it with
+// AlertmanagerCluster.Join once the cluster is running.
+func (t *AcceptanceTest) Joiner(conf string) *Alertmanager {
+	return &Alertmanager{Alertmanager: t.AcceptanceTest.Joiner(conf)}
+}
+
+// Join starts the given Alertmanager and joins it to the running cluster.
+func (amc *AlertmanagerCluster) Join(am *Alertmanager, additionalArgs ...string) error {
+	return amc.AlertmanagerCluster.Join(am.Alertmanager, additionalArgs...)
+}
+
 // Members returns the underlying Alertmanager instances wrapped for API testing.
 func (amc *AlertmanagerCluster) Members() []*Alertmanager {
 	baseMembers := amc.AlertmanagerCluster.Members()

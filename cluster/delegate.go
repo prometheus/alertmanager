@@ -14,7 +14,9 @@
 package cluster
 
 import (
+	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"time"
 
 	"github.com/hashicorp/memberlist"
@@ -30,6 +32,10 @@ const (
 	maxQueueSize = 4096
 	fullState    = "full_state"
 	update       = "update"
+
+	// Mirrors memberlist's unexported maxPushStateBytes: peers reject
+	// push/pull messages whose user state exceeds it.
+	maxPushPullStateSize = 20 * 1024 * 1024
 )
 
 // delegate implements memberlist.Delegate and memberlist.EventDelegate
@@ -153,14 +159,20 @@ func (d *delegate) NodeMeta(limit int) []byte {
 
 // NotifyMsg is the callback invoked when a user-level gossip message is received.
 func (d *delegate) NotifyMsg(b []byte) {
-	d.messagesReceived.WithLabelValues(update).Inc()
-	d.messagesReceivedSize.WithLabelValues(update).Add(float64(len(b)))
-
 	var p clusterpb.Part
 	if err := proto.Unmarshal(b, &p); err != nil {
+		d.messagesReceived.WithLabelValues(update).Inc()
+		d.messagesReceivedSize.WithLabelValues(update).Add(float64(len(b)))
 		d.logger.Warn("decode broadcast", "err", err)
 		return
 	}
+
+	msgType := update
+	if p.FullState {
+		msgType = fullState
+	}
+	d.messagesReceived.WithLabelValues(msgType).Inc()
+	d.messagesReceivedSize.WithLabelValues(msgType).Add(float64(len(b)))
 
 	d.mtx.RLock()
 	s, ok := d.states[p.Key]
@@ -193,28 +205,75 @@ func (d *delegate) GetBroadcasts(overhead, limit int) [][]byte {
 
 // LocalState is called when gossip fetches local state.
 func (d *delegate) LocalState(_ bool) []byte {
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
-	all := &clusterpb.FullState{
-		Parts: make([]*clusterpb.Part, 0, len(d.states)),
-	}
-
-	for key, s := range d.states {
-		b, err := s.MarshalBinary()
-		if err != nil {
-			d.logger.Warn("encode local state", "err", err, "key", key)
-			return nil
-		}
-		all.Parts = append(all.Parts, &clusterpb.Part{Key: key, Data: b})
-	}
-	b, err := proto.Marshal(all)
+	parts, err := d.localParts()
 	if err != nil {
 		d.logger.Warn("encode local state", "err", err)
+		return nil
+	}
+	b, err := proto.Marshal(&clusterpb.FullState{Parts: parts})
+	if err != nil {
+		d.logger.Warn("encode local state", "err", err)
+		return nil
+	}
+	if len(b) > maxPushPullStateSize {
+		// Peers would reject the whole push/pull, so leave the state out and
+		// let syncLargeState deliver it instead.
+		d.logger.Debug("local state exceeds push/pull limit, sending it via reliable messages", "size", len(b), "limit", maxPushPullStateSize)
 		return nil
 	}
 	d.messagesSent.WithLabelValues(fullState).Inc()
 	d.messagesSentSize.WithLabelValues(fullState).Add(float64(len(b)))
 	return b
+}
+
+func (d *delegate) localParts() ([]*clusterpb.Part, error) {
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+	parts := make([]*clusterpb.Part, 0, len(d.states))
+	for key, s := range d.states {
+		b, err := s.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("key %q: %w", key, err)
+		}
+		parts = append(parts, &clusterpb.Part{Key: key, Data: b})
+	}
+	return parts, nil
+}
+
+// syncLargeState sends the local state to a random peer when it is too large
+// for memberlist's push/pull.
+func (d *delegate) syncLargeState() {
+	if nodes := d.otherMembers(); len(nodes) > 0 {
+		d.sendLargeState(nodes[rand.IntN(len(nodes))])
+	}
+}
+
+// sendLargeState sends each local state part to n as a reliable user message
+// if the full state is too large for memberlist's push/pull. Receivers merge
+// the parts in NotifyMsg.
+func (d *delegate) sendLargeState(n *memberlist.Node) {
+	parts, err := d.localParts()
+	if err != nil {
+		d.logger.Warn("encode local state", "err", err)
+		return
+	}
+	if proto.Size(&clusterpb.FullState{Parts: parts}) <= maxPushPullStateSize {
+		return
+	}
+	for _, p := range parts {
+		p.FullState = true
+		b, err := proto.Marshal(p)
+		if err != nil {
+			d.logger.Warn("encode local state", "err", err, "key", p.Key)
+			return
+		}
+		if err := d.mlist.SendReliable(n, b); err != nil {
+			d.logger.Warn("send local state", "err", err, "key", p.Key, "peer", n.Name)
+			return
+		}
+		d.messagesSent.WithLabelValues(fullState).Inc()
+		d.messagesSentSize.WithLabelValues(fullState).Add(float64(len(b)))
+	}
 }
 
 func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
@@ -245,6 +304,10 @@ func (d *delegate) MergeRemoteState(buf []byte, _ bool) {
 func (d *delegate) NotifyJoin(n *memberlist.Node) {
 	d.logger.Debug("NotifyJoin", "node", n.Name, "addr", n.Address())
 	d.peerJoin(n)
+	if n.Name != d.name {
+		// Memberlist holds its node lock while calling NotifyJoin.
+		go d.sendLargeState(n)
+	}
 }
 
 // NotifyLeave is called if a peer leaves the cluster.
