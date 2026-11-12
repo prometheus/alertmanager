@@ -408,11 +408,11 @@ func jsonArray(events [][]byte, size int) []byte {
 	return append(data, ']')
 }
 
-func (wo *WebhookOutput) postWithRetry(data []byte) {
+func (wo *WebhookOutput) postWithRetry(data []byte) error {
 	for attempt := range wo.maxRetries {
 		err := wo.post(data)
 		if err == nil {
-			return
+			return nil
 		}
 		wo.logger.Warn("Event recorder HTTP output POST failed", "output", wo.name, "attempt", attempt+1)
 		if attempt < wo.maxRetries-1 {
@@ -421,11 +421,12 @@ func (wo *WebhookOutput) postWithRetry(data []byte) {
 			case <-time.After(backoff):
 			case <-wo.cancel:
 				wo.logger.Warn("Event recorder webhook shutdown during retry backoff, dropping event", "output", wo.name)
-				return
+				return nil
 			}
 		}
 	}
 	wo.logger.Error("Event recorder HTTP output POST failed after retries, dropping event", "output", wo.name, "retries", wo.maxRetries)
+	return fmt.Errorf("event recorder %s POST failed after %d retries: dropping event", wo.name, wo.maxRetries)
 }
 
 func (wo *WebhookOutput) post(data []byte) error {
