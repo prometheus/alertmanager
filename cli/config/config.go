@@ -75,12 +75,15 @@ func (c *Resolver) setDefault(v getFlagger) {
 }
 
 // Bind sets active flags with their default values from the configuration file(s).
+// Call app.Parse afterwards to validate arguments and handle shell completion.
 func (c *Resolver) Bind(app *kingpin.Application, args []string) error {
 	// Parse the command line arguments to get the selected command.
 	pc, err := app.ParseContext(args)
-	if err != nil {
+	if pc == nil {
 		return err
 	}
+	// Incomplete arguments are expected during completion. Let app.Parse decide
+	// whether to report parse errors after processing the completion flag.
 
 	c.setDefault(app)
 	if pc.SelectedCommand != nil {
