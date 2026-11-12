@@ -64,82 +64,99 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	logger.Debug("extracted group key")
 
 	var (
-		data     = notify.GetTemplateData(ctx, n.tmpl, as, logger)
-		tmplText = notify.TmplText(n.tmpl, data, &err)
+		data        = notify.GetTemplateData(ctx, n.tmpl, as, logger)
+		tmplTextErr error
+		tmplText    = notify.TmplText(n.tmpl, data, &tmplTextErr)
 	)
-	var markdownIn []string
 
-	if len(n.conf.MrkdwnIn) == 0 {
-		markdownIn = []string{"fallback", "pretext", "text"}
-	} else {
-		markdownIn = n.conf.MrkdwnIn
-	}
-
-	title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
-	if truncated {
-		logger.Warn("Truncated title", "max_runes", maxTitleLenRunes)
-	}
-	att := &attachment{
-		Title:      title,
-		TitleLink:  tmplText(n.conf.TitleLink),
-		Pretext:    tmplText(n.conf.Pretext),
-		Text:       tmplText(n.conf.Text),
-		Fallback:   tmplText(n.conf.Fallback),
-		CallbackID: tmplText(n.conf.CallbackID),
-		ImageURL:   tmplText(n.conf.ImageURL),
-		ThumbURL:   tmplText(n.conf.ThumbURL),
-		Footer:     tmplText(n.conf.Footer),
-		Color:      tmplText(n.conf.Color),
-		MrkdwnIn:   markdownIn,
-	}
-
-	numFields := len(n.conf.Fields)
-	if numFields > 0 {
-		fields := make([]SlackField, numFields)
-		for index, field := range n.conf.Fields {
-			// Check if short was defined for the field otherwise fallback to the global setting
-			var short bool
-			if field.Short != nil {
-				short = *field.Short
-			} else {
-				short = n.conf.ShortFields
-			}
-
-			// Rebuild the field by executing any templates and setting the new value for short
-			fields[index] = SlackField{
-				Title: tmplText(field.Title),
-				Value: tmplText(field.Value),
-				Short: &short,
-			}
+	var (
+		attachments []attachment
+		blocks      any
+	)
+	if n.conf.BlockKitPayload != nil {
+		blocks, err = template.DeepCopyWithTemplate(n.conf.BlockKitPayload, func(tmpl string) (string, error) {
+			return tmplText(tmpl), tmplTextErr
+		})
+		if err != nil {
+			return notify.Unrecoverable(fmt.Errorf("failed to render Block Kit payload: %w", err), notify.DefaultReason)
 		}
-		att.Fields = fields
-	}
+	} else {
+		var markdownIn []string
 
-	numActions := len(n.conf.Actions)
-	if numActions > 0 {
-		actions := make([]SlackAction, numActions)
-		for index, action := range n.conf.Actions {
-			slackAction := SlackAction{
-				Type:  tmplText(action.Type),
-				Text:  tmplText(action.Text),
-				URL:   tmplText(action.URL),
-				Style: tmplText(action.Style),
-				Name:  tmplText(action.Name),
-				Value: tmplText(action.Value),
-			}
+		if len(n.conf.MrkdwnIn) == 0 {
+			markdownIn = []string{"fallback", "pretext", "text"}
+		} else {
+			markdownIn = n.conf.MrkdwnIn
+		}
 
-			if action.ConfirmField != nil {
-				slackAction.ConfirmField = &SlackConfirmationField{
-					Title:       tmplText(action.ConfirmField.Title),
-					Text:        tmplText(action.ConfirmField.Text),
-					OkText:      tmplText(action.ConfirmField.OkText),
-					DismissText: tmplText(action.ConfirmField.DismissText),
+		title, truncated := notify.TruncateInRunes(tmplText(n.conf.Title), maxTitleLenRunes)
+		if truncated {
+			logger.Warn("Truncated title", "max_runes", maxTitleLenRunes)
+		}
+		att := &attachment{
+			Title:      title,
+			TitleLink:  tmplText(n.conf.TitleLink),
+			Pretext:    tmplText(n.conf.Pretext),
+			Text:       tmplText(n.conf.Text),
+			Fallback:   tmplText(n.conf.Fallback),
+			CallbackID: tmplText(n.conf.CallbackID),
+			ImageURL:   tmplText(n.conf.ImageURL),
+			ThumbURL:   tmplText(n.conf.ThumbURL),
+			Footer:     tmplText(n.conf.Footer),
+			Color:      tmplText(n.conf.Color),
+			MrkdwnIn:   markdownIn,
+		}
+
+		numFields := len(n.conf.Fields)
+		if numFields > 0 {
+			fields := make([]SlackField, numFields)
+			for index, field := range n.conf.Fields {
+				// Check if short was defined for the field otherwise fallback to the global setting
+				var short bool
+				if field.Short != nil {
+					short = *field.Short
+				} else {
+					short = n.conf.ShortFields
+				}
+
+				// Rebuild the field by executing any templates and setting the new value for short
+				fields[index] = SlackField{
+					Title: tmplText(field.Title),
+					Value: tmplText(field.Value),
+					Short: &short,
 				}
 			}
-
-			actions[index] = slackAction
+			att.Fields = fields
 		}
-		att.Actions = actions
+
+		numActions := len(n.conf.Actions)
+		if numActions > 0 {
+			actions := make([]SlackAction, numActions)
+			for index, action := range n.conf.Actions {
+				slackAction := SlackAction{
+					Type:  tmplText(action.Type),
+					Text:  tmplText(action.Text),
+					URL:   tmplText(action.URL),
+					Style: tmplText(action.Style),
+					Name:  tmplText(action.Name),
+					Value: tmplText(action.Value),
+				}
+
+				if action.ConfirmField != nil {
+					slackAction.ConfirmField = &SlackConfirmationField{
+						Title:       tmplText(action.ConfirmField.Title),
+						Text:        tmplText(action.ConfirmField.Text),
+						OkText:      tmplText(action.ConfirmField.OkText),
+						DismissText: tmplText(action.ConfirmField.DismissText),
+					}
+				}
+
+				actions[index] = slackAction
+			}
+			att.Actions = actions
+		}
+
+		attachments = []attachment{*att}
 	}
 
 	var u string
@@ -165,7 +182,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		IconURL:     tmplText(n.conf.IconURL),
 		LinkNames:   n.conf.LinkNames,
 		Text:        tmplText(n.conf.MessageText),
-		Attachments: []attachment{*att},
+		Blocks:      blocks,
+		Attachments: attachments,
 	}
 
 	// If a notification for this alert group has already been sent, `update_message`
