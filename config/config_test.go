@@ -1433,6 +1433,24 @@ receivers:
 	require.True(t, conf.Receivers[0].SlackConfigs[0].PostUpdatesToThread)
 }
 
+func TestSlackRedactedGlobalAPIURL(t *testing.T) {
+	// A redacted global slack_api_url (e.g. from /api/v2/status)
+	// must not cause a validation error.
+	in := `
+global:
+  slack_api_url: <secret>
+  slack_app_token: <secret>
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+`
+	_, err := Load(in)
+	require.NoError(t, err)
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
