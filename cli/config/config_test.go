@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -180,5 +181,101 @@ func TestConfigResolverBind(t *testing.T) {
 		for _, fn := range tc.expFns {
 			fn()
 		}
+	}
+}
+
+func TestConfigResolverBindIncompleteArguments(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"empty command", []string{""}},
+		{"partial command", []string{"si"}},
+		{"empty subcommand", []string{"silence", ""}},
+		{"partial subcommand", []string{"silence", "de"}},
+		{"partial flag", []string{"silence", "del", "--i"}},
+		{"missing flag value", []string{"silence", "del", "--id"}},
+	} {
+		for _, completion := range []bool{false, true} {
+			name := tc.name
+			if completion {
+				name += " completion"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				terminated := false
+				app := kingpin.New("app", "").UsageWriter(io.Discard).ErrorWriter(io.Discard)
+				app.Terminate(func(code int) {
+					terminated = true
+					require.Zero(t, code)
+				})
+				app.Action(func(*kingpin.ParseContext) error {
+					t.Error("incomplete arguments must not execute the command")
+					return nil
+				})
+				url := app.Flag("url", "").String()
+				id := app.Command("silence", "").Command("del", "").Flag("id", "").String()
+				resolver := &Resolver{flags: map[string]string{"url": "config-url", "id": "config-id"}}
+
+				args := tc.args
+				if completion {
+					args = append([]string{"--completion-bash"}, args...)
+				}
+				require.NoError(t, resolver.Bind(app, args))
+				_, err := app.Parse(args)
+				if completion {
+					require.NoError(t, err)
+					require.True(t, terminated, "completion should terminate successfully")
+				} else {
+					require.Error(t, err, "normal invocation must still reject incomplete arguments")
+					require.False(t, terminated)
+				}
+				require.Equal(t, "config-url", *url)
+				if len(tc.args) > 1 && tc.args[1] == "del" {
+					require.Equal(t, "config-id", *id)
+				}
+			})
+		}
+	}
+}
+
+func TestConfigResolverBindInvalidApplication(t *testing.T) {
+	t.Parallel()
+
+	app := kingpin.New("app", "")
+	app.Flag("duplicate", "").String()
+	app.Flag("duplicate", "").String()
+	resolver := &Resolver{}
+
+	require.ErrorContains(t, resolver.Bind(app, nil), "duplicate")
+}
+
+func TestConfigResolverBindDoesNotEnableCompletion(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"disabled completion", []string{"--no-completion-bash", ""}},
+		{"flag value", []string{"--url=--completion-bash", "si"}},
+		{"after terminator", []string{"--", "--completion-bash"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := kingpin.New("app", "")
+			app.Flag("url", "").String()
+			app.Command("silence", "")
+			app.Terminate(func(int) { t.Error("completion must not be enabled") })
+			resolver := &Resolver{}
+
+			require.NoError(t, resolver.Bind(app, tc.args))
+			_, err := app.Parse(tc.args)
+			require.Error(t, err)
+		})
 	}
 }
