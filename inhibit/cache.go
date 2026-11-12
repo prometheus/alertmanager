@@ -15,69 +15,126 @@ package inhibit
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/alert"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
 
-// cache contains the runtime state of the inhibit rule.
+// constraint is one equality requirement of a rule: the value of label src
+// on the source alert must equal the value of label tgt on the target label
+// set (missing labels compare as empty). slot is the synthetic name under
+// which the constraint's value enters the index key: identity constraints
+// (src == tgt) use the label name, pair constraints their source label name
+// with a "#2", "#3", ... suffix on collision. Equal-only rules keep the
+// historical index keys byte-identical. Suffixes are internal; they never
+// surface in alerts or events.
+type constraint struct {
+	slot model.LabelName
+	src  model.LabelName
+	tgt  model.LabelName
+}
+
+// constraintsFor builds the ordered constraint list: equal labels first,
+// then pairs, in config order.
+func constraintsFor(equal []model.LabelName, pairs []amcommoncfg.LabelPair) []constraint {
+	constraints := make([]constraint, 0, len(equal)+len(pairs))
+	usedSlots := make(map[model.LabelName]struct{}, len(equal)+len(pairs))
+
+	for _, name := range equal {
+		// A duplicated equal entry re-uses its slot and cannot collide.
+		constraints = append(constraints, constraint{slot: name, src: name, tgt: name})
+		usedSlots[name] = struct{}{}
+	}
+
+	for _, p := range pairs {
+		src := string(p.SourceLabel)
+		slot := p.SourceLabel
+		for n := 2; ; n++ {
+			if _, used := usedSlots[slot]; !used {
+				break
+			}
+			slot = model.LabelName(src + "#" + strconv.Itoa(n))
+		}
+		usedSlots[slot] = struct{}{}
+		constraints = append(constraints, constraint{slot: slot, src: p.SourceLabel, tgt: p.TargetLabel})
+	}
+
+	return constraints
+}
+
+// cache holds the runtime state of an inhibit rule; all mutable state is
+// guarded by the single RWMutex (never held across callbacks).
 type cache struct {
-	equal map[model.LabelName]struct{}
+	// Ordered constraint list; see constraint.
+	constraints []constraint
 
 	mtx sync.RWMutex
 	// alerts is the map of alerts that match the source matchers of the inhibit rule.
 	alerts map[model.Fingerprint]*alert.Alert
-	// index is a map of equal label fingerprint to the set of source alert fingerprints stored
-	// in the cache.
+	// Index-key fingerprint to the source alert fingerprints stored under
+	// it (see fingerprintSource).
 	index map[model.Fingerprint]model.FingerprintSet
 }
 
-func newCache(equal map[model.LabelName]struct{}) *cache {
+func newCache(constraints []constraint) *cache {
 	return &cache{
-		equal:  equal,
-		alerts: make(map[model.Fingerprint]*alert.Alert),
-		index:  make(map[model.Fingerprint]model.FingerprintSet),
+		constraints: constraints,
+		alerts:      make(map[model.Fingerprint]*alert.Alert),
+		index:       make(map[model.Fingerprint]model.FingerprintSet),
 	}
 }
 
-// fingerprintEquals returns the fingerprint of the equal labels of the given label set.
-func (c *cache) fingerprintEquals(lset model.LabelSet) model.Fingerprint {
-	equalSet := make(model.LabelSet, len(c.equal))
-	for n := range c.equal {
-		equalSet[n] = lset[n]
+// fingerprintSource projects a source alert's labels onto the index key.
+func (c *cache) fingerprintSource(lset model.LabelSet) model.Fingerprint {
+	key := make(model.LabelSet, len(c.constraints))
+	for _, ct := range c.constraints {
+		key[ct.slot] = lset[ct.src]
 	}
-	return equalSet.Fingerprint()
+	return key.Fingerprint()
+}
+
+// fingerprintTarget projects a target label set onto the index key for
+// probing.
+func (c *cache) fingerprintTarget(lset model.LabelSet) model.Fingerprint {
+	key := make(model.LabelSet, len(c.constraints))
+	for _, ct := range c.constraints {
+		key[ct.slot] = lset[ct.tgt]
+	}
+	return key.Fingerprint()
 }
 
 // set adds or replaces the given source alert.
 func (c *cache) set(a *alert.Alert) {
 	fp := a.Fingerprint()
-	eq := c.fingerprintEquals(a.Labels)
+	key := c.fingerprintSource(a.Labels)
 
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	c.alerts[fp] = a
-	set, ok := c.index[eq]
+	set, ok := c.index[key]
 	if !ok {
 		set = model.FingerprintSet{}
-		c.index[eq] = set
+		c.index[key] = set
 	}
 	set[fp] = struct{}{}
 }
 
-// find returns the fingerprint of a cached source alert that shares the equal
-// labels of lset, is active at now, and satisfies match.
+// find returns a cached source alert whose projected key matches the target
+// label set, is active at now, and satisfies match. Projected keys are equal
+// iff every constraint holds.
 func (c *cache) find(lset model.LabelSet, now time.Time, match func(*alert.Alert) bool) (model.Fingerprint, bool) {
-	eq := c.fingerprintEquals(lset)
+	key := c.fingerprintTarget(lset)
 
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	for fp := range c.index[eq] {
+	for fp := range c.index[key] {
 		a := c.alerts[fp]
 		if a.ResolvedAt(now) {
 			continue
@@ -114,11 +171,12 @@ func (c *cache) gc() {
 		}
 		delete(c.alerts, fp)
 
-		eq := c.fingerprintEquals(a.Labels)
-		set := c.index[eq]
+		// Re-derive the key the way set does, or entries get orphaned.
+		key := c.fingerprintSource(a.Labels)
+		set := c.index[key]
 		delete(set, fp)
 		if len(set) == 0 {
-			delete(c.index, eq)
+			delete(c.index, key)
 		}
 	}
 }

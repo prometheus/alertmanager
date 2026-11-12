@@ -23,7 +23,7 @@ import (
 
 // InhibitRule defines an inhibition rule that mutes alerts that match the
 // target labels if an alert matching the source labels exists.
-// Both alerts have to have a set of labels being equal.
+// Both alerts must match on all Equal labels and all EqualPairs.
 type InhibitRule struct {
 	// Name is an optional name for the inhibition rule.
 	Name string `yaml:"name,omitempty" json:"name,omitempty"`
@@ -46,6 +46,14 @@ type InhibitRule struct {
 	// A set of labels that must be equal between the source and target alert
 	// for them to be a match.
 	Equal []string `yaml:"equal,omitempty" json:"equal,omitempty"`
+	// Source and target label pairs that must also match.
+	EqualPairs []LabelPair `yaml:"equal_pairs,omitempty" json:"equal_pairs,omitempty"`
+}
+
+// LabelPair names two labels whose values must be equal.
+type LabelPair struct {
+	SourceLabel model.LabelName `yaml:"source_label,omitempty" json:"source_label,omitempty"`
+	TargetLabel model.LabelName `yaml:"target_label,omitempty" json:"target_label,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for InhibitRule.
@@ -71,6 +79,15 @@ func (r *InhibitRule) UnmarshalYAML(unmarshal func(any) error) error {
 		labelName := model.LabelName(l)
 		if !compat.IsValidLabelName(labelName) {
 			return fmt.Errorf("invalid label name %q in equal list", l)
+		}
+	}
+
+	for _, p := range r.EqualPairs {
+		if !compat.IsValidLabelName(p.SourceLabel) {
+			return fmt.Errorf("invalid label name %q in equal_pairs", string(p.SourceLabel))
+		}
+		if !compat.IsValidLabelName(p.TargetLabel) {
+			return fmt.Errorf("invalid label name %q in equal_pairs", string(p.TargetLabel))
 		}
 	}
 
