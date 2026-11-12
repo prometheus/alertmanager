@@ -19,7 +19,7 @@ import (
 )
 
 func mustNewMatcher(t *testing.T, mType MatchType, value string) *Matcher {
-	m, err := NewMatcher(mType, "", value)
+	m, err := NewMatcher(mType, "name", value)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,5 +337,15 @@ func TestMatcherJSONUnmarshal(t *testing.T) {
 		if !cmp(m, *m2) {
 			t.Errorf("Unmarshaling seems to be producing unexpected matchers; got %#v, expected %#v", m, m2)
 		}
+	}
+}
+
+func TestNewMatcherRejectsEmptyName(t *testing.T) {
+	if _, err := NewMatcher(MatchEqual, "", "foo"); err == nil {
+		t.Fatal("NewMatcher with an empty name: expected an error")
+	}
+	var m Matcher
+	if err := json.Unmarshal([]byte(`{"name":"","value":"foo","isRegex":false}`), &m); err == nil {
+		t.Fatal("UnmarshalJSON with an empty name: expected an error")
 	}
 }
