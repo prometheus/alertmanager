@@ -52,6 +52,29 @@ func (i *Intervener) Mutes(names []string, now time.Time) (bool, []string, error
 	return len(in) > 0, in, nil
 }
 
+// ContainsTime reports whether any of the named intervals contains now,
+// without collecting the matching names. Like Mutes, it validates every name,
+// including those after the first match.
+func (i *Intervener) ContainsTime(names []string, now time.Time) (bool, error) {
+	contains := false
+	for _, name := range names {
+		interval, ok := i.intervals[name]
+		if !ok {
+			return false, fmt.Errorf("time interval %s doesn't exist in config", name)
+		}
+		if contains {
+			continue
+		}
+		for _, ti := range interval {
+			if ti.ContainsTime(now.UTC()) {
+				contains = true
+				break
+			}
+		}
+	}
+	return contains, nil
+}
+
 func NewIntervener(ti map[string][]TimeInterval) *Intervener {
 	return &Intervener{
 		intervals: ti,

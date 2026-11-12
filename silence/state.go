@@ -12,24 +12,38 @@
 // limitations under the License.
 package silence
 
-import "time"
+import (
+	"time"
+
+	"github.com/prometheus/alertmanager/silence/silencepb"
+)
 
 type SilenceState string
 
 const (
-	SilenceStateExpired SilenceState = "expired"
 	SilenceStateActive  SilenceState = "active"
+	SilenceStateExpired SilenceState = "expired"
 	SilenceStatePending SilenceState = "pending"
 )
 
 // CurrentState returns the SilenceState that a silence with the given start
 // and end time would have right now.
 func CurrentState(start, end time.Time) SilenceState {
-	current := time.Now()
-	if current.Before(start) {
+	return StateAt(start, end, time.Now())
+}
+
+// StateFromProtoAt returns the silence state at the given time.
+func StateFromProtoAt(sil *silencepb.Silence, at time.Time) SilenceState {
+	return StateAt(sil.StartsAt.AsTime(), sil.EndsAt.AsTime(), at)
+}
+
+// StateAt returns the silence state at the given time.
+// The start is inclusive. The end is exclusive.
+func StateAt(start, end, at time.Time) SilenceState {
+	if at.Before(start) {
 		return SilenceStatePending
 	}
-	if current.Before(end) {
+	if at.Before(end) {
 		return SilenceStateActive
 	}
 	return SilenceStateExpired

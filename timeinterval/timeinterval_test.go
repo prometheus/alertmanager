@@ -875,6 +875,9 @@ func TestIntervener_Mutes(t *testing.T) {
 
 			isMuted, mutedBy, err := intervener.Mutes(timeIntervalNames, test.now)
 			require.NoError(t, err)
+			contains, err := intervener.ContainsTime(timeIntervalNames, test.now)
+			require.NoError(t, err)
+			require.Equal(t, len(test.mutedBy) > 0, contains)
 
 			if len(test.mutedBy) == 0 {
 				require.False(t, isMuted)
@@ -883,6 +886,43 @@ func TestIntervener_Mutes(t *testing.T) {
 				require.True(t, isMuted)
 				require.Equal(t, test.mutedBy, mutedBy)
 			}
+		})
+	}
+}
+
+func TestIntervenerContainsTime(t *testing.T) {
+	t.Parallel()
+	intervener := NewIntervener(map[string][]TimeInterval{
+		"empty":   nil,
+		"always":  {{}, {}},
+		"evening": {{Times: []TimeRange{{StartMinute: 17 * 60, EndMinute: 24 * 60}}}},
+	})
+	now := time.Date(2026, time.January, 1, 10, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name     string
+		names    []string
+		contains bool
+		wantErr  bool
+	}{
+		{name: "no names"},
+		{name: "no definitions", names: []string{"empty"}},
+		{name: "no match", names: []string{"evening"}},
+		{name: "match first", names: []string{"always", "evening"}, contains: true},
+		{name: "match last", names: []string{"evening", "always"}, contains: true},
+		{name: "duplicate names", names: []string{"always", "always"}, contains: true},
+		{name: "unknown name", names: []string{"missing"}, wantErr: true},
+		{name: "unknown before match", names: []string{"missing", "always"}, wantErr: true},
+		{name: "unknown after match", names: []string{"always", "missing"}, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			contains, err := intervener.ContainsTime(tc.names, now)
+			if tc.wantErr {
+				require.EqualError(t, err, "time interval missing doesn't exist in config")
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.contains, contains)
 		})
 	}
 }

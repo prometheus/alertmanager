@@ -16,6 +16,7 @@ import (
 	"bufio"
 	"bytes"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -43,6 +44,45 @@ func TestCurrentState(t *testing.T) {
 
 	expected = CurrentState(pastStartTime, pastEndTime)
 	require.Equal(t, SilenceStateExpired, expected)
+}
+
+func newStateTestSilence(start, end time.Time) *pb.Silence {
+	return &pb.Silence{
+		MatcherSets: []*pb.MatcherSet{{Matchers: []*pb.Matcher{{Name: "alertname", Pattern: "Foo"}}}},
+		StartsAt:    timestamppb.New(start),
+		EndsAt:      timestamppb.New(end),
+	}
+}
+
+func TestSilenceStateBoundaries(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name             string
+		offset, duration time.Duration
+		want             SilenceState
+	}{
+		{"before start", -time.Nanosecond, time.Hour, SilenceStatePending},
+		{"at start", 0, time.Hour, SilenceStateActive},
+		{"before end", time.Hour - time.Nanosecond, time.Hour, SilenceStateActive},
+		{"at end", time.Hour, time.Hour, SilenceStateExpired},
+		{"after end", time.Hour + time.Nanosecond, time.Hour, SilenceStateExpired},
+		{"zero duration", 0, 0, SilenceStateExpired},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				start := time.Now().Add(time.Hour)
+				end := start.Add(tc.duration)
+				at := start.Add(tc.offset)
+				sil := newStateTestSilence(start, end)
+				require.Equal(t, tc.want, StateAt(start, end, at))
+				require.Equal(t, tc.want, StateFromProtoAt(sil, at))
+				time.Sleep(time.Until(at))
+				require.Equal(t, tc.want, CurrentState(start, end))
+			})
+		})
+	}
 }
 
 // TestStateMarshalBinaryPopulatesLegacyMatchers asserts that snapshots and

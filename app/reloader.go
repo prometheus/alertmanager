@@ -23,7 +23,6 @@ import (
 
 	"github.com/prometheus/common/model"
 
-	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
 	"github.com/prometheus/alertmanager/config"
@@ -32,7 +31,6 @@ import (
 	"github.com/prometheus/alertmanager/eventrecorder"
 	"github.com/prometheus/alertmanager/inhibit"
 	"github.com/prometheus/alertmanager/labelset"
-	"github.com/prometheus/alertmanager/marker"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/silence"
@@ -57,7 +55,6 @@ type reloader struct {
 	apih              *api.API
 	dispatcherMetrics *dispatch.DispatcherMetrics
 	eventRecorder     eventrecorder.Recorder
-	groupMarker       marker.GroupMarker
 	logger            *slog.Logger
 	metrics           *metrics
 	notificationLog   notify.NotificationLog
@@ -84,7 +81,7 @@ type reloader struct {
 
 // groups returns the alert groups from the currently active dispatcher.
 // It is wired into the API as its GroupFunc.
-func (r *reloader) groups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
+func (r *reloader) groups(ctx context.Context, routeFilter func(*dispatch.Route) bool, alertFilter dispatch.AlertFilter) (dispatch.AlertGroups, map[model.Fingerprint][]string, error) {
 	return r.dispatcher.Load().Groups(ctx, routeFilter, alertFilter)
 }
 
@@ -182,7 +179,6 @@ func (r *reloader) reload(conf *config.Config) error {
 		newInhibitor,
 		r.silencer,
 		intervener,
-		r.groupMarker,
 		r.notificationLog,
 		pipelinePeer,
 	)
@@ -200,7 +196,7 @@ func (r *reloader) reload(conf *config.Config) error {
 		r.alerts,
 		routes,
 		pipeline,
-		r.groupMarker,
+		intervener,
 		r.timeoutFunc,
 		r.dispatchMaintenanceInterval,
 		nil,

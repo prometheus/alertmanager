@@ -30,10 +30,14 @@ import (
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
 func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSilence, error) {
+	return gettableSilenceFromProtoAt(s, time.Now())
+}
+
+func gettableSilenceFromProtoAt(s *silencepb.Silence, now time.Time) (open_api_models.GettableSilence, error) {
 	start := strfmt.DateTime(s.StartsAt.AsTime())
 	end := strfmt.DateTime(s.EndsAt.AsTime())
 	updated := strfmt.DateTime(s.UpdatedAt.AsTime())
-	state := string(silence.CurrentState(s.StartsAt.AsTime(), s.EndsAt.AsTime()))
+	state := string(silence.StateFromProtoAt(s, now))
 	sil := open_api_models.GettableSilence{
 		Silence: open_api_models.Silence{
 			StartsAt:    &start,

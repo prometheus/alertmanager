@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -27,10 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/eventrecorder"
@@ -40,6 +38,7 @@ import (
 	"github.com/prometheus/alertmanager/provider"
 	"github.com/prometheus/alertmanager/store"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
 
@@ -55,10 +54,12 @@ var tracer = tracing.NewTracer("github.com/prometheus/alertmanager/dispatch")
 // Dispatcher sorts incoming alerts into aggregation groups and
 // assigns the correct notifiers to each.
 type Dispatcher struct {
-	route      *Route
-	alerts     provider.Alerts
-	stage      notify.Stage
-	marker     marker.GroupMarker
+	route  *Route
+	alerts provider.Alerts
+	stage  notify.Stage
+	// timeMuter resolves the time intervals referenced by route. It comes from
+	// the same configuration as route so that route names always resolve.
+	timeMuter  notify.TimeMuter
 	metrics    *DispatcherMetrics
 	limits     Limits
 	propagator propagation.TextMapPropagator
@@ -70,8 +71,8 @@ type Dispatcher struct {
 	ctx      context.Context
 	cancel   func()
 
-	routeGroupsSlice []routeAggrGroups
-	aggrGroupsNum    atomic.Int32
+	slots         []*slot
+	aggrGroupsNum atomic.Int32
 
 	maintenanceInterval time.Duration
 	concurrency         int // Number of goroutines for alert ingestion
@@ -92,10 +93,55 @@ type Limits interface {
 	MaxNumberOfAggregationGroups() int
 }
 
-type routeAggrGroups struct {
-	route     *Route
-	groups    sync.Map // map[string]*aggrGroup
+// A slot holds the aggregation groups of the routes that share all their
+// routing options, and so their groups: routes with the same key, that is the
+// same matchers from the root down, produce groups with the same group key,
+// and when their options are equal too, the same groups. An alert matched by
+// several routes of one slot is grouped once. Slots are private to the
+// dispatcher, which binds the routes to them when it is created.
+type slot struct {
+	// key is the route key of the routes feeding the slot, the first part of
+	// the group keys.
+	key string
+	// opts are the routing options shared by the routes of the slot.
+	opts RouteOpts
+	// matchers are the matchers of the routes, the same for all of them.
+	matchers labels.Matchers
+	// routes are the routes feeding the slot, in Walk order.
+	routes []*Route
+
+	groups    sync.Map // map[model.Fingerprint]*aggrGroup
 	groupsLen atomic.Int64
+}
+
+// newSlot returns the slot of a route.
+func newSlot(r *Route) *slot {
+	return &slot{
+		key:      r.Key(),
+		opts:     r.RouteOpts,
+		matchers: r.Matchers,
+		routes:   []*Route{r},
+	}
+}
+
+// assignSlots binds every route of the tree to its slot, creating them as
+// needed: routes with the same key and equal options share one.
+func (d *Dispatcher) assignSlots() {
+	byKey := map[string][]*slot{}
+	d.route.Walk(func(r *Route) {
+		key := r.Key()
+		i := slices.IndexFunc(byKey[key], func(s *slot) bool { return s.opts.equal(&r.RouteOpts) })
+		if i < 0 {
+			s := newSlot(r)
+			byKey[key] = append(byKey[key], s)
+			d.slots = append(d.slots, s)
+			r.slot = s
+			return
+		}
+		s := byKey[key][i]
+		s.routes = append(s.routes, r)
+		r.slot = s
+	})
 }
 
 // NewDispatcher returns a new Dispatcher.
@@ -103,7 +149,7 @@ func NewDispatcher(
 	alerts provider.Alerts,
 	route *Route,
 	stage notify.Stage,
-	marker marker.GroupMarker,
+	timeMuter notify.TimeMuter,
 	timeout func(time.Duration) time.Duration,
 	maintenanceInterval time.Duration,
 	limits Limits,
@@ -118,6 +164,9 @@ func NewDispatcher(
 	if metrics == nil {
 		metrics = newNoopDispatcherMetrics()
 	}
+	if timeMuter == nil {
+		timeMuter = timeinterval.NewIntervener(nil)
+	}
 
 	// Calculate concurrency for ingestion.
 	concurrency := min(max(runtime.GOMAXPROCS(0)/2, 2), 8)
@@ -125,8 +174,8 @@ func NewDispatcher(
 	disp := &Dispatcher{
 		alerts:              alerts,
 		stage:               stage,
+		timeMuter:           timeMuter,
 		route:               route,
-		marker:              marker,
 		timeout:             timeout,
 		maintenanceInterval: maintenanceInterval,
 		concurrency:         concurrency,
@@ -145,6 +194,7 @@ func NewDispatcher(
 		metrics.alertsCollector.dispatcher.Store(disp)
 	}
 
+	disp.assignSlots()
 	return disp
 }
 
@@ -159,13 +209,6 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.logger.Debug("preparing to start", "startTime", dispatchStartTime)
 	d.startTimer = time.NewTimer(time.Until(dispatchStartTime))
 	d.logger.Debug("setting state", "state", "waiting_to_start")
-	d.routeGroupsSlice = make([]routeAggrGroups, d.route.Idx+1)
-	d.route.Walk(func(r *Route) {
-		d.routeGroupsSlice[r.Idx] = routeAggrGroups{
-			route: r,
-		}
-	})
-
 	d.aggrGroupsNum.Store(0)
 	d.metrics.aggrGroups.Set(0)
 
@@ -198,13 +241,19 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 	// Start timer goroutine
 	d.finished.Go(func() {
-		<-d.startTimer.C
+		select {
+		case <-d.startTimer.C:
+		case <-d.ctx.Done():
+			// Stopped before the start time: Stop must not wait for it.
+			d.startTimer.Stop()
+			return
+		}
 
 		if d.state.CompareAndSwap(DispatcherStateWaitingToStart, DispatcherStateRunning) {
 			d.logger.Debug("started", "state", "running")
 			d.logger.Debug("Starting all existing aggregation groups")
-			for rg := range d.routeGroupsSlice {
-				d.routeGroupsSlice[rg].groups.Range(func(_, ag any) bool {
+			for _, s := range d.slots {
+				s.groups.Range(func(_, ag any) bool {
 					d.runAG(ag.(*aggrGroup))
 					return true
 				})
@@ -256,42 +305,43 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 	d.logger.Debug("Received alert", "alert", alrt)
 
-	ctx, span := tracer.Start(ctx, "dispatch.Dispatcher.routeAlert",
-		trace.WithAttributes(
-			attribute.String("alerting.alert.name", alrt.Name()),
-			attribute.String("alerting.alert.fingerprint", alrt.Fingerprint().String()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartRouteAlert(ctx, alrt)
 	defer span.End()
 
 	now := time.Now()
-	for _, r := range d.route.Match(alrt.Labels) {
-		span.AddEvent("dispatching alert to route",
-			trace.WithAttributes(
-				attribute.String("alerting.route.receiver.name", r.RouteOpts.Receiver),
-			),
-		)
+	for _, r := range d.matchRoutes(alrt.Labels) {
+		tracing.EventRouteMatched(span, r.RouteOpts.Receiver)
 		d.groupAlert(ctx, alrt, r)
 	}
 	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 }
 
+// matchRoutes returns the routes matching the labels, one per slot: routes
+// sharing a slot share their groups, so grouping the alert through a second
+// route of the slot would only repeat the work of the first. The matches are
+// deduplicated by slot as they are added, with a linear scan: an alert
+// matches one route nearly always and a handful at most, and comparing that
+// many pointers stays cheaper than a set, which allocates and hashes, up to
+// fanouts of over a hundred routes.
+func (d *Dispatcher) matchRoutes(lset model.LabelSet) []*Route {
+	var routes []*Route
+	d.route.match(lset, func(r *Route) {
+		if !slices.ContainsFunc(routes, func(m *Route) bool { return m.slot == r.slot }) {
+			routes = append(routes, r)
+		}
+	})
+	return routes
+}
+
 func (d *Dispatcher) doMaintenance() {
-	for i := range d.routeGroupsSlice {
-		d.routeGroupsSlice[i].groups.Range(func(key, el any) bool {
+	for _, s := range d.slots {
+		s.groups.Range(func(key, el any) bool {
 			ag := el.(*aggrGroup)
 			if ag.destroyed() {
 				ag.stop()
-				deleted := d.routeGroupsSlice[i].groups.CompareAndDelete(key, ag)
+				deleted := s.groups.CompareAndDelete(key, ag)
 				if deleted {
-					// TODO(ultrotter, siavash):
-					// Deletion from the marker should only happen if we really deleted the group.
-					// Fully fixing the case where a new group with the same fingerprint is created between
-					// CompareAndDelete and DeleteByGroupKey would require changes to the marker interface,
-					// so we leave it as a fix for after landing the pending marker changes.
-					d.marker.DeleteByGroupKey(ag.routeID, ag.GroupKey())
-					d.routeGroupsSlice[i].groupsLen.Add(-1)
+					s.groupsLen.Add(-1)
 					d.aggrGroupsNum.Add(-1)
 					d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
 				}
@@ -309,15 +359,42 @@ func (d *Dispatcher) LoadingDone() <-chan struct{} {
 	return d.loaded
 }
 
+// AlertFilter decides whether an alert belongs in a Groups result and returns
+// the status to report for it. Groups calls the filter once per alert per
+// aggregation group and records the returned status in
+// AlertGroup.AlertStatuses, so the same alert may legitimately be reported
+// with a different status in different groups.
+type AlertFilter func(a *alert.Alert, now time.Time) (alert.AlertStatus, bool)
+
 // AlertGroup represents how alerts exist within an aggrGroup.
 type AlertGroup struct {
-	Alerts        alert.AlertSlice
-	Labels        model.LabelSet
-	RouteLabels   model.LabelSet
-	Receiver      string
-	GroupKey      string
-	RouteID       string
+	Alerts      alert.AlertSlice
+	Labels      model.LabelSet
+	RouteLabels model.LabelSet
+	Receiver    string
+	GroupKey    string
+	// AlertStatuses holds the status returned by the AlertFilter for each
+	// alert in Alerts, keyed by fingerprint.
 	AlertStatuses map[model.Fingerprint]alert.AlertStatus
+	// MutedByActiveTimeIntervals and MutedByMuteTimeIntervals hold the names
+	// of the time intervals of the group's route that mute it at the time of
+	// the Groups call, one per kind. They are computed at query time, like
+	// silences and inhibitions, and are both empty if the group is not muted.
+	MutedByActiveTimeIntervals []string
+	MutedByMuteTimeIntervals   []string
+}
+
+// MutedBy returns the names of all the time intervals that mute the group,
+// the active ones first. The group is muted if the result is not empty.
+func (ag *AlertGroup) MutedBy() []string {
+	switch {
+	case len(ag.MutedByActiveTimeIntervals) == 0:
+		return ag.MutedByMuteTimeIntervals
+	case len(ag.MutedByMuteTimeIntervals) == 0:
+		return ag.MutedByActiveTimeIntervals
+	}
+	// The active names alias the route's own slice, so never append to them.
+	return slices.Concat(ag.MutedByActiveTimeIntervals, ag.MutedByMuteTimeIntervals)
 }
 
 type AlertGroups []*AlertGroup
@@ -332,7 +409,7 @@ func (ag AlertGroups) Less(i, j int) bool {
 func (ag AlertGroups) Len() int { return len(ag) }
 
 // Groups returns a slice of AlertGroups from the dispatcher's internal state.
-func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter func(*alert.Alert, time.Time) bool) (AlertGroups, map[model.Fingerprint][]string, error) {
+func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, alertFilter AlertFilter) (AlertGroups, map[model.Fingerprint][]string, error) {
 	select {
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
@@ -346,20 +423,28 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 	receivers := map[model.Fingerprint][]string{}
 
 	now := time.Now()
-	for i := range d.routeGroupsSlice {
-		if !routeFilter(d.routeGroupsSlice[i].route) {
+	for _, s := range d.slots {
+		// Include the slot if any of its routes passes the filter.
+		if !slices.ContainsFunc(s.routes, routeFilter) {
 			continue
 		}
-		receiver := d.routeGroupsSlice[i].route.RouteOpts.Receiver
 
-		// Make a snapshot of the aggregation groups in each route to avoid holding
-		// sync.Map locks while we process alerts or acquiring leaf locks in the alert
-		// store.
+		receiver := s.opts.Receiver
+		var mutedByActive, mutedByMute []string
+		mutedBySet := len(s.opts.ActiveTimeIntervals) == 0 && len(s.opts.MuteTimeIntervals) == 0
 
-		// Estimate capacity based on total groups and number of routes.
-		// We overallocate a bit to avoid copying in most cases.
-		snapshot := make([]*aggrGroup, 0, d.routeGroupsSlice[i].groupsLen.Load()+32)
-		d.routeGroupsSlice[i].groups.Range(func(_, el any) bool {
+		// Make a snapshot of the aggregation groups in each slot to avoid
+		// holding sync.Map locks while we process alerts or acquiring leaf locks
+		// in the alert store.
+
+		// Preallocate only for populated slots, allowing some room for new
+		// groups. Still range when the count is zero: a group may have been
+		// published before its count is incremented.
+		var snapshot []*aggrGroup
+		if n := s.groupsLen.Load(); n > 0 {
+			snapshot = make([]*aggrGroup, 0, n+32)
+		}
+		s.groups.Range(func(_, el any) bool {
 			snapshot = append(snapshot, el.(*aggrGroup))
 			return true
 		})
@@ -368,12 +453,15 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 		for _, ag := range snapshot {
 			alerts := ag.alerts.List()
 			filteredAlerts := make([]*alert.Alert, 0, len(alerts))
+			statuses := make(map[model.Fingerprint]alert.AlertStatus, len(alerts))
 			for _, a := range alerts {
-				if !alertFilter(a, now) {
+				status, ok := alertFilter(a, now)
+				if !ok {
 					continue
 				}
 
 				fp := a.Fingerprint()
+				statuses[fp] = status
 				if r, ok := receivers[fp]; ok {
 					// Receivers slice already exists. Add
 					// the current receiver to the slice.
@@ -390,21 +478,31 @@ func (d *Dispatcher) Groups(ctx context.Context, routeFilter func(*Route) bool, 
 				continue
 			}
 
+			// All groups in a slot share its time intervals. Evaluate them
+			// once, only when the slot contributes a group to the response.
+			if !mutedBySet {
+				var err error
+				mutedByActive, mutedByMute, err = notify.MutedByTimeIntervals(d.timeMuter, s.opts.ActiveTimeIntervals, s.opts.MuteTimeIntervals, now)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to compute time interval mutes for route %s: %w", s.key, err)
+				}
+				mutedBySet = true
+			}
+
 			// Compute RouteLabels() only now that the group will be returned:
 			// it may render templates on a cache miss, which is wasted work for
 			// groups filtered out above.
 			alertGroup := &AlertGroup{
 				Labels:      ag.labels,
-				RouteLabels: ag.RouteLabels(),
+				RouteLabels: ag.RouteLabels(now),
 				Receiver:    receiver,
 				GroupKey:    ag.GroupKey(),
-				RouteID:     ag.routeID,
+
+				MutedByActiveTimeIntervals: mutedByActive,
+				MutedByMuteTimeIntervals:   mutedByMute,
 			}
 			alertGroup.Alerts = filteredAlerts
-			alertGroup.AlertStatuses = make(map[model.Fingerprint]alert.AlertStatus, len(filteredAlerts))
-			for _, a := range filteredAlerts {
-				alertGroup.AlertStatuses[a.Fingerprint()] = ag.marker.Status(a.Fingerprint())
-			}
+			alertGroup.AlertStatuses = statuses
 
 			groups = append(groups, alertGroup)
 		}
@@ -438,22 +536,16 @@ type notifyFunc func(context.Context, ...*alert.Alert) bool
 // groupAlert determines in which aggregation group the alert falls
 // and inserts it.
 func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *Route) {
-	_, span := tracer.Start(ctx, "dispatch.Dispatcher.groupAlert",
-		trace.WithAttributes(
-			attribute.String("alerting.alert.name", alrt.Name()),
-			attribute.String("alerting.alert.fingerprint", alrt.Fingerprint().String()),
-			attribute.String("alerting.route.receiver.name", route.RouteOpts.Receiver),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	s := route.slot
+	_, span := tracer.StartGroupAlert(ctx, alrt, s.opts.Receiver)
 	defer span.End()
 
 	now := time.Now()
-	groupLabels := getGroupLabels(alrt, route)
+	groupLabels := getGroupLabels(alrt, &s.opts)
 
 	fp := groupLabels.Fingerprint()
 
-	el, loaded := d.routeGroupsSlice[route.Idx].groups.Load(fp)
+	el, loaded := s.groups.Load(fp)
 	if loaded {
 		ag := el.(*aggrGroup)
 		// Try to insert into the aggrgroup.
@@ -475,17 +567,11 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		err := errors.New("too many aggregation groups, cannot create new group for alert")
 		message := "Failed to create aggregation group"
 		d.logger.Error(message, "err", err.Error(), "groups", current, "limit", limit, "alert", alrt.Name())
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err,
-			trace.WithAttributes(
-				attribute.Int("alerting.aggregation_group.count", current),
-				attribute.Int("alerting.aggregation_group.limit", limit),
-			),
-		)
+		tracing.RecordAggregationGroupLimit(span, err, current, limit)
 		return
 	}
 
-	ag := newAggrGroup(d.ctx, groupLabels, route, d.timeout, d.recorder, d.logger, d.tmpl)
+	ag := newAggrGroup(d.ctx, groupLabels, s, d.timeout, d.recorder, d.logger, d.tmpl)
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
@@ -495,7 +581,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 	for {
 		if loaded {
 			// Try to store the new group in the map. If another goroutine has already created the same group, use the existing one.
-			swapped := d.routeGroupsSlice[route.Idx].groups.CompareAndSwap(fp, el, ag)
+			swapped := s.groups.CompareAndSwap(fp, el, ag)
 			if swapped {
 				// Since we swapped the new group in, we need to cancel the old one,
 				// as doMaintenance will not be able to find it in the map anymore.
@@ -505,9 +591,9 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 			}
 			loaded = false
 		} else {
-			el, loaded = d.routeGroupsSlice[route.Idx].groups.LoadOrStore(fp, ag)
+			el, loaded = s.groups.LoadOrStore(fp, ag)
 			if !loaded {
-				d.routeGroupsSlice[route.Idx].groupsLen.Add(1)
+				s.groupsLen.Add(1)
 				d.aggrGroupsNum.Add(1)
 				d.metrics.aggrGroups.Set(float64(d.aggrGroupsNum.Load()))
 				// We stored the new group, we can break and start it.
@@ -531,7 +617,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 			d.metrics.aggrGroupCreationGivenUp.Inc()
 			d.logger.Error("excessive retries creating aggregation group",
 				"fingerprint", fp,
-				"route", route.Key(),
+				"route", s.key,
 				"alert", alrt.Name(),
 				"retries", retries,
 			)
@@ -540,30 +626,21 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		}
 	}
 
-	span.AddEvent("new AggregationGroup created",
-		trace.WithAttributes(
-			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
-			attribute.Int("alerting.aggregation_group.count", int(d.aggrGroupsNum.Load())),
-		),
-	)
+	tracing.EventAggregationGroupCreated(span, ag.GroupKey(), int(d.aggrGroupsNum.Load()))
 
 	if alrt.StartsAt.Add(ag.opts.GroupWait).Before(now) {
 		message := "Alert is old enough for immediate flush, resetting timer to zero"
 		ag.logger.Debug(message, "alert", alrt.Name(), "fingerprint", alrt.Fingerprint(), "startsAt", alrt.StartsAt)
-		span.AddEvent(message,
-			trace.WithAttributes(
-				attribute.String("alerting.alert.StartsAt", alrt.StartsAt.Format(time.RFC3339)),
-			),
-		)
+		tracing.EventImmediateFlush(span, alrt.StartsAt)
 		ag.resetTimer(0)
 	}
 	// Check dispatcher and alert state to determine if we should run the AG now.
 	switch d.state.Load() {
 	case DispatcherStateWaitingToStart:
-		span.AddEvent("Not starting Aggregation Group, dispatcher is not running")
+		tracing.EventAggregationGroupWaiting(span)
 		d.logger.Debug("Dispatcher still waiting to start")
 	case DispatcherStateRunning:
-		span.AddEvent("Starting Aggregation Group")
+		tracing.EventAggregationGroupStarted(span)
 		d.runAG(ag)
 	default:
 		d.logger.Warn("unknown state detected", "state", "unknown")
@@ -591,14 +668,14 @@ func (d *Dispatcher) runAG(ag *aggrGroup) {
 	})
 }
 
-func getGroupLabels(alrt *alert.Alert, route *Route) model.LabelSet {
-	capacity := len(route.RouteOpts.GroupBy)
-	if route.RouteOpts.GroupByAll {
+func getGroupLabels(alrt *alert.Alert, opts *RouteOpts) model.LabelSet {
+	capacity := len(opts.GroupBy)
+	if opts.GroupByAll {
 		capacity = len(alrt.Labels)
 	}
 	groupLabels := make(model.LabelSet, capacity)
 	for ln, lv := range alrt.Labels {
-		if _, ok := route.RouteOpts.GroupBy[ln]; ok || route.RouteOpts.GroupByAll {
+		if _, ok := opts.GroupBy[ln]; ok || opts.GroupByAll {
 			groupLabels[ln] = lv
 		}
 	}
@@ -613,7 +690,6 @@ type aggrGroup struct {
 	labels   model.LabelSet
 	opts     *RouteOpts
 	logger   *slog.Logger
-	routeID  string
 	groupKey string
 	matchers labels.Matchers
 
@@ -634,28 +710,33 @@ type aggrGroup struct {
 	// kept up to date with a generation counter rather than a lock, so that
 	// invalidation on the hot alert-ingestion path is a single atomic add.
 	//
-	// routeLabelsGen is bumped (by invalidateRouteLabels) whenever the alert set
-	// changes. Each cached render is tagged with the generation it was computed
-	// at; RouteLabels() treats the cache as valid only if its tag still equals
-	// the current generation. A render that races an invalidation is therefore
-	// tagged with a now-stale generation: it may be stored, but the next reader
-	// sees the mismatch and re-renders, so a stale value is never served.
+	// routeLabelsGen is bumped by invalidateRouteLabels when an alert is added,
+	// deleted, or re-sent with a change templates can observe (see
+	// templateInputsChanged). A render is tagged with the generation it saw and
+	// is only served while that still matches, so a render that raced an
+	// invalidation may be stored but is never served.
+	//
+	// A render also expires at the earliest EndsAt of the alerts it saw
+	// (validUntil), since an alert resolving changes .Status without an insert.
+	// If nothing has actually resolved by then (re-sends pushed EndsAt out),
+	// RouteLabels keeps the labels and only advances validUntil.
 	routeLabels    atomic.Pointer[renderedRouteLabels]
 	routeLabelsGen atomic.Uint64
 }
 
-// renderedRouteLabels is a cached route-label render tagged with the alert-set
-// generation it was computed at. See aggrGroup.routeLabels.
+// renderedRouteLabels is a cached route-label render. See aggrGroup.routeLabels.
 type renderedRouteLabels struct {
-	gen    uint64
-	labels model.LabelSet
+	gen        uint64 // routeLabelsGen at render time
+	renderedAt time.Time
+	validUntil time.Time // zero means indefinitely
+	labels     model.LabelSet
 }
 
 // newAggrGroup returns a new aggregation group.
 func newAggrGroup(
 	ctx context.Context,
 	labels model.LabelSet,
-	r *Route,
+	s *slot,
 	to func(time.Duration) time.Duration,
 	recorder eventrecorder.Recorder,
 	logger *slog.Logger,
@@ -666,10 +747,9 @@ func newAggrGroup(
 	}
 	ag := &aggrGroup{
 		labels:   labels,
-		routeID:  r.ID(),
-		groupKey: fmt.Sprintf("%s:%s", r.Key(), labels),
-		matchers: r.Matchers,
-		opts:     &r.RouteOpts,
+		groupKey: fmt.Sprintf("%s:%s", s.key, labels),
+		matchers: s.matchers,
+		opts:     &s.opts,
 		timeout:  to,
 		alerts:   store.NewAlerts(),
 		marker:   marker.NewAlertMarker(),
@@ -740,27 +820,41 @@ func (ag *aggrGroup) renderRouteLabels(alerts ...*alert.Alert) model.LabelSet {
 	return renderedRouteLabels
 }
 
-// RouteLabels returns the route labels rendered against the group's current
-// alerts, caching the result. Both the read and the cache update are lock-free.
-// The cache is invalidated by invalidateRouteLabels (a generation bump) after
-// the alert set changes.
+// RouteLabels returns the route labels rendered against the group's alerts as
+// of now, caching the result. Reads and cache updates are lock-free. The cache
+// is invalidated by invalidateRouteLabels and expires when one of the alerts it
+// was rendered against resolves.
 //
 // Concurrent callers that all miss may render redundantly; that is acceptable
 // because the only caller is the (cold) /alerts/groups API path. What must not
 // happen — serving a render that predates an invalidation — is prevented by the
 // generation tag.
-func (ag *aggrGroup) RouteLabels() model.LabelSet {
+func (ag *aggrGroup) RouteLabels(now time.Time) model.LabelSet {
 	// Load the cached value before the generation: if an invalidation happens
 	// between these two loads, we read the newer generation and treat the cache
 	// as a miss, which is safe. (Loading gen first could let us pair an old gen
 	// with a value cached for that gen and wrongly accept a stale render.)
 	cached := ag.routeLabels.Load()
 	gen := ag.routeLabelsGen.Load()
-	if cached != nil && cached.gen == gen {
+	current := cached != nil && cached.gen == gen
+	if current && (cached.validUntil.IsZero() || now.Before(cached.validUntil)) {
 		return cached.labels
 	}
 
 	alerts := ag.alerts.List()
+
+	if current && !resolvedBetween(alerts, cached.renderedAt, now) {
+		// Expired, but nothing resolved since the render (re-sends extended
+		// EndsAt): keep the labels, only advance validUntil. renderedAt stays
+		// so the next expiry checks the whole window since the render.
+		ag.routeLabels.Store(&renderedRouteLabels{
+			gen:        gen,
+			renderedAt: cached.renderedAt,
+			validUntil: nextResolution(alerts, now),
+			labels:     cached.labels,
+		})
+		return cached.labels
+	}
 
 	var labels model.LabelSet
 	if len(alerts) == 0 {
@@ -776,8 +870,56 @@ func (ag *aggrGroup) RouteLabels() model.LabelSet {
 	// Tag the render with the generation we observed before reading the alerts.
 	// If an invalidation raced this render, gen is already stale, so the next
 	// reader will see the mismatch and re-render rather than serve stale labels.
-	ag.routeLabels.Store(&renderedRouteLabels{gen: gen, labels: labels})
+	ag.routeLabels.Store(&renderedRouteLabels{
+		gen:        gen,
+		renderedAt: now,
+		validUntil: nextResolution(alerts, now),
+		labels:     labels,
+	})
 	return labels
+}
+
+// resolvedBetween reports whether any alert has an EndsAt in (since, now], i.e.
+// may have resolved in that window without an insert. A re-send that changes
+// the status, or the EndsAt of a resolved alert, bumps the generation (see
+// templateInputsChanged), so under an unchanged generation this is exact.
+func resolvedBetween(alerts []*alert.Alert, since, now time.Time) bool {
+	for _, a := range alerts {
+		if a.EndsAt.After(since) && !a.EndsAt.After(now) {
+			return true
+		}
+	}
+	return false
+}
+
+// nextResolution returns the earliest EndsAt after now, or the zero time if
+// there is none. Until then no alert status can change without an insert or
+// a delete.
+func nextResolution(alerts []*alert.Alert, now time.Time) time.Time {
+	var next time.Time
+	for _, a := range alerts {
+		if a.EndsAt.IsZero() || !a.EndsAt.After(now) {
+			continue
+		}
+		if next.IsZero() || a.EndsAt.Before(next) {
+			next = a.EndsAt
+		}
+	}
+	return next
+}
+
+// templateInputsChanged reports whether cur, replacing prev for the same
+// fingerprint, differs in something route label templates can observe:
+// annotations, StartsAt, GeneratorURL, resolved status at now and, once
+// resolved, EndsAt. The EndsAt of a firing alert is not compared: clients
+// extend it on every re-send and templates cannot see it.
+func templateInputsChanged(prev, cur *alert.Alert, now time.Time) bool {
+	if resolved := cur.ResolvedAt(now); resolved != prev.ResolvedAt(now) || (resolved && !prev.EndsAt.Equal(cur.EndsAt)) {
+		return true
+	}
+	return !prev.StartsAt.Equal(cur.StartsAt) ||
+		prev.GeneratorURL != cur.GeneratorURL ||
+		!prev.Annotations.Equal(cur.Annotations)
 }
 
 // invalidateRouteLabels marks the cached route labels stale. It must be called
@@ -813,7 +955,6 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ctx = notify.WithRepeatInterval(ctx, ag.opts.RepeatInterval)
 			ctx = notify.WithMuteTimeIntervals(ctx, ag.opts.MuteTimeIntervals)
 			ctx = notify.WithActiveTimeIntervals(ctx, ag.opts.ActiveTimeIntervals)
-			ctx = notify.WithRouteID(ctx, ag.routeID)
 			ctx = notify.WithFlushID(ctx, ag.flushIdx)
 			ctx = notify.WithGroupMatchers(ctx, ag.matchers)
 			ctx = marker.WithContext(ctx, ag.marker)
@@ -824,13 +965,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 			ag.resetTimer(ag.opts.GroupInterval)
 
 			ag.flush(func(alerts ...*alert.Alert) bool {
-				ctx, span := tracer.Start(ctx, "dispatch.AggregationGroup.flush",
-					trace.WithAttributes(
-						attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
-						attribute.Int("alerting.alerts.count", len(alerts)),
-					),
-					trace.WithSpanKind(trace.SpanKindInternal),
-				)
+				ctx, span := tracer.StartAggregationGroupFlush(ctx, ag.GroupKey(), len(alerts))
 				defer span.End()
 
 				// Render route labels against the batch of alerts that we are
@@ -839,7 +974,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 
 				success := nf(ctx, alerts...)
 				if !success {
-					span.SetStatus(codes.Error, "notification failed")
+					tracing.SetErrorStatus(span, "notification failed")
 				}
 				return success
 			})
@@ -872,29 +1007,26 @@ func (ag *aggrGroup) resetTimer(t time.Duration) {
 // insert inserts the alert into the aggregation group.
 // Returns false if the aggregation group has been destroyed.
 func (ag *aggrGroup) insert(ctx context.Context, alrt *alert.Alert) bool {
-	_, span := tracer.Start(ctx, "dispatch.AggregationGroup.insert",
-		trace.WithAttributes(
-			attribute.String("alerting.alert.name", alrt.Name()),
-			attribute.String("alerting.alert.fingerprint", alrt.Fingerprint().String()),
-			attribute.String("alerting.aggregation_group.key", ag.GroupKey()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.StartAggregationGroupInsert(ctx, alrt, ag.GroupKey())
 	defer span.End()
-	if err := ag.alerts.Set(alrt); err != nil {
+	prev, err := ag.alerts.Swap(alrt)
+	if err != nil {
 		if errors.Is(err, store.ErrDestroyed) {
 			return false
 		}
 		message := "error on set alert"
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err)
+		tracing.RecordErrorWithStatus(span, message, err)
 		ag.logger.Error(message, "err", err)
 	} else {
 		ag.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 			return notify.NewAlertGroupedEvent(ag.alertGroupInfo(), alrt)
 		})
-		// The alert set changed; the alert is already visible via ag.alerts.
-		ag.invalidateRouteLabels()
+		// The alert is already visible via ag.alerts. A re-send of a known
+		// fingerprint (the common case while an alert keeps firing) only
+		// invalidates if something templates can observe changed.
+		if prev == nil || templateInputsChanged(prev, alrt, time.Now()) {
+			ag.invalidateRouteLabels()
+		}
 	}
 	return true
 }

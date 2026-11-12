@@ -211,6 +211,14 @@ If an alert does not match any children of a node (no matching child nodes, or
 none exist), the alert is handled based on the configuration parameters of the
 current node.
 
+Two routes with the same matchers from the root down produce alert groups with
+the same group key whenever their group labels match. If their receiver and all
+their other options are equal too, they share their alert groups, and an alert
+matched by both is grouped once. Otherwise the groups share notification log
+entries if the receiver is the same, so a notification sent for one of them can
+suppress the same notification for the other: merge such routes, or define a
+second receiver for the same destination.
+
 See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#grouping) for more information on grouping.
 
 ```yaml
@@ -1696,11 +1704,15 @@ token_id_file: <filepath>
 
 
 [ color: <tmpl_string | default '{{ if eq .Status "firing" }}red{{ else }}green{{ end }}' ]
-[ emoji <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}'
-[ icon_url <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}'
-[ text <tmpl_string | default = '{{ template "rocketchat.default.text" . }}'
-[ title <tmpl_string | default = '{{ template "rocketchat.default.title" . }}'
-[ title_link <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}'
+[ emoji: <tmpl_string | default = '{{ template "rocketchat.default.emoji" . }}' ]
+[ icon_url: <tmpl_string | default = '{{ template "rocketchat.default.iconurl" . }}' ]
+# Top-level message text, shown above the attachment and used in desktop
+# and push notifications. If unset, notifications show only a generic placeholder.
+[ message_text: <tmpl_string> ]
+# The text of the attachment used to display the main notification content.
+[ text: <tmpl_string | default = '{{ template "rocketchat.default.text" . }}' ]
+[ title_link: <tmpl_string | default = '{{ template "rocketchat.default.titlelink" . }}' ]
+[ title: <tmpl_string | default = '{{ template "rocketchat.default.title" . }}' ]
 fields:
   [ <rocketchat_field_config> ... ]
 [ image_url: <tmpl_string> ]

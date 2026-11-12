@@ -14,18 +14,76 @@
 package rocketchat
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-
+	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 )
+
+func TestRocketchatMessageText(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		messageText string
+		wantText    bool
+	}{
+		{name: "unset"},
+		{name: "title template", messageText: `{{ template "rocketchat.default.title" . }}`, wantText: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			secret := commoncfg.Secret("xxxxx")
+			conf := DefaultRocketchatConfig
+			conf.HTTPConfig = &commoncfg.HTTPClientConfig{}
+			conf.APIURL = &amcommoncfg.URL{URL: &url.URL{Scheme: "https", Host: "example.com"}}
+			conf.Token = &secret
+			conf.TokenID = &secret
+			conf.MessageText = tc.messageText
+			notifier, err := New(&conf, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			var payload map[string]json.RawMessage
+			notifier.postJSONFunc = func(_ context.Context, _ *http.Client, _ string, body io.Reader) (*http.Response, error) {
+				require.NoError(t, json.NewDecoder(body).Decode(&payload))
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"success":true}`))}, nil
+			}
+
+			ctx := notify.WithGroupKey(context.Background(), "test-group")
+			verdict := notifier.Notify(ctx, alert.New(model.Alert{StartsAt: time.Now()}, time.Time{}, false))
+			require.NoError(t, verdict.Err())
+			require.False(t, verdict.ShouldRetry())
+
+			var attachments []Attachment
+			require.NoError(t, json.Unmarshal(payload["attachments"], &attachments))
+			require.Len(t, attachments, 1)
+			require.Equal(t, "[FIRING:1]  ", attachments[0].Title)
+			if tc.wantText {
+				var text string
+				require.NoError(t, json.Unmarshal(payload["text"], &text))
+				require.Equal(t, attachments[0].Title, text)
+			} else {
+				require.NotContains(t, payload, "text")
+			}
+		})
+	}
+}
 
 func TestRocketchatRetry(t *testing.T) {
 	secret := commoncfg.Secret("xxxxx")

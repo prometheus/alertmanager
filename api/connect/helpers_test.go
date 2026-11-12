@@ -110,6 +110,13 @@ type deadlineResponseWriter struct {
 	writeDeadline time.Time
 }
 
+type blockingDeadlineResponseWriter struct {
+	deadlineResponseWriter
+	entered     chan struct{}
+	release     chan struct{}
+	enteredOnce sync.Once
+}
+
 func (w *deadlineResponseWriter) Header() http.Header       { return w.header }
 func (*deadlineResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
 func (*deadlineResponseWriter) WriteHeader(int)             {}
@@ -121,6 +128,12 @@ func (w *deadlineResponseWriter) SetReadDeadline(t time.Time) error {
 func (w *deadlineResponseWriter) SetWriteDeadline(t time.Time) error {
 	w.writeDeadline = t
 	return nil
+}
+
+func (w *blockingDeadlineResponseWriter) SetReadDeadline(t time.Time) error {
+	w.enteredOnce.Do(func() { close(w.entered) })
+	<-w.release
+	return w.deadlineResponseWriter.SetReadDeadline(t)
 }
 
 // newTestServer starts an httptest.Server for handler and closes it when the

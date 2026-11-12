@@ -27,16 +27,21 @@ func TestAPIRouting(t *testing.T) {
 		name        string
 		routePrefix string
 		path        string
+		tlsEnabled  bool
 		wantStatus  int
 	}{
 		{name: "v2 at the root", routePrefix: "", path: "/api/v2/status", wantStatus: http.StatusOK},
 		{name: "v1 at the root", routePrefix: "", path: "/api/v1/status", wantStatus: http.StatusGone},
 		{name: "v2 under a route prefix", routePrefix: "/alertmanager", path: "/api/v2/status", wantStatus: http.StatusOK},
 		{name: "v1 under a route prefix", routePrefix: "/alertmanager", path: "/api/v1/status", wantStatus: http.StatusGone},
+		{name: "v2 over TLS at the root", path: "/api/v2/status", tlsEnabled: true, wantStatus: http.StatusOK},
+		{name: "v1 over TLS at the root", path: "/api/v1/status", tlsEnabled: true, wantStatus: http.StatusGone},
+		{name: "v2 over TLS under a route prefix", routePrefix: "/alertmanager", path: "/api/v2/status", tlsEnabled: true, wantStatus: http.StatusOK},
+		{name: "v1 over TLS under a route prefix", routePrefix: "/alertmanager", path: "/api/v1/status", tlsEnabled: true, wantStatus: http.StatusGone},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			inst := startInstance(t, tc.routePrefix)
+			inst := startInstance(t, instanceOptions{routePrefix: tc.routePrefix, tlsEnabled: tc.tlsEnabled})
 			resp, err := inst.httpClient.Get(inst.webURL(tc.path))
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = resp.Body.Close() })

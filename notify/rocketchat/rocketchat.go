@@ -45,9 +45,9 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// PostMessage Payload for postmessage rest API
+// PostMessage.Attachment Payload for postmessage rest API
 //
-// https://rocket.chat/docs/developer-guides/rest-api/chat/postmessage/
+// https://developer.rocket.chat/apidocs/post-message
 type Attachment struct {
 	Title     string                       `json:"title,omitempty"`
 	TitleLink string                       `json:"title_link,omitempty"`
@@ -61,11 +61,10 @@ type Attachment struct {
 
 // PostMessage Payload for postmessage rest API
 //
-// https://rocket.chat/docs/developer-guides/rest-api/chat/postmessage/
+// https://developer.rocket.chat/apidocs/post-message
 type PostMessage struct {
 	Channel     string                       `json:"channel,omitempty"`
 	Text        string                       `json:"text,omitempty"`
-	ParseUrls   bool                         `json:"parseUrls,omitempty"`
 	Alias       string                       `json:"alias,omitempty"`
 	Emoji       string                       `json:"emoji,omitempty"`
 	Avatar      string                       `json:"avatar,omitempty"`
@@ -208,6 +207,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		Emoji:       tmplText(n.conf.Emoji),
 		Avatar:      tmplText(n.conf.IconURL),
 		Attachments: []Attachment{*att},
+		Text:        tmplText(n.conf.MessageText),
 	}
 	if err != nil {
 		return notify.Unrecoverable(err, notify.DefaultReason)

@@ -45,7 +45,7 @@ func (a *App) Start() error {
 	if a.stopped {
 		return errors.New("alertmanager/app: App.Start called after Stop")
 	}
-	if a.server == nil || len(a.listeners) == 0 {
+	if len(a.servers) == 0 || len(a.listeners) == 0 {
 		a.startErr = errors.New("alertmanager/app: App.Start called before successful New")
 		return a.startErr
 	}
@@ -62,10 +62,25 @@ func (a *App) Start() error {
 	go a.reloadRouter()
 
 	go func() {
-		err := web.ServeMultiple(a.listeners, a.server, a.opts.WebConfig, a.logger)
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			a.logger.Error("Listen error", "err", err)
-			a.serveErrc <- err
+		errCh := make(chan error, len(a.listeners))
+		readiness := &listenerReadiness{remaining: len(a.listeners), notifier: a.opts.Lifecycle}
+		for idx, listener := range a.listeners {
+			server := a.servers[idx]
+			go func() {
+				err := web.Serve(&readyListener{Listener: listener, readiness: readiness}, server, a.opts.WebConfig, a.logger)
+				readiness.stop()
+				errCh <- err
+			}()
+		}
+		reported := false
+		for range a.listeners {
+			if err := <-errCh; err != nil && !errors.Is(err, http.ErrServerClosed) {
+				a.logger.Error("Listen error", "err", err)
+				if !reported {
+					a.serveErrc <- err
+					reported = true
+				}
+			}
 		}
 		close(a.serveErrc)
 	}()
@@ -99,7 +114,7 @@ func (a *App) reloadRouter() {
 				reloadCh = nil
 				continue
 			}
-			if err := a.coordinator.Reload(); err != nil {
+			if err := a.reloadConfig(); err != nil {
 				a.logger.Error("configuration reload failed", "err", err)
 			}
 		// webReload is the request/response trigger from the /-/reload
@@ -108,7 +123,7 @@ func (a *App) reloadRouter() {
 		// instead of logging it. This channel is App-owned (allocated in
 		// New, never closed externally), so it needs no comma-ok guard.
 		case errc := <-a.webReload:
-			errc <- a.coordinator.Reload()
+			errc <- a.reloadConfig()
 		}
 	}
 }
@@ -155,7 +170,18 @@ func (a *App) Reload() error {
 	if a.stopped {
 		return errors.New("alertmanager/app: App.Reload called after Stop")
 	}
-	return a.coordinator.Reload()
+	return a.reloadConfig()
+}
+
+// reloadConfig keeps each reload and its lifecycle notifications together.
+func (a *App) reloadConfig() error {
+	a.reloadMtx.Lock()
+	defer a.reloadMtx.Unlock()
+
+	a.opts.Lifecycle.Reloading()
+	err := a.coordinator.Reload()
+	a.opts.Lifecycle.Reloaded(err)
+	return err
 }
 
 // cleanup is a single named teardown step on the LIFO shutdown stack.
@@ -189,6 +215,9 @@ func (a *App) Stop(ctx context.Context) error {
 	// mtx across both bodies guarantees we observe a consistent view (and
 	// that no Start can launch goroutines after this point).
 	started := a.started
+	if started {
+		a.opts.Lifecycle.Stopping()
+	}
 
 	var stopErr error
 	// Bound the whole teardown by shutdownTimeout. Deriving it from ctx
@@ -206,13 +235,20 @@ func (a *App) Stop(ctx context.Context) error {
 	// reload router is still running at this point so any in-flight
 	// /-/reload handler can complete its send/receive cycle and unblock
 	// Shutdown.
-	if a.server != nil {
-		if err := a.server.Shutdown(shutdownCtx); err != nil {
-			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
-			stopErr = err
-			if closeErr := a.server.Close(); closeErr != nil {
-				stopErr = errors.Join(stopErr, closeErr)
+	shutdownErrCh := make(chan error, len(a.servers))
+	for _, server := range a.servers {
+		go func() {
+			err := server.Shutdown(shutdownCtx)
+			if err != nil {
+				err = errors.Join(err, server.Close())
 			}
+			shutdownErrCh <- err
+		}()
+	}
+	for range a.servers {
+		if err := <-shutdownErrCh; err != nil {
+			a.logger.Warn("graceful HTTP shutdown failed", "err", err)
+			stopErr = errors.Join(stopErr, err)
 		}
 	}
 	// HTTP is fully drained; no new /-/reload requests can arrive.
@@ -233,7 +269,7 @@ func (a *App) Stop(ctx context.Context) error {
 		}
 	}
 	// Drain serveErrc so the listen goroutine, if any, exits before we
-	// release listener resources. ServeMultiple returns once all
+	// release listener resources. The serve goroutine exits once all
 	// per-listener Serve calls return (which happens once Shutdown
 	// completes), so this drain is bounded — but, as above, we also cap
 	// it with shutdownCtx so Stop can't hang here either.

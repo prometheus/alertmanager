@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -49,6 +50,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/webex"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/notify/wechat"
+	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/tracing"
 )
@@ -863,6 +865,38 @@ type Route struct {
 	// data. Notification-specific fields such as .NotificationReason are
 	// not available; use notification templates for reason-dependent content.
 	Labels model.LabelSet `yaml:"labels,omitempty" json:"labels,omitempty"`
+}
+
+// AllMatchers returns the route's matchers from match, match_re and matchers,
+// sorted.
+func (r *Route) AllMatchers() labels.Matchers {
+	var matchers labels.Matchers
+
+	// r.Match will be deprecated. This for loop appends matchers.
+	for ln, lv := range r.Match {
+		matcher, err := labels.NewMatcher(labels.MatchEqual, ln, lv)
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	// r.MatchRE will be deprecated. This for loop appends regex matchers.
+	for ln, lv := range r.MatchRE {
+		matcher, err := labels.NewMatcher(labels.MatchRegexp, ln, lv.String())
+		if err != nil {
+			// This error must not happen because the config already validates the yaml.
+			panic(err)
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	// We append the new-style matchers. This can be simplified once the deprecated matcher syntax is removed.
+	matchers = append(matchers, r.Matchers...)
+
+	sort.Sort(matchers)
+	return matchers
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.

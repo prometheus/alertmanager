@@ -22,9 +22,7 @@ import (
 	"github.com/oklog/run"
 	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/alert"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
@@ -108,22 +106,14 @@ func (ih *Inhibitor) run(ctx context.Context) {
 }
 
 func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.processAlert",
-		trace.WithAttributes(
-			attribute.String("alerting.alert.name", a.Name()),
-			attribute.String("alerting.alert.fingerprint", a.Fingerprint().String()),
-		),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.StartInhibitorProcessAlert(ctx, a)
 	defer span.End()
 
 	// Update the inhibition rules' source caches.
 	for _, r := range ih.rules {
 		for _, src := range r.Sources {
 			if src.SourceMatchers.Matches(a.Labels) {
-				attr := attribute.String("alerting.inhibit_rule.name", r.Name)
-				span.AddEvent("alert matched rule source", trace.WithAttributes(attr))
-				span.SetAttributes(attr)
+				tracing.EventInhibitRuleSourceMatched(span, r.Name)
 				src.cache.set(a)
 			}
 		}
@@ -182,10 +172,7 @@ func (ih *Inhibitor) Stop() {
 func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 	fp := lset.Fingerprint()
 
-	_, span := tracer.Start(ctx, "inhibit.Inhibitor.Mutes",
-		trace.WithAttributes(attribute.String("alerting.alert.fingerprint", fp.String())),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.StartInhibitorMutes(ctx, fp)
 	defer span.End()
 
 	var inhibitedBy []string
@@ -203,11 +190,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			// If target side of rule doesn't match, we don't need to look any further.
 			continue
 		}
-		span.AddEvent("alert matched rule target",
-			trace.WithAttributes(
-				attribute.String("alerting.inhibit_rule.name", r.Name),
-			),
-		)
+		tracing.EventInhibitRuleTargetMatched(span, r.Name)
 		// If we are here, the target side matches. Compute the two-sided exclusion
 		// flag once: does this target alert match ANY source's matchers?
 		excludeTwoSidedMatch := false
@@ -238,12 +221,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 				seen[ifp] = struct{}{}
 				inhibitedBy = append(inhibitedBy, ifp.String())
 			}
-			span.AddEvent("alert inhibited",
-				trace.WithAttributes(
-					attribute.StringSlice("alerting.inhibit_rule.inhibitors", inhibitedBy),
-				),
-			)
-
+			tracing.EventInhibited(span, inhibitedBy)
 			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
 				var rules []eventrecorder.InhibitRule
 				for _, src := range r.Sources {
@@ -258,7 +236,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 			return true
 		}
 	}
-	span.AddEvent("alert not inhibited")
+	tracing.EventNotInhibited(span)
 
 	return false
 }
