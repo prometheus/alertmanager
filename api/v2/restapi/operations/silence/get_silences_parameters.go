@@ -36,7 +36,8 @@ func NewGetSilencesParams() GetSilencesParams {
 	var (
 		// initialize parameters with default values
 
-		activeDefault  = bool(true)
+		activeDefault = bool(true)
+
 		expiredDefault = bool(true)
 
 		pendingDefault = bool(true)
@@ -64,6 +65,11 @@ type GetSilencesParams struct {
 	  Default: true
 	*/
 	Active *bool
+
+	/*Only include silences whose `createdBy` is exactly this value. It cannot be empty or repeated.
+	  In: query
+	*/
+	CreatedBy *string
 
 	/*Include expired silences in results. If false, excludes expired silences.
 	  In: query
@@ -96,6 +102,11 @@ func (o *GetSilencesParams) BindRequest(r *http.Request, route *middleware.Match
 
 	qActive, qhkActive, _ := qs.GetOK("active")
 	if err := o.bindActive(qActive, qhkActive, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qCreatedBy, qhkCreatedBy, _ := qs.GetOK("created_by")
+	if err := o.bindCreatedBy(qCreatedBy, qhkCreatedBy, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -139,6 +150,24 @@ func (o *GetSilencesParams) bindActive(rawData []string, hasKey bool, formats st
 		return errors.InvalidType("active", "query", "bool", raw)
 	}
 	o.Active = &value
+
+	return nil
+}
+
+// bindCreatedBy binds and validates parameter CreatedBy from query.
+func (o *GetSilencesParams) bindCreatedBy(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: false
+	// AllowEmptyValue: false
+
+	if raw == "" { // empty values pass all other validations
+		return nil
+	}
+	o.CreatedBy = &raw
 
 	return nil
 }

@@ -85,6 +85,10 @@ paths:
           type: boolean
           description: Include pending silences in results. If false, excludes pending silences.
           default: true
+        - in: query
+          name: created_by
+          type: string
+          description: Only include silences whose `createdBy` is exactly this value. It cannot be empty or repeated.
     post:
       tags:
         - silence
