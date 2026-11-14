@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
+	"github.com/prometheus/alertmanager/notify/matrix"
 	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/msteamsv2"
@@ -116,6 +117,9 @@ func BuildReceiverIntegrations(nc config.Receiver, tmpl *template.Template, logg
 	}
 	for i, c := range nc.MattermostConfigs {
 		add("mattermost", i, c, func(l *slog.Logger) (notify.Notifier, error) { return mattermost.New(c, tmpl, l, httpOpts...) })
+	}
+	for i, c := range nc.MatrixConfigs {
+		add("matrix", i, c, func(l *slog.Logger) (notify.Notifier, error) { return matrix.New(c, tmpl, l, httpOpts...) })
 	}
 
 	return integrations, errs
