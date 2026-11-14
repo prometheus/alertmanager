@@ -33,7 +33,7 @@ import (
 	"github.com/prometheus/alertmanager/template"
 )
 
-// https://api.slack.com/reference/messaging/attachments#legacy_fields - 1024, no units given, assuming runes or characters.
+// https://docs.slack.dev/legacy/legacy-messaging/legacy-secondary-message-attachments#legacy_fields - 1024, no units given, assuming runes or characters.
 const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
