@@ -102,6 +102,16 @@ type MattermostConfig struct {
 	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
+	// APIURL is the base URL of the Mattermost REST API, for example
+	// https://mattermost.example.com. It requires a bot access token in http_config
+	// and is mutually exclusive with webhook_url and webhook_url_file.
+	APIURL *amcommoncfg.URL `yaml:"api_url,omitempty" json:"api_url,omitempty"`
+	// ChannelID is the ID of the channel to post to. It is required with api_url.
+	ChannelID string `yaml:"channel_id,omitempty" json:"channel_id,omitempty"`
+	// UpdateMessage enables updating the existing Mattermost post instead of
+	// creating a new one on alert state change. Webhook URLs do not support updates.
+	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
+
 	Channel  string `yaml:"channel,omitempty" json:"channel,omitempty"`
 	Username string `yaml:"username,omitempty" json:"username,omitempty"`
 
@@ -142,6 +152,15 @@ func (c *MattermostConfig) UnmarshalYAML(unmarshal func(any) error) error {
 func (c *MattermostConfig) Validate() error {
 	if c.WebhookURL != nil && len(c.WebhookURLFile) > 0 {
 		return errors.New("at most one of webhook_url & webhook_url_file must be configured")
+	}
+	if c.APIURL != nil && (c.WebhookURL != nil || len(c.WebhookURLFile) > 0) {
+		return errors.New("at most one of api_url & webhook_url/webhook_url_file must be configured")
+	}
+	if c.APIURL != nil && c.ChannelID == "" {
+		return errors.New("channel_id must be set when api_url is configured")
+	}
+	if c.APIURL == nil && c.UpdateMessage {
+		return errors.New("update_message can only be used with api_url, webhook URLs do not support updates")
 	}
 
 	return nil

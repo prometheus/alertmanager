@@ -665,7 +665,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("missing mattermost config")
 			}
 			mattermostCfg.HTTPConfig = cmp.Or(mattermostCfg.HTTPConfig, c.Global.HTTPConfig)
-			if mattermostCfg.WebhookURL == nil && len(mattermostCfg.WebhookURLFile) == 0 {
+			if mattermostCfg.APIURL == nil && mattermostCfg.WebhookURL == nil && len(mattermostCfg.WebhookURLFile) == 0 {
 				if c.Global.MattermostWebhookURL == nil && len(c.Global.MattermostWebhookURLFile) == 0 {
 					return errors.New("missing webhook_url or webhook_url_file on mattermost_config")
 				}

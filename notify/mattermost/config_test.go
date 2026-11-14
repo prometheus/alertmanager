@@ -129,3 +129,81 @@ attachments:
 		})
 	}
 }
+
+func TestMattermostConfig_APIMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		in       string
+		expected string
+	}{
+		{
+			name: "api_url with channel_id and update_message - it succeeds",
+			in: `
+api_url: https://mattermost.example.com
+channel_id: abc123
+update_message: true
+`,
+		},
+		{
+			name: "api_url with channel_id only - it succeeds",
+			in: `
+api_url: https://mattermost.example.com
+channel_id: abc123
+`,
+		},
+		{
+			name: "webhook_url only - it succeeds",
+			in: `
+webhook_url: https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx
+`,
+		},
+		{
+			name: "api_url without channel_id - it fails",
+			in: `
+api_url: https://mattermost.example.com
+`,
+			expected: "channel_id must be set when api_url is configured",
+		},
+		{
+			name: "api_url with webhook_url - it fails",
+			in: `
+api_url: https://mattermost.example.com
+channel_id: abc123
+webhook_url: https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx
+`,
+			expected: "at most one of api_url & webhook_url/webhook_url_file must be configured",
+		},
+		{
+			name: "api_url with webhook_url_file - it fails",
+			in: `
+api_url: https://mattermost.example.com
+channel_id: abc123
+webhook_url_file: /tmp/webhook
+`,
+			expected: "at most one of api_url & webhook_url/webhook_url_file must be configured",
+		},
+		{
+			name: "update_message with webhook_url - it fails",
+			in: `
+webhook_url: https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx
+update_message: true
+`,
+			expected: "update_message can only be used with api_url, webhook URLs do not support updates",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var cfg MattermostConfig
+			err := yaml.UnmarshalStrict([]byte(tc.in), &cfg)
+			if tc.expected == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.EqualError(t, err, tc.expected)
+		})
+	}
+}

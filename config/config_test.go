@@ -2027,3 +2027,19 @@ receivers:
 		t.Errorf("expected local proxy_url %q, got %q", "http://local-proxy.example.com:8080", got)
 	}
 }
+
+func TestMattermostAPIURL(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.mattermost-api-url.yml")
+	require.NoError(t, err)
+
+	cfg := conf.Receivers[0].MattermostConfigs[0]
+	require.Equal(t, "https://mattermost.example.com", cfg.APIURL.String())
+	require.Equal(t, "abc123", cfg.ChannelID)
+	require.True(t, cfg.UpdateMessage)
+	require.Nil(t, cfg.WebhookURL)
+}
+
+func TestMattermostUpdateMessageWebhookURL(t *testing.T) {
+	_, err := LoadFile("testdata/conf.mattermost-update-message-and-webhook.yml")
+	require.EqualError(t, err, "update_message can only be used with api_url, webhook URLs do not support updates")
+}

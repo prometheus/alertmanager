@@ -1,0 +1,7 @@
+route:
+  receiver: 'mattermost'
+receivers:
+  - name: 'mattermost'
+    mattermost_configs:
+      - webhook_url: 'https://mattermost.example.com/hooks/xxxxxxxxxxxxxxxxxxxxxxxxxx'
+        update_message: true
