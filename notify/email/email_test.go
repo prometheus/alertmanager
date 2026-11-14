@@ -29,11 +29,13 @@
 package email
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"strconv"
@@ -363,6 +365,140 @@ func TestEmailNotifyWithDoneContext(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "establish connection to server")
+}
+
+// TestEmailNotifyWithContextEndingDuringSMTP verifies that cancellation and
+// deadlines interrupt stalled SMTP operations and close the connection. A stall
+// during QUIT preserves success because the server already accepted the message.
+func TestEmailNotifyWithContextEndingDuringSMTP(t *testing.T) {
+	t.Parallel()
+	for _, stage := range []string{"greeting", "EHLO", "AUTH", "DATA", "QUIT"} {
+		for _, deadline := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/deadline=%t", stage, deadline), func(t *testing.T) {
+				t.Parallel()
+				listener, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err)
+				t.Cleanup(func() { listener.Close() })
+				accepted := make(chan net.Conn, 1)
+				stalled := make(chan struct{})
+				serverDone := make(chan error, 1)
+				go func() {
+					conn, err := listener.Accept()
+					if err != nil {
+						serverDone <- err
+						return
+					}
+					defer conn.Close()
+					accepted <- conn
+					if err := conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+						serverDone <- err
+						return
+					}
+					serverDone <- serveSMTPUntilContextEnds(conn, stage, stalled)
+				}()
+
+				addr := listener.Addr().(*net.TCPAddr)
+				cfg := &EmailConfig{
+					Smarthost:    amcommoncfg.HostPort{Host: addr.IP.String(), Port: strconv.Itoa(addr.Port)},
+					Hello:        "localhost",
+					From:         emailFrom,
+					To:           emailTo,
+					Text:         "Test notification",
+					AuthUsername: "test",
+					AuthPassword: "test",
+				}
+				tmpl, firingAlert, err := prepare(cfg)
+				require.NoError(t, err)
+				email := New(cfg, tmpl, promslog.NewNopLogger())
+				ctx, cancel := context.WithCancel(context.Background())
+				if deadline {
+					cancel()
+					ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+				}
+				t.Cleanup(cancel)
+				done := make(chan notify.NotifyVerdict, 1)
+				go func() { done <- email.Notify(ctx, firingAlert) }()
+
+				select {
+				case conn := <-accepted:
+					t.Cleanup(func() { conn.Close() })
+				case <-time.After(5 * time.Second):
+					t.Fatal("SMTP connection was not accepted")
+				}
+				select {
+				case <-stalled:
+				case err := <-serverDone:
+					t.Fatalf("SMTP server failed before reaching %s: %v", stage, err)
+				case <-time.After(5 * time.Second):
+					t.Fatal("SMTP transaction did not reach the expected stage")
+				}
+				require.NoError(t, ctx.Err(), "context must end after the SMTP operation starts")
+				if !deadline {
+					cancel()
+				}
+				<-ctx.Done()
+				select {
+				case verdict := <-done:
+					if stage == "QUIT" {
+						// The message was accepted before QUIT; do not request a duplicate.
+						require.NoError(t, verdict.Err())
+						require.False(t, verdict.ShouldRetry())
+					} else {
+						require.Error(t, verdict.Err())
+						require.True(t, verdict.ShouldRetry())
+					}
+				case <-time.After(2 * time.Second):
+					t.Fatal("SMTP operation did not stop when the context ended")
+				}
+				select {
+				case err := <-serverDone:
+					require.NoError(t, err)
+				case <-time.After(2 * time.Second):
+					t.Fatal("SMTP connection was not closed")
+				}
+			})
+		}
+	}
+}
+
+// serveSMTPUntilContextEnds handles one SMTP transaction up to stage, then
+// signals stalled and withholds the response until the client closes conn.
+// Unexpected commands and transport errors are returned to the caller.
+func serveSMTPUntilContextEnds(conn net.Conn, stage string, stalled chan<- struct{}) error {
+	reader := textproto.NewReader(bufio.NewReader(conn))
+	for _, step := range []struct{ name, command, response string }{
+		{"greeting", "", "220 localhost ESMTP"},
+		{"EHLO", "EHLO ", "250-localhost\r\n250 AUTH PLAIN"},
+		{"AUTH", "AUTH PLAIN ", "235 Authentication successful"},
+		{"MAIL", "MAIL FROM:", "250 OK"},
+		{"RCPT", "RCPT TO:", "250 OK"},
+		{"DATA command", "DATA", "354 End with dot"},
+		{"DATA", ".", "250 Message accepted"},
+		{"QUIT", "QUIT", "221 Bye"},
+	} {
+		if step.command == "." {
+			if _, err := io.Copy(io.Discard, reader.DotReader()); err != nil {
+				return err
+			}
+		} else if step.command != "" {
+			line, err := reader.ReadLine()
+			if err != nil {
+				return err
+			}
+			if !strings.HasPrefix(line, step.command) {
+				return fmt.Errorf("expected %s, got %q", step.command, line)
+			}
+		}
+		if step.name == stage {
+			close(stalled)
+			_, err := io.Copy(io.Discard, conn)
+			return err
+		}
+		if _, err := io.WriteString(conn, step.response+"\r\n"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // TestEmailNotifyWithoutAuthentication sends an email to an instance of
