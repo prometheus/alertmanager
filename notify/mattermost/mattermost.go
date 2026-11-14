@@ -105,6 +105,10 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		data = notify.GetTemplateData(ctx, n.tmpl, alrt, n.logger)
 	)
 
+	if n.conf.APIURL != nil {
+		return n.notifyAPI(ctx, data)
+	}
+
 	if n.conf.WebhookURL != nil {
 		url = n.conf.WebhookURL.String()
 	} else {
