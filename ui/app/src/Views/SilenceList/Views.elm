@@ -20,7 +20,7 @@ view { filterBar, tab, silences, showConfirmationDialog } =
     div []
         [ div [ class "mb-4" ]
             [ label [ class "mb-2", for "filter-bar-matcher" ] [ text "Filter" ]
-            , Html.map (MsgForFilterBar >> MsgForSilenceList) (FilterBar.view { showSilenceButton = False } filterBar)
+            , Html.map (MsgForFilterBar >> MsgForSilenceList) (FilterBar.view { showSilenceButton = False, showKeepButton = False } filterBar)
             ]
         , lazy2 tabsView tab silences
         , lazy3 silencesView showConfirmationDialog tab silences

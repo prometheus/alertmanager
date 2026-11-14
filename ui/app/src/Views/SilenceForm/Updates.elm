@@ -247,6 +247,7 @@ update msg model basePath apiUrl =
               , filterBar = FilterBar.initFilterBar matchers
               , filterBarValid = Utils.FormValidation.Initial
               , annotationsValid = Utils.FormValidation.Valid
+              , previewId = model.previewId + 1
               , key = model.key
               , firstDayOfWeek = model.firstDayOfWeek
               }
@@ -264,6 +265,7 @@ update msg model basePath apiUrl =
               , silenceId = model.silenceId
               , alerts = Initial
               , activeAlertId = Nothing
+              , previewId = model.previewId + 1
               , key = model.key
               , firstDayOfWeek = model.firstDayOfWeek
               }
@@ -276,11 +278,15 @@ update msg model basePath apiUrl =
         PreviewSilence ->
             case toSilence model.filterBar model.form of
                 Just silence ->
-                    ( { model | alerts = Loading }
+                    let
+                        previewId =
+                            model.previewId + 1
+                    in
+                    ( { model | alerts = Loading, previewId = previewId }
                     , Alerts.Api.fetchAlerts
                         apiUrl
                         (silencePreviewFilter silence.matchers)
-                        |> Cmd.map (AlertGroupsPreview >> MsgForSilenceForm)
+                        |> Cmd.map (AlertGroupsPreview previewId >> MsgForSilenceForm)
                     )
 
                 Nothing ->
@@ -288,14 +294,19 @@ update msg model basePath apiUrl =
                         | alerts = Failure "Cannot display affected Alerts, Silence is not yet valid."
                         , form = validateForm model.form
                         , filterBarValid = validateMatchers model.filterBar
+                        , previewId = model.previewId + 1
                       }
                     , Cmd.none
                     )
 
-        AlertGroupsPreview alerts ->
-            ( { model | alerts = alerts }
-            , Cmd.none
-            )
+        AlertGroupsPreview previewId alerts ->
+            if previewId == model.previewId then
+                ( { model | alerts = alerts }
+                , Cmd.none
+                )
+
+            else
+                ( model, Cmd.none )
 
         SetActiveAlert maybeAlertId ->
             ( { model | activeAlertId = maybeAlertId }
@@ -329,10 +340,31 @@ update msg model basePath apiUrl =
 
         MsgForFilterBar subMsg ->
             let
-                ( newFilterBar, _, subCmd ) =
+                ( newFilterBar, shouldFilter, subCmd ) =
                     FilterBar.update subMsg model.filterBar
             in
-            ( { model | filterBar = newFilterBar, filterBarValid = Utils.FormValidation.Initial }
+            ( { model
+                | filterBar = newFilterBar
+                , filterBarValid = Utils.FormValidation.Initial
+                , alerts =
+                    if shouldFilter then
+                        Initial
+
+                    else
+                        model.alerts
+                , activeAlertId =
+                    if shouldFilter then
+                        Nothing
+
+                    else
+                        model.activeAlertId
+                , previewId =
+                    if shouldFilter then
+                        model.previewId + 1
+
+                    else
+                        model.previewId
+              }
             , Cmd.map (MsgForFilterBar >> MsgForSilenceForm) subCmd
             )
 
