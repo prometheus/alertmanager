@@ -68,6 +68,9 @@ func TestMattermostTemplating(t *testing.T) {
 	defer srv.Close()
 	u, _ := url.Parse(srv.URL)
 
+	// Work on a copy so the test does not modify the package-level default.
+	defaultCfg := DefaultMattermostConfig
+
 	for _, tc := range []struct {
 		title string
 		cfg   *MattermostConfig
@@ -77,7 +80,7 @@ func TestMattermostTemplating(t *testing.T) {
 	}{
 		{
 			title: "text with default templating",
-			cfg:   &DefaultMattermostConfig,
+			cfg:   &defaultCfg,
 			retry: false,
 		},
 		{
