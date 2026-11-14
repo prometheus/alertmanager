@@ -55,6 +55,7 @@ type Options struct {
 	ConfigFile                  string
 	DataDir                     string
 	Retention                   time.Duration
+	SilenceRetention            time.Duration
 	MaintenanceInterval         time.Duration
 	MaxSilences                 int
 	MaxSilenceSizeBytes         int
@@ -172,6 +173,16 @@ func DefaultOptions() Options {
 	}
 }
 
+// silenceRetention returns how long expired silences are kept:
+// SilenceRetention when set, otherwise Retention, which also applies to the
+// notification log.
+func (o *Options) silenceRetention() time.Duration {
+	if o.SilenceRetention > 0 {
+		return o.SilenceRetention
+	}
+	return o.Retention
+}
+
 // usingSystemdSocket reports whether the web server is configured to take
 // its listener(s) from systemd socket activation, in which case explicit
 // listen addresses are not required.
@@ -220,6 +231,10 @@ func (o *Options) validate() error {
 		if f.val <= 0 {
 			return fmt.Errorf("alertmanager/app: Options.%s must be positive", f.name)
 		}
+	}
+
+	if o.SilenceRetention < 0 {
+		return errors.New("alertmanager/app: Options.SilenceRetention must not be negative")
 	}
 
 	// Web server.
