@@ -86,6 +86,12 @@ func (formatter *SimpleFormatter) FormatClusterStatus(status *models.ClusterStat
 	return w.Flush()
 }
 
+func (formatter *SimpleFormatter) FormatAlertReceivers(receivers []string) error {
+	receiversSlug := strings.Join(receivers, ",")
+	fmt.Fprintf(formatter.writer, "%s\n", receiversSlug)
+	return nil
+}
+
 func simpleFormatMatchers(matchers models.Matchers) string {
 	output := []string{}
 	for _, matcher := range matchers {

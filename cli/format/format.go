@@ -39,6 +39,7 @@ type Formatter interface {
 	FormatAlerts([]*models.GettableAlert) error
 	FormatConfig(*models.AlertmanagerStatus) error
 	FormatClusterStatus(status *models.ClusterStatus) error
+	FormatAlertReceivers([]string) error
 }
 
 // Formatters is a map of cli argument names to formatter interface object.
