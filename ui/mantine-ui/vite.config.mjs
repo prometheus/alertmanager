@@ -12,13 +12,8 @@ const licenseFile = path.resolve(
 
 export default defineConfig({
   base: './',
-  // Kept in sync with `compilerOptions.paths` in tsconfig.json, which only
-  // teaches tsc about these.
   resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, 'src'),
-      '@test-utils': path.resolve(import.meta.dirname, 'test-utils'),
-    },
+    tsconfigPaths: true,
   },
   build: {
     outDir: '../app/dist/mantine',
