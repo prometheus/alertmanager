@@ -105,7 +105,7 @@ func TestApp_StartStop(t *testing.T) {
 	a, err := New(testOptions(t))
 	require.NoError(t, err)
 	require.Equal(t, 10*time.Second, a.servers[0].ReadHeaderTimeout)
-	require.Equal(t, 90*time.Second, a.servers[0].IdleTimeout)
+	require.Equal(t, 6*time.Minute, a.servers[0].IdleTimeout)
 	require.NoError(t, a.Start())
 
 	addr := a.Addr()

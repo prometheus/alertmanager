@@ -534,7 +534,9 @@ func (a *App) setup() error {
 			Handler:           tracing.Middleware(mux),
 			Protocols:         protocols,
 			ReadHeaderTimeout: 10 * time.Second,
-			IdleTimeout:       90 * time.Second,
+			// Outlast prometheus/common's five-minute client idle timeout so
+			// alert POSTs do not race the server closing an idle connection.
+			IdleTimeout: 6 * time.Minute,
 		}
 		server.RegisterOnShutdown(apih.Shutdown)
 		return server
