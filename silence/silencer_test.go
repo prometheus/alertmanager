@@ -14,6 +14,7 @@
 package silence
 
 import (
+	"context"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -148,6 +149,62 @@ func TestSilencer(t *testing.T) {
 		require.True(t, s.Mutes(ctx, labelset.FromModel(model.LabelSet{"foo": "bar"})), "expected alert silenced by activated second silence")
 		checkMutes(t, m, model.LabelSet{"foo": "bar"}, true, "expected marker silenced by activated second silence")
 	})
+}
+
+func TestSilencerQueryErrorsPreserveCache(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		cached bool
+		cancel bool
+	}{
+		{name: "canceled old-silence query", cached: true, cancel: true},
+		{name: "failed new-silence query with empty cache"},
+		{name: "failed new-silence query with cached matches", cached: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ss, err := New(Options{Metrics: prometheus.NewRegistry()})
+			require.NoError(t, err)
+			s := NewSilencer(ss, promslog.NewNopLogger(), eventrecorder.NopRecorder())
+			lset := labelset.FromModel(model.LabelSet{"alertname": "Foo"})
+			now := ss.nowUTC()
+			sil := newStateTestSilence(now, now.Add(time.Hour))
+			if !tc.cached {
+				sil.MatcherSets[0].Matchers[0].Pattern = "Other"
+			}
+			require.NoError(t, ss.Set(t.Context(), sil))
+			require.Equal(t, tc.cached, s.Mutes(t.Context(), lset))
+			entry := s.cache.get(lset.Fingerprint())
+			wantIDs := append([]string(nil), entry.silenceIDs...)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			if tc.cancel {
+				cancel()
+			} else {
+				sil = newStateTestSilence(now, now.Add(time.Hour))
+				require.NoError(t, ss.Set(t.Context(), sil))
+				wantIDs = append(wantIDs, sil.Id)
+				// A missing matcher index entry makes the new-silence query fail.
+				delete(ss.mi, sil.Id)
+			}
+
+			require.Equal(t, tc.cached && !tc.cancel, s.Mutes(ctx, lset))
+			require.Same(t, entry, s.cache.get(lset.Fingerprint()))
+			if !tc.cancel {
+				_, err := ss.mi.add(sil)
+				require.NoError(t, err)
+			}
+
+			require.True(t, s.Mutes(t.Context(), lset))
+			updated := s.cache.get(lset.Fingerprint())
+			require.Equal(t, ss.Version(), updated.version)
+			require.ElementsMatch(t, wantIDs, updated.silenceIDs)
+		})
+	}
 }
 
 func TestSilencerPostDeleteEvictsCache(t *testing.T) {

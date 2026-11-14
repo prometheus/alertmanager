@@ -153,6 +153,8 @@ func (o Options) resolve() effectiveOptions {
 		timeout:     timeout,
 		concurrency: concurrency,
 		connect: apiconnect.Options{
+			Silences:            o.Silences,
+			Logger:              logger.With("version", "v3alpha"),
 			Peer:                o.Peer,
 			Registerer:          o.Registry,
 			UnaryConcurrency:    unaryConcurrency,
