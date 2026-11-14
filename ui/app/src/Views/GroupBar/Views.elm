@@ -163,7 +163,7 @@ autoCompleteResults { maybeSelectedMatch, focused, resultsHovered, matches } =
         ]
         [ matches
             |> List.map (matchedField maybeSelectedMatch)
-            |> div [ class "dropdown-menu" ]
+            |> div [ class ("dropdown-menu " ++ autoCompleteClass) ]
         ]
 
 
