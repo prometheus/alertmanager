@@ -97,7 +97,13 @@ func NewBucket[V comparable](capacity int) *Bucket[V] {
 	}
 }
 
-// IsStale returns true if the latest item in the bucket is expired.
+// IsStale returns true if every item in the bucket is expired.
+//
+// items is a min-heap ordered by priority (expiry): only the root is
+// guaranteed to be the earliest-expiring item, and the latest-expiring item
+// may sit at any index, including a non-final one. Reading b.items[len-1]
+// therefore inspects an arbitrary leaf rather than the latest item, so the
+// bucket is instead considered stale only when no item is still active.
 func (b *Bucket[V]) IsStale() (stale bool) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
@@ -105,8 +111,13 @@ func (b *Bucket[V]) IsStale() (stale bool) {
 		return true
 	}
 
-	latest := b.items[b.items.Len()-1]
-	return latest.expired(time.Now())
+	now := time.Now()
+	for _, it := range b.items {
+		if !it.expired(now) {
+			return false
+		}
+	}
+	return true
 }
 
 // Upsert tries to add a new value and its priority to the bucket.
