@@ -26,6 +26,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
@@ -88,6 +89,43 @@ func newSilences(t *testing.T) *silence.Silences {
 	require.NoError(t, err)
 
 	return silences
+}
+
+func TestCORSPreflightRequestHeaders(t *testing.T) {
+	api, err := NewAPI(nil, nil, nil, newSilences(t), nil, promslog.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name    string
+		headers []string
+	}{
+		{
+			name:    "comma separated",
+			headers: []string{"accept,content-type"},
+		},
+		{
+			name:    "comma separated with whitespace",
+			headers: []string{"accept, content-type"},
+		},
+		{
+			name:    "split header lines",
+			headers: []string{"accept", "content-type"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodOptions, "/api/v2/status", nil)
+			req.Header.Set("Origin", "https://example.com")
+			req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+			req.Header["Access-Control-Request-Headers"] = tc.headers
+			resp := httptest.NewRecorder()
+
+			api.Handler.ServeHTTP(resp, req)
+
+			require.Equal(t, http.StatusNoContent, resp.Code)
+			require.Equal(t, "*", resp.Header().Get("Access-Control-Allow-Origin"))
+			require.NotEmpty(t, resp.Header().Get("Access-Control-Allow-Headers"))
+		})
+	}
 }
 
 func gettableSilence(id, state string,

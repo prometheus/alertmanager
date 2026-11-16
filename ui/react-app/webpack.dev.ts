@@ -25,7 +25,7 @@ declare module 'webpack' {
   }
 }
 
-// Get dev server HTTP options (note: HTTP2 is not currently supported by webpack since we're on Node 16)
+// Get dev server HTTP options.
 function getServerConfig(): ServerConfiguration | undefined {
   // Just use regular HTTP by default
   if (process.env.HTTPS !== 'true') {
@@ -67,9 +67,12 @@ const devConfig: Configuration = {
     server: getServerConfig(),
     historyApiFallback: true,
     allowedHosts: 'all',
-    proxy: {
-      '/api': 'http://localhost:9093',
-    },
+    proxy: [
+      {
+        context: ['/api'],
+        target: 'http://localhost:9093',
+      },
+    ],
   },
   cache: true,
 };
