@@ -323,6 +323,20 @@ output: extended
 receiver: team-X-pager
 ```
 
+For Alertmanager instances protected by Cloudflare Access, configure amtool's
+HTTP client with `authorization.type: cf-access`:
+
+```yaml
+authorization:
+  type: cf-access
+```
+
+Pass this file with `--http.config.file`. If no valid token is cached,
+amtool opens a browser and waits for interactive authentication. The
+`credentials`, `credentials_file`, `credentials_ref`, `basic_auth`, `oauth2`,
+`bearer_token`, and `bearer_token_file` fields cannot be used with `cf-access`.
+`cf-access` requires https URLs.
+
 ### Routes
 
 `amtool` allows you to visualize the routes of your configuration in form of text tree view.
