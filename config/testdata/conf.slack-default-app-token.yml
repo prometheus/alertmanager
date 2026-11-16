@@ -27,3 +27,6 @@ receivers:
             credentials: 'xoxb-my-bot-token'
       - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
         send_resolved: true
+      # a local webhook file must not inherit the global app token
+      - api_url_file: '/etc/alertmanager/slack-webhook-url'
+        send_resolved: true
