@@ -242,3 +242,30 @@ func TestMattermostAPI(t *testing.T) {
 		require.True(t, verdict.ShouldRetry())
 	})
 }
+
+func TestMattermostAPIIgnoredFieldsAndRateLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("template errors in webhook-only fields do not block the notification", func(t *testing.T) {
+		t.Parallel()
+		srv, requests := newAPITestServer(t, http.StatusCreated, `{"id":"post1","channel_id":"chan123"}`)
+		notifier := newAPITestNotifier(t, srv.URL, false)
+		notifier.conf.Username = "{{ "
+		notifier.conf.IconURL = "{{ "
+		notifier.conf.IconEmoji = "{{ "
+		notifier.conf.Priority = &MattermostPriority{Priority: "{{ "}
+
+		require.NoError(t, notifier.Notify(newAPITestCtx(nil), testAlert()).Err())
+		require.Len(t, requests(), 1)
+	})
+
+	t.Run("rate limited requests are retried", func(t *testing.T) {
+		t.Parallel()
+		srv, _ := newAPITestServer(t, http.StatusTooManyRequests, `{}`)
+		notifier := newAPITestNotifier(t, srv.URL, false)
+
+		verdict := notifier.Notify(newAPITestCtx(nil), testAlert())
+		require.Error(t, verdict.Err())
+		require.True(t, verdict.ShouldRetry())
+	})
+}
