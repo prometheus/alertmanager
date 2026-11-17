@@ -14,7 +14,6 @@
 import path from 'path';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import { Configuration } from 'webpack';
-import ForkTsCheckerWebpackPlugin from 'fork-ts-checker-webpack-plugin';
 import ESLintWebpackPlugin from 'eslint-webpack-plugin';
 
 export const commonConfig: Configuration = {
@@ -32,12 +31,6 @@ export const commonConfig: Configuration = {
       template: path.resolve(__dirname, './src/index.html'),
       templateParameters: {},
     }),
-    // Does TS type-checking in a separate process
-    new ForkTsCheckerWebpackPlugin({
-      typescript: {
-        configFile: path.resolve(__dirname, './tsconfig.json'),
-      },
-    }),
     new ESLintWebpackPlugin({
       threads: true,
       files: '../*/src/**/*.{ts,tsx,js,jsx}',
@@ -51,7 +44,7 @@ export const commonConfig: Configuration = {
           {
             loader: 'ts-loader',
             options: {
-              // Type-checking happens in separate plugin process
+              // Type-checking runs before webpack in the build script.
               transpileOnly: true,
               projectReferences: true,
             },
