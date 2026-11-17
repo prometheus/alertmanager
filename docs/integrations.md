@@ -9,7 +9,7 @@ Alertmanager supports a number of notification integrations via the [configurati
 
 | Name | Configuration | External Configuration | API Reference |
 |------|---------------|-------------------------------------|---------------|
-| [Amazon SNS](https://aws.amazon.com/sns/) | [sns_config](configuration.md#sns_config) | [Amazon SNS Documentation](https://docs.aws.amazon.com/sns/) | [SNS API Reference](https://docs.aws.amazon.com/sns/latest/api/welcome.html) |
+| [Amazon SNS](https://aws.amazon.com/sns/) | [sns_config](configuration.md#sns_config) | [Amazon SNS Documentation](https://docs.aws.amazon.com/sns/) | [SNS API Reference](https://docs.aws.amazon.com/sns/latest/api/Welcome.html) |
 | [Discord](https://discord.com/) | [discord_config](configuration.md#discord_config) | [Intro to Webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) | [Discord Webhook API](https://discord.com/developers/docs/resources/webhook) |
 | [Email](https://en.wikipedia.org/wiki/Email) | [email_config](configuration.md#email_config) | - | [SMTP](https://en.wikipedia.org/wiki/Simple_Mail_Transfer_Protocol) |
 | [incident.io](https://incident.io/) | [incidentio_config](configuration.md#incidentio_config) | [Alert Sources Documentation](https://api-docs.incident.io/tag/Alert-Sources-V2) | [Alert Sources V2 API](https://api-docs.incident.io/tag/Alert-Sources-V2#operation/Alert%20Sources%20V2_Create) |
