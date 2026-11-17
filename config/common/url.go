@@ -26,6 +26,8 @@ import (
 
 const SecretToken = "<secret>"
 
+var errUnsupportedScheme = errors.New("unsupported scheme")
+
 var SecretTokenJSON string
 
 func init() {
@@ -118,7 +120,13 @@ func (s *SecretURL) UnmarshalYAML(unmarshal func(any) error) error {
 		s.URL = &url.URL{}
 		return nil
 	}
-	return unmarshal((*URL)(s))
+	urlp, err := ParseURL(str)
+	if err != nil {
+		_, rerr := redactURLError(err)
+		return rerr
+	}
+	s.URL = urlp.URL
+	return nil
 }
 
 // MarshalJSON implements the json.Marshaler interface for SecretURL.
@@ -204,6 +212,9 @@ func (s *SecretTemplateURL) UnmarshalYAML(unmarshal func(any) error) error {
 	// Only validate as URL if it's not templated
 	if !isTemplated {
 		if _, err := ParseURL(urlStr); err != nil {
+			if redacted, rerr := redactURLError(err); redacted {
+				return rerr
+			}
 			return fmt.Errorf("invalid URL: %w", err)
 		}
 	}
@@ -245,10 +256,30 @@ func ParseURL(s string) (*URL, error) {
 		return nil, err
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("unsupported scheme %q for URL", u.Scheme)
+		return nil, fmt.Errorf("%w %q for URL", errUnsupportedScheme, u.Scheme)
 	}
 	if u.Host == "" {
 		return nil, errors.New("missing host for URL")
 	}
 	return &URL{u}, nil
+}
+
+// redactURLError returns a version of an error from ParseURL that does not
+// repeat any part of the URL, for use with URLs that may contain credentials.
+// Errors from net/url quote the input, and the unsupported scheme error
+// quotes the part before the first colon, so both are replaced by a fixed
+// message. The error is returned unchanged, with false, when secrets are
+// marshaled in clear or the error does not quote the input.
+func redactURLError(err error) (bool, error) {
+	if commoncfg.MarshalSecretValue {
+		return false, err
+	}
+	var uerr *url.Error
+	switch {
+	case errors.As(err, &uerr):
+		return true, errors.New("invalid URL (value redacted)")
+	case errors.Is(err, errUnsupportedScheme):
+		return true, errors.New("unsupported scheme for URL (value redacted)")
+	}
+	return false, err
 }
