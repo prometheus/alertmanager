@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"path"
@@ -343,6 +344,18 @@ func TestParseRetryAfter(t *testing.T) {
 		{name: "negative", header: header("-5", ""), expected: 0},
 		{name: "zero", header: header("0", ""), expected: 0},
 		{name: "float value", header: header("1.5", ""), expected: 0},
+		{name: "integer above 32-bit range", header: header("2147483648", ""), expected: 2147483648 * time.Second},
+		{name: "largest whole-second duration", header: header("9223372036", ""), expected: 9223372036 * time.Second},
+		{name: "duration overflow", header: header("9223372037", ""), expected: time.Duration(math.MaxInt64)},
+		{name: "negative duration overflow", header: header("-9223372037", ""), expected: 0},
+		{name: "maximum int64", header: header("9223372036854775807", ""), expected: time.Duration(math.MaxInt64)},
+		{name: "above int64 range", header: header("9223372036854775808", ""), expected: time.Duration(math.MaxInt64)},
+		{name: "above uint64 range", header: header("18446744073709551616", ""), expected: time.Duration(math.MaxInt64)},
+		{name: "below int64 range", header: header("-9223372036854775809", ""), expected: 0},
+		{name: "overflow with leading plus", header: header("+9223372036854775808", ""), expected: time.Duration(math.MaxInt64)},
+		{name: "overflow with leading zeros", header: header("0009223372037", ""), expected: time.Duration(math.MaxInt64)},
+		{name: "int64 overflow with trailing text", header: header("9223372036854775808seconds", ""), expected: 0},
+		{name: "uint64 overflow with trailing text", header: header("+18446744073709551616x", ""), expected: 0},
 		{
 			name:     "date against server clock",
 			header:   header(serverNow.Add(30*time.Second).Format(http.TimeFormat), serverNow.Format(http.TimeFormat)),

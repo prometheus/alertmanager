@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"slices"
@@ -246,15 +247,30 @@ type Retrier struct {
 
 // ParseRetryAfter parses the Retry-After header value, which can be either
 // a delay in seconds (integer) or an HTTP-date. Returns zero if absent or unparseable.
+// Delays exceeding time.Duration's range saturate at its maximum.
 func ParseRetryAfter(h http.Header, received time.Time) time.Duration {
 	val := h.Get("Retry-After")
 	if val == "" {
 		return 0
 	}
 	// Try integer seconds first.
-	if secs, err := strconv.Atoi(val); err == nil {
+	if secs, err := strconv.ParseInt(val, 10, 64); err == nil || errors.Is(err, strconv.ErrRange) {
 		// The grammar is 1*DIGIT, so a negative is malformed rather than a delay.
-		return max(0, time.Duration(secs)*time.Second)
+		if secs < 0 {
+			return 0
+		}
+		if err != nil {
+			// ParseInt can report overflow before reaching an invalid trailing digit.
+			for _, digit := range strings.TrimPrefix(val, "+") {
+				if digit < '0' || digit > '9' {
+					return 0
+				}
+			}
+		}
+		if secs > math.MaxInt64/int64(time.Second) {
+			return time.Duration(math.MaxInt64)
+		}
+		return time.Duration(secs) * time.Second
 	}
 	// Try HTTP-date format.
 	if t, err := http.ParseTime(val); err == nil {
