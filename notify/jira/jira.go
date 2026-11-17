@@ -86,13 +86,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		method = http.MethodPost
 	)
 
-	existingIssue, shouldRetry, reason, err := n.searchExistingIssue(ctx, logger, key.Hash(), alerts.HasFiring(), tmplTextFunc)
-	if err != nil {
+	existingIssue, verdict := n.searchExistingIssue(ctx, logger, key.Hash(), alerts.HasFiring(), tmplTextFunc)
+	if err := verdict.Err(); err != nil {
 		err = fmt.Errorf("failed to look up existing issues: %w", err)
-		if shouldRetry {
-			return notify.Retry(0, err, reason)
+		if verdict.ShouldRetry() {
+			return notify.Retry(verdict.Delay(), err, verdict.Reason())
 		}
-		return notify.Unrecoverable(err, reason)
+		return notify.Unrecoverable(err, verdict.Reason())
 	}
 
 	if existingIssue == nil {
@@ -122,24 +122,16 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		}
 	}
 
-	_, shouldRetry, reason, err = n.doAPIRequest(ctx, method, path, requestBody)
-	if err != nil {
+	_, verdict = n.doAPIRequest(ctx, method, path, requestBody)
+	if err := verdict.Err(); err != nil {
 		err = fmt.Errorf("failed to %s request to %q: %w", method, path, err)
-		if shouldRetry {
-			return notify.Retry(0, err, reason)
+		if verdict.ShouldRetry() {
+			return notify.Retry(verdict.Delay(), err, verdict.Reason())
 		}
-		return notify.Unrecoverable(err, reason)
+		return notify.Unrecoverable(err, verdict.Reason())
 	}
 
-	shouldRetry, reason, err = n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
-	if err != nil {
-		if shouldRetry {
-			return notify.Retry(0, err, reason)
-		}
-		return notify.Unrecoverable(err, reason)
-	}
-
-	return notify.Success()
+	return n.transitionIssue(ctx, logger, existingIssue, alerts.HasFiring())
 }
 
 func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logger, groupID string, tmplTextFunc template.TemplateFunc) (issue, error) {
@@ -230,7 +222,7 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 	return requestBody, nil
 }
 
-func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger, groupID string, firing bool, tmplTextFunc template.TemplateFunc) (*issue, bool, notify.Reason, error) {
+func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger, groupID string, firing bool, tmplTextFunc template.TemplateFunc) (*issue, notify.NotifyVerdict) {
 	jql := strings.Builder{}
 
 	if n.conf.WontFixResolution != "" {
@@ -257,7 +249,7 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	alertLabel := fmt.Sprintf("ALERT{%s}", groupID)
 	project, err := tmplTextFunc(n.conf.Project)
 	if err != nil {
-		return nil, false, notify.DefaultReason, fmt.Errorf("invalid project template or value: %w", err)
+		return nil, notify.Unrecoverable(fmt.Errorf("invalid project template or value: %w", err), notify.DefaultReason)
 	}
 	fmt.Fprintf(&jql, `project=%q and labels=%q order by status ASC,resolutiondate DESC`, project, alertLabel)
 
@@ -265,28 +257,32 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 
 	logger.Debug("search for recent issues", "jql", jql.String())
 
-	responseBody, shouldRetry, reason, err := n.doAPIRequestFullPath(ctx, http.MethodPost, searchPath, requestBody)
-	if err != nil {
-		return nil, shouldRetry, reason, fmt.Errorf("HTTP request to JIRA API: %w", err)
+	responseBody, verdict := n.doAPIRequestFullPath(ctx, http.MethodPost, searchPath, requestBody)
+	if err := verdict.Err(); err != nil {
+		err = fmt.Errorf("HTTP request to JIRA API: %w", err)
+		if verdict.ShouldRetry() {
+			return nil, notify.Retry(verdict.Delay(), err, verdict.Reason())
+		}
+		return nil, notify.Unrecoverable(err, verdict.Reason())
 	}
 
 	var issueSearchResult issueSearchResult
 	err = json.Unmarshal(responseBody, &issueSearchResult)
 	if err != nil {
-		return nil, false, notify.DefaultReason, err
+		return nil, notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	issuesCount := len(issueSearchResult.Issues)
 	if issuesCount == 0 {
 		logger.Debug("found no existing issue")
-		return nil, false, notify.DefaultReason, nil
+		return nil, notify.Success()
 	}
 
 	if issuesCount > 1 {
 		logger.Warn("more than one issue matched, selecting the most recently resolved", "selected_issue", issueSearchResult.Issues[0].Key)
 	}
 
-	return &issueSearchResult.Issues[0], false, notify.DefaultReason, nil
+	return &issueSearchResult.Issues[0], notify.Success()
 }
 
 // prepareSearchRequest builds the request body and search path for Jira issue search.
@@ -322,56 +318,56 @@ func (n *Notifier) prepareSearchRequest(jql string) (issueSearch, string) {
 	return requestBody, searchPath
 }
 
-func (n *Notifier) getIssueTransitionByName(ctx context.Context, issueKey, transitionName string) (string, bool, notify.Reason, error) {
+func (n *Notifier) getIssueTransitionByName(ctx context.Context, issueKey, transitionName string) (string, notify.NotifyVerdict) {
 	path := fmt.Sprintf("issue/%s/transitions", issueKey)
 
-	responseBody, shouldRetry, reason, err := n.doAPIRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return "", shouldRetry, reason, err
+	responseBody, verdict := n.doAPIRequest(ctx, http.MethodGet, path, nil)
+	if verdict.Err() != nil {
+		return "", verdict
 	}
 
 	var issueTransitions issueTransitions
-	err = json.Unmarshal(responseBody, &issueTransitions)
+	err := json.Unmarshal(responseBody, &issueTransitions)
 	if err != nil {
-		return "", false, notify.DefaultReason, err
+		return "", notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	for _, issueTransition := range issueTransitions.Transitions {
 		if issueTransition.Name == transitionName {
-			return issueTransition.ID, false, notify.DefaultReason, nil
+			return issueTransition.ID, notify.Success()
 		}
 	}
 
-	return "", false, notify.DefaultReason, fmt.Errorf("can't find transition %s for issue %s", transitionName, issueKey)
+	return "", notify.Unrecoverable(fmt.Errorf("can't find transition %s for issue %s", transitionName, issueKey), notify.DefaultReason)
 }
 
-func (n *Notifier) transitionIssue(ctx context.Context, logger *slog.Logger, i *issue, firing bool) (bool, notify.Reason, error) {
+func (n *Notifier) transitionIssue(ctx context.Context, logger *slog.Logger, i *issue, firing bool) notify.NotifyVerdict {
 	if i == nil || i.Key == "" || i.Fields == nil || i.Fields.Status == nil {
-		return false, notify.DefaultReason, nil
+		return notify.Success()
 	}
 
 	var transition string
 	if firing {
 		if i.Fields.Status.StatusCategory.Key != "done" {
-			return false, notify.DefaultReason, nil
+			return notify.Success()
 		}
 
 		transition = n.conf.ReopenTransition
 	} else {
 		if i.Fields.Status.StatusCategory.Key == "done" {
-			return false, notify.DefaultReason, nil
+			return notify.Success()
 		}
 
 		transition = n.conf.ResolveTransition
 	}
 
 	if transition == "" {
-		return false, notify.DefaultReason, nil
+		return notify.Success()
 	}
 
-	transitionID, shouldRetry, reason, err := n.getIssueTransitionByName(ctx, i.Key, transition)
-	if err != nil {
-		return shouldRetry, reason, err
+	transitionID, verdict := n.getIssueTransitionByName(ctx, i.Key, transition)
+	if verdict.Err() != nil {
+		return verdict
 	}
 
 	requestBody := issue{
@@ -383,22 +379,22 @@ func (n *Notifier) transitionIssue(ctx context.Context, logger *slog.Logger, i *
 	path := fmt.Sprintf("issue/%s/transitions", i.Key)
 
 	logger.Debug("transitions jira issue", "issue_key", i.Key, "transition", transition)
-	_, shouldRetry, reason, err = n.doAPIRequest(ctx, http.MethodPost, path, requestBody)
+	_, verdict = n.doAPIRequest(ctx, http.MethodPost, path, requestBody)
 
-	return shouldRetry, reason, err
+	return verdict
 }
 
-func (n *Notifier) doAPIRequest(ctx context.Context, method, path string, requestBody any) ([]byte, bool, notify.Reason, error) {
+func (n *Notifier) doAPIRequest(ctx context.Context, method, path string, requestBody any) ([]byte, notify.NotifyVerdict) {
 	url := n.conf.APIURL.JoinPath(path)
 	return n.doAPIRequestFullPath(ctx, method, url.String(), requestBody)
 }
 
-func (n *Notifier) doAPIRequestFullPath(ctx context.Context, method, path string, requestBody any) ([]byte, bool, notify.Reason, error) {
+func (n *Notifier) doAPIRequestFullPath(ctx context.Context, method, path string, requestBody any) ([]byte, notify.NotifyVerdict) {
 	var body io.Reader
 	if requestBody != nil {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(requestBody); err != nil {
-			return nil, false, notify.DefaultReason, err
+			return nil, notify.Unrecoverable(err, notify.DefaultReason)
 		}
 
 		body = &buf
@@ -406,30 +402,35 @@ func (n *Notifier) doAPIRequestFullPath(ctx context.Context, method, path string
 
 	req, err := http.NewRequestWithContext(ctx, method, path, body)
 	if err != nil {
-		return nil, false, notify.DefaultReason, err
+		return nil, notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Language", "en")
 
 	resp, err := n.client.Do(req)
+	received := time.Now()
 	if err != nil {
-		return nil, false, notify.DefaultReason, err
+		return nil, notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	defer notify.Drain(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, false, notify.DefaultReason, err
+		return nil, notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, bytes.NewReader(responseBody))
 	if err != nil {
-		return nil, shouldRetry, notify.GetFailureReasonFromStatusCode(resp.StatusCode), err
+		reason := notify.GetFailureReasonFromStatusCode(resp.StatusCode)
+		if shouldRetry {
+			return nil, notify.Retry(notify.ParseRetryAfter(resp.Header, received), err, reason)
+		}
+		return nil, notify.Unrecoverable(err, reason)
 	}
 
-	return responseBody, false, notify.DefaultReason, nil
+	return responseBody, notify.Success()
 }
 
 func isAPIv3Path(path string) bool {
