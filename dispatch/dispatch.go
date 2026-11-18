@@ -212,17 +212,21 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.aggrGroupsNum.Store(0)
 	d.metrics.aggrGroups.Set(0)
 
-	initalAlerts, it := d.alerts.SlurpAndSubscribe("dispatcher")
+	initalAlerts, its := d.alerts.SlurpAndSubscribe("dispatcher", d.concurrency)
 	for _, alrt := range initalAlerts {
 		d.routeAlert(d.ctx, alrt)
 	}
 	close(d.loaded)
 
-	d.run(it)
+	d.run(its)
 }
 
-func (d *Dispatcher) run(it provider.AlertIterator) {
-	defer it.Close()
+func (d *Dispatcher) run(its []provider.AlertIterator) {
+	defer func() {
+		for _, it := range its {
+			it.Close()
+		}
+	}()
 
 	// Start maintenance goroutine
 	d.finished.Go(func() {
@@ -261,14 +265,13 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 		}
 	})
 
-	// Start multiple alert ingestion goroutines
-	alertCh := it.Next()
-	for i := 0; i < d.concurrency; i++ {
-		d.finished.Add(1)
-		go func(workerID int) {
-			defer d.finished.Done()
+	// One ingestion goroutine per shard: the provider delivers all updates to
+	// an alert on the same shard, so they are routed in order.
+	for workerID, it := range its {
+		d.finished.Go(func() {
 			d.logger.Debug("starting alert ingestion worker", "workerID", workerID)
 
+			alertCh := it.Next()
 			for {
 				select {
 				case alrt, ok := <-alertCh:
@@ -297,7 +300,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 					return
 				}
 			}
-		}(i)
+		})
 	}
 	<-d.ctx.Done()
 }

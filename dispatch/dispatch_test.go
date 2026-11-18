@@ -2047,3 +2047,78 @@ func TestRouteLabelsExtendedAlertsRefreshWithoutRender(t *testing.T) {
 		require.True(t, rerendered.validUntil.IsZero())
 	})
 }
+
+// TestConcurrentIngestionPreservesUpdateOrder sends bursts of updates per
+// fingerprint, interleaved across many fingerprints, and checks that no
+// aggregation group ends up holding an older update than the last one sent.
+func TestConcurrentIngestionPreservesUpdateOrder(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		confData := `receivers:
+- name: 'prod'
+
+route:
+  group_by: ['alertname']
+  group_wait: 1h
+  group_interval: 1h
+  receiver: 'prod'`
+		conf, err := config.Load(confData)
+		require.NoError(t, err)
+
+		logger := promslog.NewNopLogger()
+		route := NewRoute(conf.Route, nil)
+		reg := prometheus.NewRegistry()
+		alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+		require.NoError(t, err)
+		defer alerts.Close()
+
+		timeout := func(time.Duration) time.Duration { return 0 }
+		recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
+		dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+		go dispatcher.Run(time.Now())
+		defer dispatcher.Stop()
+		<-dispatcher.LoadingDone()
+
+		const (
+			nAlerts = 64 // distinct fingerprints
+			nRounds = 10 // passes over all fingerprints
+			nBurst  = 5  // consecutive updates per fingerprint per round
+		)
+		base := time.Now()
+		seq := 0
+		for round := range nRounds {
+			for i := range nAlerts {
+				for b := range nBurst {
+					seq++
+					version := round*nBurst + b
+					a := alert.New(model.Alert{
+						Labels:      model.LabelSet{"alertname": "Ordered", "instance": model.LabelValue(fmt.Sprint(i))},
+						Annotations: model.LabelSet{"version": model.LabelValue(fmt.Sprint(version))},
+						StartsAt:    base.Add(-time.Minute),
+						EndsAt:      base.Add(time.Duration(version+1) * time.Minute),
+					}, base.Add(time.Duration(seq)*time.Millisecond), false)
+					require.NoError(t, alerts.Put(context.Background(), a))
+				}
+			}
+		}
+		// Wait until the ingestion goroutines have drained the provider.
+		synctest.Wait()
+
+		groups, _, err := dispatcher.Groups(context.Background(),
+			func(*Route) bool { return true },
+			func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true },
+		)
+		require.NoError(t, err)
+
+		want := fmt.Sprint(nRounds*nBurst - 1)
+		seen := 0
+		for _, g := range groups {
+			for _, a := range g.Alerts {
+				seen++
+				require.Equal(t, want, string(a.Annotations["version"]),
+					"alert %s holds a stale version", a.Labels["instance"])
+			}
+		}
+		require.Equal(t, nAlerts, seen)
+	})
+}
