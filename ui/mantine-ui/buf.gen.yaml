@@ -7,3 +7,4 @@ plugins:
     out: src/gen
     opt:
       - target=ts
+      - map_imports=buf/validate/:@bufbuild/protovalidate/gen

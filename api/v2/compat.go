@@ -29,11 +29,13 @@ import (
 )
 
 // GettableSilenceFromProto converts *silencepb.Silence to open_api_models.GettableSilence.
+// The result shares data with s. Callers must not modify the shared data.
 func GettableSilenceFromProto(s *silencepb.Silence) (open_api_models.GettableSilence, error) {
 	return gettableSilenceFromProtoAt(s, time.Now())
 }
 
 func gettableSilenceFromProtoAt(s *silencepb.Silence, now time.Time) (open_api_models.GettableSilence, error) {
+	// The result shares read-only data with s.
 	start := strfmt.DateTime(s.StartsAt.AsTime())
 	end := strfmt.DateTime(s.EndsAt.AsTime())
 	updated := strfmt.DateTime(s.UpdatedAt.AsTime())

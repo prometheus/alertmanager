@@ -3,7 +3,8 @@
 set -euo pipefail
 shopt -s failglob
 
-if ! [[ "$0" = "scripts/genproto.sh" ]]; then
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+if [[ "$(pwd -P)" != "$repo_root" ]]; then
   echo "must be run from repository root"
   exit 255
 fi
