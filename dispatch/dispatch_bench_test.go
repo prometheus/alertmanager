@@ -426,3 +426,28 @@ func benchmarkGroupsRouteLabels(b *testing.B, labels model.LabelSet) {
 	b.ReportMetric(float64(afterResendDur)/n, "ns/groups-after-resend")
 	b.ReportMetric(float64(warmDur)/n, "ns/groups-warm")
 }
+
+// BenchmarkRouteAlert routes a re-sent alert into its existing group, the
+// steady state of a firing alert.
+func BenchmarkRouteAlert(b *testing.B) {
+	b.Run("8 routes", func(b *testing.B) {
+		benchmarkRouteAlert(b, buildDeepRouteTree(2, 2, 2, nil))
+	})
+	b.Run("500 routes", func(b *testing.B) {
+		benchmarkRouteAlert(b, buildDeepRouteTree(25, 4, 5, nil))
+	})
+}
+
+func benchmarkRouteAlert(b *testing.B, route *Route) {
+	b.ReportAllocs()
+	d, _, _ := setupDispatcher(b, route)
+	// Keep new groups from starting their run loop.
+	d.state.Store(DispatcherStateWaitingToStart)
+	ctx := context.Background()
+	alrt := makeBenchAlertBatch(1, 0, 2, 2, 2)[0]
+	d.routeAlert(ctx, alrt)
+
+	for b.Loop() {
+		d.routeAlert(ctx, alrt)
+	}
+}
