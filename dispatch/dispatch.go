@@ -693,36 +693,9 @@ func groupFingerprint(alrt *alert.Alert, opts *RouteOpts) model.Fingerprint {
 	var buf [8]model.LabelName
 	names := buf[:0]
 	for ln := range opts.GroupBy {
-		if _, ok := alrt.Labels[ln]; ok {
-			names = append(names, ln)
-		}
+		names = append(names, ln)
 	}
-	slices.Sort(names)
-	h := fnvOffset64
-	for _, ln := range names {
-		h = fnvAddString(h, string(ln))
-		h = fnvAddByte(h, model.SeparatorByte)
-		h = fnvAddString(h, string(alrt.Labels[ln]))
-		h = fnvAddByte(h, model.SeparatorByte)
-	}
-	return model.Fingerprint(h)
-}
-
-// FNV-1a as used by model.LabelSet.Fingerprint.
-const (
-	fnvOffset64 uint64 = 14695981039346656037
-	fnvPrime64  uint64 = 1099511628211
-)
-
-func fnvAddString(h uint64, s string) uint64 {
-	for i := 0; i < len(s); i++ {
-		h = fnvAddByte(h, s[i])
-	}
-	return h
-}
-
-func fnvAddByte(h uint64, b byte) uint64 {
-	return (h ^ uint64(b)) * fnvPrime64
+	return alrt.Labels.FingerprintForLabels(names...)
 }
 
 // aggrGroup aggregates alert fingerprints into groups to which a
