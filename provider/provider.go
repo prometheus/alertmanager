@@ -16,6 +16,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/prometheus/common/model"
 
@@ -57,17 +58,30 @@ type AlertIterator interface {
 // NewAlertIterator returns a new AlertIterator based on the generic alertIterator type.
 func NewAlertIterator(ch <-chan *Alert, done chan struct{}, err error) AlertIterator {
 	return &alertIterator{
-		ch:   ch,
-		done: done,
-		err:  err,
+		ch:    ch,
+		done:  done,
+		close: &sync.Once{},
+		err:   err,
 	}
+}
+
+// NewAlertIterators returns one AlertIterator per channel, all sharing done:
+// closing any of them closes done once.
+func NewAlertIterators(chs []chan *Alert, done chan struct{}) []AlertIterator {
+	once := &sync.Once{}
+	its := make([]AlertIterator, len(chs))
+	for i, ch := range chs {
+		its[i] = &alertIterator{ch: ch, done: done, close: once}
+	}
+	return its
 }
 
 // alertIterator implements AlertIterator. So far, this one fits all providers.
 type alertIterator struct {
-	ch   <-chan *Alert
-	done chan struct{}
-	err  error
+	ch    <-chan *Alert
+	done  chan struct{}
+	close *sync.Once
+	err   error
 }
 
 func (ai alertIterator) Next() <-chan *Alert {
@@ -75,7 +89,7 @@ func (ai alertIterator) Next() <-chan *Alert {
 }
 
 func (ai alertIterator) Err() error { return ai.err }
-func (ai alertIterator) Close()     { close(ai.done) }
+func (ai alertIterator) Close()     { ai.close.Do(func() { close(ai.done) }) }
 
 // Alerts gives access to a set of alerts. All methods are goroutine-safe.
 type Alerts interface {
@@ -85,15 +99,18 @@ type Alerts interface {
 	Subscribe(name string) AlertIterator
 
 	// SlurpAndSubcribe returns a list of all active alerts which are available
-	// in the provider before the call to SlurpAndSubcribe and an iterator
-	// of all alerts available after the call to SlurpAndSubcribe.
+	// in the provider before the call to SlurpAndSubcribe and shards iterators
+	// over all alerts available after the call to SlurpAndSubcribe. Updates to
+	// one alert are always delivered on the same iterator, in order, so a
+	// consumer per iterator can process them concurrently. Closing any of the
+	// iterators closes them all.
 	// SlurpAndSubcribe can be used by clients which need to build in memory state
 	// to know when they've processed the 'initial' batch of alerts in a provider
 	// after they reload their subscription.
 	// Implementation of SlurpAndSubcribe is optional - providers may choose to
 	// return an empty list for the first return value and the result of Subscribe
 	// for the second return value.
-	SlurpAndSubscribe(name string) ([]*alert.Alert, AlertIterator)
+	SlurpAndSubscribe(name string, shards int) ([]*alert.Alert, []AlertIterator)
 
 	// GetPending returns an iterator over all alerts that have
 	// pending notifications.
