@@ -15,11 +15,13 @@ package apiconnect
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,6 +32,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
+	silencev3alpha "github.com/prometheus/alertmanager/api/silence/v3alpha"
+	"github.com/prometheus/alertmanager/api/silence/v3alpha/silencev3alphaconnect"
 	statusv3alpha "github.com/prometheus/alertmanager/api/status/v3alpha"
 	"github.com/prometheus/alertmanager/api/status/v3alpha/statusv3alphaconnect"
 	"github.com/prometheus/alertmanager/config"
@@ -121,11 +125,25 @@ func TestConnectAPI(t *testing.T) {
 
 		require.Equal(t, []string{
 			"/status.v3alpha.StatusService/GetStatus",
+			"/silence.v3alpha.SilenceService/ListSilences",
 			"/grpc.health.v1.Health/Check",
 			"/grpc.health.v1.Health/Watch",
 			"/grpc.reflection.v1.ServerReflection/ServerReflectionInfo",
 			"/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo",
-		}, NewAPI(Options{}).Procedures())
+		}, newSilenceListAPI(t).Procedures())
+	})
+
+	t.Run("omits SilenceService without a store", func(t *testing.T) {
+		t.Parallel()
+
+		api := NewAPI(Options{})
+		require.NotContains(t, api.Procedures(), silencev3alphaconnect.SilenceServiceListSilencesProcedure)
+		srv := newTestServer(t, api.Handler(), false)
+		client := silencev3alphaconnect.NewSilenceServiceClient(srv.Client(), srv.URL)
+		_, err := client.ListSilences(t.Context(), connect.NewRequest(&silencev3alpha.ListSilencesRequest{}))
+		require.Equal(t, connect.CodeUnimplemented, connect.CodeOf(err))
+		_, err = grpchealth.NewClient(srv.Client(), srv.URL).Check(t.Context(), &grpchealth.CheckRequest{Service: silencev3alphaconnect.SilenceServiceName})
+		require.Equal(t, connect.CodeNotFound, connect.CodeOf(err))
 	})
 
 	t.Run("rejects unregistered reflection procedures", func(t *testing.T) {
@@ -292,6 +310,39 @@ func TestConnectAPI(t *testing.T) {
 
 func TestRPCAdmission(t *testing.T) {
 	t.Parallel()
+
+	t.Run("rejects canceled unary requests", func(t *testing.T) {
+		t.Parallel()
+
+		for _, when := range []string{"before", "during"} {
+			t.Run(when, func(t *testing.T) {
+				t.Parallel()
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				if when == "before" {
+					cancel()
+				}
+				called := false
+				interceptor := connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+					return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+						called = true
+						cancel()
+						return next(ctx, req)
+					}
+				})
+				request := httptest.NewRequestWithContext(ctx, http.MethodPost, statusv3alphaconnect.StatusServiceGetStatusProcedure, strings.NewReader("{}"))
+				request.Header.Set("Content-Type", "application/json")
+				recorder := httptest.NewRecorder()
+				NewAPI(Options{}).Handler(connect.WithInterceptors(interceptor)).ServeHTTP(recorder, request)
+				var response struct {
+					Code string `json:"code"`
+				}
+				require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+				require.Equal(t, "canceled", response.Code)
+				require.Equal(t, when == "during", called)
+			})
+		}
+	})
 
 	t.Run("defaults unary and stream concurrency independently", func(t *testing.T) {
 		t.Parallel()
