@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -61,7 +62,7 @@ type Content struct {
 type Body struct {
 	Type   string `json:"type"`
 	Text   string `json:"text"`
-	Weight string `json:"weigth,omitempty"`
+	Weight string `json:"weight,omitempty"`
 	Size   string `json:"size,omitempty"`
 	Wrap   bool   `json:"wrap,omitempty"`
 	Style  string `json:"style,omitempty"`
@@ -85,7 +86,7 @@ type teamsMessage struct {
 
 // New returns a new notifier that uses the Microsoft Teams Power Platform connector.
 func New(c *MSTeamsV2Config, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "msteamsv2", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "msteamsv2", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -171,6 +172,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 						{
 							Type: "TextBlock",
 							Text: text,
+							Wrap: true,
 						},
 					},
 					Msteams: Msteams{

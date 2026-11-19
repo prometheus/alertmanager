@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -21,7 +21,6 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
 
-// DefaultMSTeamsV2Config defines default values for MSTeamsV2 configurations.
 var DefaultMSTeamsV2Config = MSTeamsV2Config{
 	NotifierConfig: amcommoncfg.NotifierConfig{
 		VSendResolved: true,
@@ -40,7 +39,7 @@ type MSTeamsV2Config struct {
 	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
-func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MSTeamsV2Config) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMSTeamsV2Config
 	type plain MSTeamsV2Config
 	if err := unmarshal((*plain)(c)); err != nil {

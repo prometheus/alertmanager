@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -112,7 +113,7 @@ func TestNotifier_Notify_WithReason(t *testing.T) {
 func TestMSTeamsV2Templating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -205,7 +206,7 @@ func TestMSTeamsV2ReadingURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "webhook_url")
+	f, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")

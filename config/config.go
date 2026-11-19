@@ -443,8 +443,18 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, msteamsv2 := range rcv.MSTeamsV2Configs {
-			if msteamsv2.HTTPConfig == nil {
-				msteamsv2.HTTPConfig = c.Global.HTTPConfig
+			if msteamsv2 == nil {
+				return errors.New("missing msteamsv2 config")
+			}
+			if globalHTTPConfig := c.Global.HTTPConfig; globalHTTPConfig != nil {
+				if msteamsv2.HTTPConfig == nil {
+					// Make a shallow copy of the global HTTP config.
+					httpCfg := *globalHTTPConfig
+					msteamsv2.HTTPConfig = &httpCfg
+				} else if !msteamsv2.HTTPConfig.ProxyFromEnvironment && msteamsv2.HTTPConfig.ProxyURL.URL == nil {
+					// Inherit only the proxy URL when there is no receiver proxy mode.
+					msteamsv2.HTTPConfig.ProxyURL = globalHTTPConfig.ProxyURL
+				}
 			}
 			if msteamsv2.WebhookURL == nil && len(msteamsv2.WebhookURLFile) == 0 {
 				return errors.New("no msteamsv2 webhook URL or URLFile provided")
