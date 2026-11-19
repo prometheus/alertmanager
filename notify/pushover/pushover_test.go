@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,6 +164,30 @@ func TestPushoverMonospaceParameter(t *testing.T) {
 	)
 	notifier.apiURL = apiURL.String()
 	require.NoError(t, err)
+
+	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
+}
+
+func TestPushoverTruncatesURLTitle(t *testing.T) {
+	ctx, apiURL, fn := test.GetContextWithCancelingURL(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, strings.Repeat("a", 99)+"…", r.FormValue("url_title"))
+	})
+	defer fn()
+
+	notifier, err := New(
+		&PushoverConfig{
+			UserKey:    commoncfg.Secret("user_key"),
+			Token:      commoncfg.Secret("token"),
+			URL:        "https://example.com/alerts",
+			URLTitle:   strings.Repeat("a", 120),
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+	notifier.apiURL = apiURL.String()
 
 	require.NoError(t, notifier.Notify(notify.WithGroupKey(ctx, "1"), alert.New(model.Alert{}, time.Time{}, false)).Err())
 }
