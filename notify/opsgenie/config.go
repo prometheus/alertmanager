@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"text/template"
 
 	commoncfg "github.com/prometheus/common/config"
 
@@ -35,6 +34,8 @@ var DefaultOpsGenieConfig = OpsGenieConfig{
 	Source:      `{{ template "opsgenie.default.source" . }}`,
 	// TODO: Add a details field with all the alerts.
 }
+
+var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
 
 // OpsGenieConfig configures notifications via OpsGenie.
 type OpsGenieConfig struct {
@@ -60,10 +61,8 @@ type OpsGenieConfig struct {
 
 const opsgenieValidTypesRe = `^(team|teams|user|escalation|schedule)$`
 
-var opsgenieTypeMatcher = regexp.MustCompile(opsgenieValidTypesRe)
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultOpsGenieConfig
 	type plain OpsGenieConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -79,12 +78,11 @@ func (c *OpsGenieConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 			return fmt.Errorf("opsGenieConfig responder %v has to have at least one of id, username or name specified", r)
 		}
 
-		if strings.Contains(r.Type, "{{") {
-			_, err := template.New("").Parse(r.Type)
-			if err != nil {
-				return fmt.Errorf("opsGenieConfig responder %v type is not a valid template: %w", r, err)
-			}
-		} else {
+		isTemplated, err := amcommoncfg.ContainsTemplating(r.Type)
+		if err != nil {
+			return fmt.Errorf("opsGenieConfig responder %v type contains invalid template syntax: %w", r, err)
+		}
+		if !isTemplated {
 			r.Type = strings.ToLower(r.Type)
 			if !opsgenieTypeMatcher.MatchString(r.Type) {
 				return fmt.Errorf("opsGenieConfig responder %v type does not match valid options %s", r, opsgenieValidTypesRe)

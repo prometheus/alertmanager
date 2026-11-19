@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -76,7 +77,7 @@ func TestGettingOpsGegineApikeyFromFile(t *testing.T) {
 
 	key := "key"
 
-	f, err := os.CreateTemp("", "opsgenie_test")
+	f, err := os.CreateTemp(t.TempDir(), "opsgenie_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -317,6 +318,25 @@ func TestOpsGenieWithUpdate(t *testing.T) {
 	require.JSONEq(t, `{"message":"new message"}`, body1)
 	require.Equal(t, requests[2].URL.String(), fmt.Sprintf("https://test-opsgenie-url/v2/alerts/%s/description?identifierType=alias", alias))
 	require.JSONEq(t, `{"description":"new description"}`, body2)
+}
+
+func TestOpsGenieApiKeyFile(t *testing.T) {
+	u, err := url.Parse("https://test-opsgenie-url")
+	require.NoError(t, err)
+	tmpl := test.CreateTmpl(t)
+	ctx := context.Background()
+	ctx = notify.WithGroupKey(ctx, "1")
+	opsGenieConfigWithUpdate := OpsGenieConfig{
+		APIKeyFile: `./api_key_file`,
+		APIURL:     &amcommoncfg.URL{URL: u},
+		HTTPConfig: &commoncfg.HTTPClientConfig{},
+	}
+	notifierWithUpdate, err := New(&opsGenieConfigWithUpdate, tmpl, promslog.NewNopLogger())
+
+	require.NoError(t, err)
+	requests, _, err := notifierWithUpdate.createRequests(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "GenieKey my_secret_api_key", requests[0].Header.Get("Authorization"))
 }
 
 func readBody(t *testing.T, r *http.Request) string {

@@ -1,4 +1,4 @@
-// Copyright 2019 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -18,21 +18,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 )
-
-func TestOpsgenieTypeMatcher(t *testing.T) {
-	good := []string{"team", "user", "escalation", "schedule"}
-	for _, g := range good {
-		if !opsgenieTypeMatcher.MatchString(g) {
-			t.Fatalf("failed to match with %s", g)
-		}
-	}
-	bad := []string{"0user", "team1", "2escalation3", "sche4dule", "User", "TEAM"}
-	for _, b := range bad {
-		if opsgenieTypeMatcher.MatchString(b) {
-			t.Errorf("mistakenly match with %s", b)
-		}
-	}
-}
 
 func TestOpsGenieConfiguration(t *testing.T) {
 	for _, tc := range []struct {
@@ -116,5 +101,20 @@ api_url: http://example.com
 				t.Errorf("expected no error, got %v", err)
 			}
 		})
+	}
+}
+
+func TestOpsgenieTypeMatcher(t *testing.T) {
+	good := []string{"team", "user", "escalation", "schedule"}
+	for _, g := range good {
+		if !opsgenieTypeMatcher.MatchString(g) {
+			t.Fatalf("failed to match with %s", g)
+		}
+	}
+	bad := []string{"0user", "team1", "2escalation3", "sche4dule", "User", "TEAM"}
+	for _, b := range bad {
+		if opsgenieTypeMatcher.MatchString(b) {
+			t.Errorf("mistakenly match with %s", b)
+		}
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
@@ -45,7 +46,7 @@ type Notifier struct {
 
 // New returns a new OpsGenie notifier.
 func New(c *OpsGenieConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "opsgenie", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "opsgenie", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -140,9 +141,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 
 	details := make(map[string]string)
 
-	for k, v := range data.CommonLabels {
-		details[k] = v
-	}
+	maps.Copy(details, data.CommonLabels)
 
 	for k, v := range n.conf.Details {
 		details[k] = tmpl(v)
@@ -282,6 +281,7 @@ func (n *Notifier) createRequests(ctx context.Context, as ...*types.Alert) ([]*h
 			return nil, false, fmt.Errorf("read key_file error: %w", err)
 		}
 		apiKey = tmpl(string(content))
+		apiKey = strings.TrimSpace(string(apiKey))
 	}
 
 	if err != nil {
