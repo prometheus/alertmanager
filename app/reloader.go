@@ -205,6 +205,9 @@ func (r *reloader) reload(conf *config.Config) error {
 		r.dispatcherMetrics,
 		tmpl,
 	)
+	for _, w := range routes.Warnings() {
+		configLogger.Warn(w)
+	}
 	routes.Walk(func(rt *dispatch.Route) {
 		if rt.RouteOpts.RepeatInterval > r.retention {
 			configLogger.Warn(

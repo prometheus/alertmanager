@@ -1,0 +1,13 @@
+route:
+  receiver: default
+  routes:
+    - matchers: [service=api]
+      receiver: default
+      repeat_interval: 1h
+      continue: true
+    - matchers: [service=api]
+      receiver: default
+      repeat_interval: 2h
+
+receivers:
+  - name: default

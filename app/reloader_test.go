@@ -14,6 +14,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -255,4 +256,30 @@ func TestReloader_StopIsNilSafe(t *testing.T) {
 	r := newTestReloader(t)
 	// stop before any reload (both pointers nil) must not panic.
 	require.NoError(t, r.stop())
+}
+
+// TestReloader_LogsRouteWarnings checks that applying a configuration logs the
+// warnings of its routing tree.
+func TestReloader_LogsRouteWarnings(t *testing.T) {
+	r := newTestReloader(t)
+	t.Cleanup(func() { _ = r.stop() })
+	var logs bytes.Buffer
+	r.logger = promslog.New(&promslog.Config{Writer: &logs})
+
+	conf, err := config.Load(`
+route:
+  receiver: team
+  routes:
+  - matchers: [service=api]
+    repeat_interval: 1h
+    continue: true
+  - matchers: [service=api]
+    repeat_interval: 2h
+receivers:
+- name: team
+`)
+	require.NoError(t, err)
+	require.NoError(t, r.reload(conf))
+	require.Contains(t, logs.String(), "level=WARN")
+	require.Contains(t, logs.String(), `have the same matchers and receiver \"team\" but differ in repeat_interval`)
 }
