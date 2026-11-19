@@ -37,6 +37,8 @@ const (
 	maxMessageLenRunes = 1024
 	// https://pushover.net/api#limits - 512 characters or runes.
 	maxURLLenRunes = 512
+	// https://pushover.net/api#limits - 100 characters or runes.
+	maxURLTitleLenRunes = 100
 )
 
 // Notifier implements a Notifier for Pushover notifications.
@@ -143,7 +145,12 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		logger.Warn("Truncated URL", "incident", key, "max_runes", maxURLLenRunes)
 	}
 	parameters.Add("url", supplementaryURL)
-	parameters.Add("url_title", tmpl(n.conf.URLTitle))
+
+	urlTitle, truncated := notify.TruncateInRunes(tmpl(n.conf.URLTitle), maxURLTitleLenRunes)
+	if truncated {
+		logger.Warn("Truncated URL title", "incident", key, "max_runes", maxURLTitleLenRunes)
+	}
+	parameters.Add("url_title", urlTitle)
 
 	parameters.Add("priority", tmpl(n.conf.Priority))
 	parameters.Add("retry", fmt.Sprintf("%d", int64(time.Duration(n.conf.Retry).Seconds())))
