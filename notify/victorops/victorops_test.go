@@ -28,8 +28,9 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -88,7 +89,7 @@ func TestVictorOpsCustomFields(t *testing.T) {
 func TestVictorOpsRetry(t *testing.T) {
 	notifier, err := New(
 		&config.VictorOpsConfig{
-			APIKey:     config.Secret("secret"),
+			APIKey:     commoncfg.Secret("secret"),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -109,7 +110,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 	notifier, err := New(
 		&config.VictorOpsConfig{
 			APIURL:     &amcommoncfg.URL{URL: u},
-			APIKey:     config.Secret(secret),
+			APIKey:     commoncfg.Secret(secret),
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
@@ -122,7 +123,7 @@ func TestVictorOpsRedactedURL(t *testing.T) {
 
 func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 	key := "key"
-	f, err := os.CreateTemp("", "victorops_test")
+	f, err := os.CreateTemp(t.TempDir(), "victorops_test")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(key)
 	require.NoError(t, err, "writing to temp file failed")
@@ -147,7 +148,7 @@ func TestVictorOpsReadingApiKeyFromFile(t *testing.T) {
 func TestVictorOpsTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)

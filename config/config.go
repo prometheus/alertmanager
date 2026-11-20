@@ -672,7 +672,7 @@ type GlobalConfig struct {
 	WeChatAPISecret      Secret                 `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID      string                 `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL      *amcommoncfg.URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
-	VictorOpsAPIKey      Secret                 `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+	VictorOpsAPIKey      commoncfg.Secret       `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile  string                 `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl       *amcommoncfg.URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
 	WebexAPIURL          *amcommoncfg.URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`

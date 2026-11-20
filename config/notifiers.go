@@ -364,7 +364,7 @@ type VictorOpsConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	APIKey            Secret            `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	APIKey            commoncfg.Secret  `yaml:"api_key,omitempty" json:"api_key,omitempty"`
 	APIKeyFile        string            `yaml:"api_key_file,omitempty" json:"api_key_file,omitempty"`
 	APIURL            *amcommoncfg.URL  `yaml:"api_url" json:"api_url"`
 	RoutingKey        string            `yaml:"routing_key" json:"routing_key"`

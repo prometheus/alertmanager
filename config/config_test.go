@@ -772,7 +772,7 @@ func TestVictorOpsDefaultAPIKey(t *testing.T) {
 	}
 
 	defaultKey := conf.Global.VictorOpsAPIKey
-	overrideKey := Secret("qwe456")
+	overrideKey := commoncfg.Secret("qwe456")
 	if defaultKey != conf.Receivers[0].VictorOpsConfigs[0].APIKey {
 		t.Fatalf("Invalid victorops key: %s\nExpected: %s", conf.Receivers[0].VictorOpsConfigs[0].APIKey, defaultKey)
 	}
