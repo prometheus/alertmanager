@@ -1,0 +1,40 @@
+.tag {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+button.tag {
+  cursor: pointer;
+}
+
+button.tag:hover {
+  text-decoration: underline;
+}
+
+.tag[draggable="true"] {
+  cursor: grab;
+}
+
+.dropTarget {
+  outline: 2px dashed var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+.tag[data-wrap] {
+  height: auto;
+  min-height: var(--badge-height);
+  padding-block: 0.125rem;
+  line-height: 1.3;
+}
+
+.tag .wrapLabel {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
