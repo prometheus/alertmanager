@@ -16,14 +16,16 @@ package wechat
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify/test"
 )
 
@@ -37,7 +39,7 @@ func TestWechatRedactedURLOnInitialAuthentication(t *testing.T) {
 			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
-			APISecret:  config.Secret(secret),
+			APISecret:  commoncfg.Secret(secret),
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -59,7 +61,7 @@ func TestWechatRedactedURLOnNotify(t *testing.T) {
 			APIURL:     &amcommoncfg.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 			CorpID:     "corpid",
-			APISecret:  config.Secret(secret),
+			APISecret:  commoncfg.Secret(secret),
 		},
 		test.CreateTmpl(t),
 		promslog.NewNopLogger(),
@@ -81,7 +83,7 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 			APIURL:      &amcommoncfg.URL{URL: u},
 			HTTPConfig:  &commoncfg.HTTPClientConfig{},
 			CorpID:      "corpid",
-			APISecret:   config.Secret(secret),
+			APISecret:   commoncfg.Secret(secret),
 			MessageType: "markdown",
 		},
 		test.CreateTmpl(t),
@@ -90,4 +92,35 @@ func TestWechatMessageTypeSelector(t *testing.T) {
 	require.NoError(t, err)
 
 	test.AssertNotifyLeaksNoSecret(ctx, t, notifier, secret, token)
+}
+
+func TestGetApiSecretFromSecret(t *testing.T) {
+	n := &Notifier{conf: &config.WechatConfig{APISecret: commoncfg.Secret("shhh")}}
+	s, err := n.getApiSecret()
+	require.NoError(t, err)
+	require.Equal(t, "shhh", s)
+}
+
+func TestGetApiSecretFromFile(t *testing.T) {
+	tmpFile, err := os.CreateTemp(t.TempDir(), "wechat-secret-*")
+	require.NoError(t, err)
+	secretContent := "file-secret\n"
+	_, err = tmpFile.WriteString(secretContent)
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	n := &Notifier{conf: &config.WechatConfig{APISecretFile: tmpFile.Name()}}
+	s, err := n.getApiSecret()
+	require.NoError(t, err)
+	require.Equal(t, "file-secret", s)
+}
+
+func TestGetApiSecretFromMissingFile(t *testing.T) {
+	n := &Notifier{conf: &config.WechatConfig{APISecretFile: "/non/existent/wechat-secret.txt"}}
+	s, err := n.getApiSecret()
+	var pathErr *os.PathError
+	require.ErrorAs(t, err, &pathErr)
+	require.Equal(t, "/non/existent/wechat-secret.txt", pathErr.Path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	require.Empty(t, s)
 }
