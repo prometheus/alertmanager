@@ -19,6 +19,18 @@ update msg model =
 
                     else
                         model.matchers ++ [ matcher ]
+                , keepMatchers =
+                    case model.editing of
+                        Just edited ->
+                            if edited.wasKept && not (List.member matcher model.keepMatchers) then
+                                model.keepMatchers ++ [ matcher ]
+
+                            else
+                                model.keepMatchers
+
+                        Nothing ->
+                            model.keepMatchers
+                , editing = Nothing
                 , matcherText =
                     if emptyMatcherText then
                         ""
@@ -34,6 +46,16 @@ update msg model =
         DeleteFilterMatcher setMatcherText matcher ->
             ( { model
                 | matchers = List.filter ((/=) matcher) model.matchers
+                , keepMatchers = List.filter ((/=) matcher) model.keepMatchers
+                , editing =
+                    if setMatcherText then
+                        Just
+                            { matcher = matcher
+                            , wasKept = List.member matcher model.keepMatchers
+                            }
+
+                    else
+                        model.editing
                 , matcherText =
                     if setMatcherText then
                         Utils.Filter.stringifyMatcher matcher
@@ -44,6 +66,19 @@ update msg model =
             , True
             , Dom.focus "filter-bar-matcher"
                 |> Task.attempt (always Noop)
+            )
+
+        KeepFilterMatcher matcher ->
+            ( { model
+                | keepMatchers =
+                    if List.member matcher model.keepMatchers then
+                        List.filter ((/=) matcher) model.keepMatchers
+
+                    else
+                        model.keepMatchers ++ [ matcher ]
+              }
+            , True
+            , Cmd.none
             )
 
         UpdateMatcherText value ->
@@ -63,4 +98,6 @@ setMatchers filter model =
             filter.text
                 |> Maybe.andThen parseFilter
                 |> Maybe.withDefault []
+        , keepMatchers = []
+        , editing = Nothing
     }

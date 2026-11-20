@@ -3,8 +3,16 @@ module Views.FilterBar.Types exposing (Model, Msg(..), initFilterBar)
 import Utils.Filter
 
 
+type alias Editing =
+    { matcher : Utils.Filter.Matcher
+    , wasKept : Bool
+    }
+
+
 type alias Model =
     { matchers : List Utils.Filter.Matcher
+    , keepMatchers : List Utils.Filter.Matcher
+    , editing : Maybe Editing
     , backspacePressed : Bool
     , matcherText : String
     }
@@ -13,6 +21,7 @@ type alias Model =
 type Msg
     = AddFilterMatcher Bool Utils.Filter.Matcher
     | DeleteFilterMatcher Bool Utils.Filter.Matcher
+    | KeepFilterMatcher Utils.Filter.Matcher
     | PressingBackspace Bool
     | UpdateMatcherText String
     | Noop
@@ -31,6 +40,8 @@ proceed to deleting the next matcher.
 initFilterBar : List Utils.Filter.Matcher -> Model
 initFilterBar matchers =
     { matchers = matchers
+    , keepMatchers = []
+    , editing = Nothing
     , backspacePressed = False
     , matcherText = ""
     }
