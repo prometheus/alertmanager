@@ -18,10 +18,12 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-openapi/strfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/alertmanager/api/v2/client/alert"
 	"github.com/prometheus/alertmanager/api/v2/models"
@@ -73,6 +75,26 @@ func configureAddAlertCmd(cc *kingpin.CmdClause) {
 	addCmd.Action(execWithTimeout(a.addAlert))
 }
 
+// parseAnnotation parses an annotation given as name=value. Annotation values
+// are free text, so if the input is not a valid matcher, for example because
+// the value contains unescaped double quotes, everything after the first "="
+// is used as the value.
+func parseAnnotation(s string) (string, string, error) {
+	matcher, err := compat.Matcher(s, "cli")
+	if err == nil {
+		if matcher.Type != labels.MatchEqual {
+			return "", "", errors.New("annotations must be specified as key=value pairs")
+		}
+		return matcher.Name, matcher.Value, nil
+	}
+	name, value, ok := strings.Cut(s, "=")
+	name = strings.TrimSpace(name)
+	if !ok || name == "" || !compat.IsValidLabelName(model.LabelName(name)) {
+		return "", "", err
+	}
+	return name, value, nil
+}
+
 func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) error {
 	if len(a.labels) > 0 {
 		// Allow the alertname label to be defined implicitly as the first argument rather
@@ -96,14 +118,11 @@ func (a *alertAddCmd) addAlert(ctx context.Context, _ *kingpin.ParseContext) err
 
 	annotations := make(models.LabelSet, len(a.annotations))
 	for _, a := range a.annotations {
-		matcher, err := compat.Matcher(a, "cli")
+		name, value, err := parseAnnotation(a)
 		if err != nil {
 			return err
 		}
-		if matcher.Type != labels.MatchEqual {
-			return errors.New("annotations must be specified as key=value pairs")
-		}
-		annotations[matcher.Name] = matcher.Value
+		annotations[name] = value
 	}
 
 	var startsAt, endsAt time.Time
