@@ -80,8 +80,19 @@ type AlertStoreCallback interface {
 
 type listeningAlerts struct {
 	name   string
-	alerts chan *provider.Alert
+	alerts []chan *provider.Alert // One per shard.
 	done   chan struct{}
+}
+
+// shard returns the channel delivering the updates to fp. FNV-1a leaves the
+// low bits of a fingerprint poorly mixed, so fold the high half in first.
+func (l listeningAlerts) shard(fp model.Fingerprint) chan *provider.Alert {
+	if len(l.alerts) == 1 {
+		return l.alerts[0]
+	}
+	h := uint64(fp)
+	h ^= h >> 32
+	return l.alerts[h%uint64(len(l.alerts))]
 }
 
 func (a *Alerts) registerMetrics(r prometheus.Registerer) {
@@ -205,7 +216,9 @@ func (a *Alerts) gcListeners() {
 		select {
 		case <-l.done:
 			delete(a.listeners, i)
-			close(l.alerts)
+			for _, ch := range l.alerts {
+				close(ch)
+			}
 		default:
 			// listener is not closed yet, hence proceed.
 		}
@@ -235,26 +248,31 @@ func (a *Alerts) Subscribe(name string) provider.AlertIterator {
 		ch <- &provider.Alert{Data: a}
 	}
 
-	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: []chan *provider.Alert{ch}, done: done}
 	a.next++
 
 	return provider.NewAlertIterator(ch, done, nil)
 }
 
-func (a *Alerts) SlurpAndSubscribe(name string) ([]*alert.Alert, provider.AlertIterator) {
+// SlurpAndSubscribe implements provider.Alerts. Put blocks while an alert's
+// shard has alertChannelLength updates waiting.
+func (a *Alerts) SlurpAndSubscribe(name string, shards int) ([]*alert.Alert, []provider.AlertIterator) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 
 	var (
 		done   = make(chan struct{})
 		alerts = a.alerts.List()
-		ch     = make(chan *provider.Alert, alertChannelLength)
+		chs    = make([]chan *provider.Alert, max(shards, 1))
 	)
+	for i := range chs {
+		chs[i] = make(chan *provider.Alert, alertChannelLength)
+	}
 
-	a.listeners[a.next] = listeningAlerts{name: name, alerts: ch, done: done}
+	a.listeners[a.next] = listeningAlerts{name: name, alerts: chs, done: done}
 	a.next++
 
-	return alerts, provider.NewAlertIterator(ch, done, nil)
+	return alerts, provider.NewAlertIterators(chs, done)
 }
 
 // GetPending returns an iterator over all the alerts that have
@@ -351,7 +369,7 @@ func (a *Alerts) Put(ctx context.Context, alerts ...*alert.Alert) error {
 
 		for _, l := range a.listeners {
 			select {
-			case l.alerts <- msg:
+			case l.shard(fp) <- msg:
 				a.subscriberChannelWrites.WithLabelValues(l.name).Inc()
 			case <-l.done:
 			}

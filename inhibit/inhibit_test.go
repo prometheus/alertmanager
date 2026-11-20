@@ -492,7 +492,7 @@ func (f *fakeAlerts) Subscribe(name string) provider.AlertIterator {
 	return provider.NewAlertIterator(ch, done, nil)
 }
 
-func (f *fakeAlerts) SlurpAndSubscribe(name string) ([]*alert.Alert, provider.AlertIterator) {
+func (f *fakeAlerts) SlurpAndSubscribe(name string, shards int) ([]*alert.Alert, []provider.AlertIterator) {
 	ch := make(chan *provider.Alert)
 	done := make(chan struct{})
 	go func() {
@@ -514,7 +514,7 @@ func (f *fakeAlerts) SlurpAndSubscribe(name string) ([]*alert.Alert, provider.Al
 		close(f.finished)
 		<-done
 	}()
-	return []*alert.Alert{}, provider.NewAlertIterator(ch, done, nil)
+	return []*alert.Alert{}, []provider.AlertIterator{provider.NewAlertIterator(ch, done, nil)}
 }
 
 func TestInhibit(t *testing.T) {

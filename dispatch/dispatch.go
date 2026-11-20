@@ -212,17 +212,21 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.aggrGroupsNum.Store(0)
 	d.metrics.aggrGroups.Set(0)
 
-	initalAlerts, it := d.alerts.SlurpAndSubscribe("dispatcher")
+	initalAlerts, its := d.alerts.SlurpAndSubscribe("dispatcher", d.concurrency)
 	for _, alrt := range initalAlerts {
 		d.routeAlert(d.ctx, alrt)
 	}
 	close(d.loaded)
 
-	d.run(it)
+	d.run(its)
 }
 
-func (d *Dispatcher) run(it provider.AlertIterator) {
-	defer it.Close()
+func (d *Dispatcher) run(its []provider.AlertIterator) {
+	defer func() {
+		for _, it := range its {
+			it.Close()
+		}
+	}()
 
 	// Start maintenance goroutine
 	d.finished.Go(func() {
@@ -261,14 +265,13 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 		}
 	})
 
-	// Start multiple alert ingestion goroutines
-	alertCh := it.Next()
-	for i := 0; i < d.concurrency; i++ {
-		d.finished.Add(1)
-		go func(workerID int) {
-			defer d.finished.Done()
+	// One ingestion goroutine per shard: the provider delivers all updates to
+	// an alert on the same shard, so they are routed in order.
+	for workerID, it := range its {
+		d.finished.Go(func() {
 			d.logger.Debug("starting alert ingestion worker", "workerID", workerID)
 
+			alertCh := it.Next()
 			for {
 				select {
 				case alrt, ok := <-alertCh:
@@ -297,7 +300,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 					return
 				}
 			}
-		}(i)
+		})
 	}
 	<-d.ctx.Done()
 }
@@ -309,22 +312,22 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 	defer span.End()
 
 	now := time.Now()
-	for _, r := range d.matchRoutes(alrt.Labels) {
+	var buf [4]*Route
+	for _, r := range d.matchRoutes(alrt.Labels, buf[:0]) {
 		tracing.EventRouteMatched(span, r.RouteOpts.Receiver)
 		d.groupAlert(ctx, alrt, r)
 	}
 	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 }
 
-// matchRoutes returns the routes matching the labels, one per slot: routes
-// sharing a slot share their groups, so grouping the alert through a second
-// route of the slot would only repeat the work of the first. The matches are
-// deduplicated by slot as they are added, with a linear scan: an alert
-// matches one route nearly always and a handful at most, and comparing that
-// many pointers stays cheaper than a set, which allocates and hashes, up to
-// fanouts of over a hundred routes.
-func (d *Dispatcher) matchRoutes(lset model.LabelSet) []*Route {
-	var routes []*Route
+// matchRoutes appends the routes matching the labels to routes, one per slot:
+// routes sharing a slot share their groups, so grouping the alert through a
+// second route of the slot would only repeat the work of the first. The
+// matches are deduplicated by slot as they are added, with a linear scan: an
+// alert matches one route nearly always and a handful at most, and comparing
+// that many pointers stays cheaper than a set, which allocates and hashes, up
+// to fanouts of over a hundred routes.
+func (d *Dispatcher) matchRoutes(lset model.LabelSet, routes []*Route) []*Route {
 	d.route.match(lset, func(r *Route) {
 		if !slices.ContainsFunc(routes, func(m *Route) bool { return m.slot == r.slot }) {
 			routes = append(routes, r)
@@ -541,9 +544,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 	defer span.End()
 
 	now := time.Now()
-	groupLabels := getGroupLabels(alrt, &s.opts)
-
-	fp := groupLabels.Fingerprint()
+	fp := groupFingerprint(alrt, &s.opts)
 
 	el, loaded := s.groups.Load(fp)
 	if loaded {
@@ -571,7 +572,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		return
 	}
 
-	ag := newAggrGroup(d.ctx, groupLabels, s, d.timeout, d.recorder, d.logger, d.tmpl)
+	ag := newAggrGroup(d.ctx, getGroupLabels(alrt, &s.opts), s, d.timeout, d.recorder, d.logger, d.tmpl)
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.
@@ -681,6 +682,47 @@ func getGroupLabels(alrt *alert.Alert, opts *RouteOpts) model.LabelSet {
 	}
 
 	return groupLabels
+}
+
+// groupFingerprint returns getGroupLabels(alrt, opts).Fingerprint() without
+// building the label set, which only a group miss needs.
+func groupFingerprint(alrt *alert.Alert, opts *RouteOpts) model.Fingerprint {
+	if opts.GroupByAll {
+		return alrt.Fingerprint()
+	}
+	var buf [8]model.LabelName
+	names := buf[:0]
+	for ln := range opts.GroupBy {
+		if _, ok := alrt.Labels[ln]; ok {
+			names = append(names, ln)
+		}
+	}
+	slices.Sort(names)
+	h := fnvOffset64
+	for _, ln := range names {
+		h = fnvAddString(h, string(ln))
+		h = fnvAddByte(h, model.SeparatorByte)
+		h = fnvAddString(h, string(alrt.Labels[ln]))
+		h = fnvAddByte(h, model.SeparatorByte)
+	}
+	return model.Fingerprint(h)
+}
+
+// FNV-1a as used by model.LabelSet.Fingerprint.
+const (
+	fnvOffset64 uint64 = 14695981039346656037
+	fnvPrime64  uint64 = 1099511628211
+)
+
+func fnvAddString(h uint64, s string) uint64 {
+	for i := 0; i < len(s); i++ {
+		h = fnvAddByte(h, s[i])
+	}
+	return h
+}
+
+func fnvAddByte(h uint64, b byte) uint64 {
+	return (h ^ uint64(b)) * fnvPrime64
 }
 
 // aggrGroup aggregates alert fingerprints into groups to which a

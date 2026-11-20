@@ -560,3 +560,65 @@ func TestSubscriberChannelMetrics(t *testing.T) {
 		return writeCount == float64(len(alertsToSend))
 	}, 1*time.Second, 10*time.Millisecond, "subscriberChannelWrites should equal the number of alerts sent")
 }
+
+// TestSlurpAndSubscribeShards checks that every update to an alert is
+// delivered on the same shard and that alerts spread evenly over the shards,
+// using labels that repeat a value, which leaves the low bits of their
+// fingerprints identical.
+func TestSlurpAndSubscribeShards(t *testing.T) {
+	t.Parallel()
+	for _, shards := range []int{2, 3, 8} {
+		t.Run(strconv.Itoa(shards), func(t *testing.T) {
+			t.Parallel()
+			alerts, err := NewAlerts(t.Context(), time.Hour, 0, noopCallback{}, promslog.NewNopLogger(), eventrecorder.NopRecorder(), prometheus.NewRegistry(), nil)
+			require.NoError(t, err)
+			t.Cleanup(alerts.Close)
+
+			_, its := alerts.SlurpAndSubscribe("test", shards)
+			require.Len(t, its, shards)
+			t.Cleanup(its[0].Close)
+
+			const n = 4096
+			var (
+				mu    sync.Mutex
+				seen  = make([]map[model.Fingerprint]int, shards)
+				total atomic.Int64
+			)
+			for i, it := range its {
+				seen[i] = map[model.Fingerprint]int{}
+				go func() {
+					for a := range it.Next() {
+						mu.Lock()
+						seen[i][a.Data.Fingerprint()]++
+						mu.Unlock()
+						total.Add(1)
+					}
+				}()
+			}
+
+			now := time.Now()
+			for i := range n {
+				v := model.LabelValue(fmt.Sprintf("host-%d", i))
+				a := alert.New(model.Alert{
+					Labels:   model.LabelSet{"alertname": "A", "instance": v, "hostname": v},
+					StartsAt: now,
+					EndsAt:   now.Add(time.Hour),
+				}, now, false)
+				require.NoError(t, alerts.Put(context.Background(), a))
+				a2 := *a
+				a2.UpdatedAt = now.Add(time.Second)
+				require.NoError(t, alerts.Put(context.Background(), &a2))
+			}
+			require.Eventually(t, func() bool { return total.Load() == 2*n }, 10*time.Second, time.Millisecond)
+
+			mu.Lock()
+			defer mu.Unlock()
+			for i, m := range seen {
+				for fp, c := range m {
+					require.Equal(t, 2, c, "shard %d saw only one update of %v", i, fp)
+				}
+				require.InDelta(t, n/shards, len(m), 0.3*n/float64(shards), "shard %d", i)
+			}
+		})
+	}
+}

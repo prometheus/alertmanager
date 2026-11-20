@@ -78,7 +78,8 @@ func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, logger *slog
 }
 
 func (ih *Inhibitor) run(ctx context.Context) {
-	initalAlerts, it := ih.alerts.SlurpAndSubscribe("inhibitor")
+	initalAlerts, its := ih.alerts.SlurpAndSubscribe("inhibitor", 1)
+	it := its[0]
 	defer it.Close()
 
 	for _, a := range initalAlerts {
