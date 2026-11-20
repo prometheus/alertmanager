@@ -15,6 +15,10 @@ package sns
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+	"unicode/utf8"
 
 	commoncfg "github.com/prometheus/common/config"
 
@@ -22,6 +26,11 @@ import (
 
 	"github.com/prometheus/sigv4"
 )
+
+// sessionTagPattern matches AWS STS session tag key/value constraints:
+// letters, numbers, whitespace, and _.:/=+-@
+// See: https://docs.aws.amazon.com/STS/latest/APIReference/API_Tag.html
+var sessionTagPattern = regexp.MustCompile(`^[\p{L}\p{Z}\p{N}_.:/=+@-]+$`)
 
 // DefaultSNSConfig defines default values for SNS configurations.
 var DefaultSNSConfig = SNSConfig{
@@ -66,5 +75,54 @@ func (c *SNSConfig) Validate() error {
 	if (c.TargetARN == "") != (c.TopicARN == "") != (c.PhoneNumber == "") {
 		return errors.New("must provide either a Target ARN, Topic ARN, or Phone Number for SNS config")
 	}
+	if err := c.Sigv4.Validate(); err != nil {
+		return err
+	}
+	// AWS STS has a maximum of 50 session tags.
+	// See: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+	if len(c.Sigv4.Tags) > 50 {
+		return errors.New("sigv4.tags must not contain more than 50 tags (AWS STS limit)")
+	}
+	// AWS STS session tag keys are case-insensitive: "team" and "Team" collide.
+	// Reject case-insensitive duplicates so the configured attribution is preserved.
+	// See: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+	seenKeys := make(map[string]string, len(c.Sigv4.Tags))
+	for k := range c.Sigv4.Tags {
+		lower := strings.ToLower(k)
+		if prev, ok := seenKeys[lower]; ok {
+			return fmt.Errorf("sigv4.tags keys %q and %q collide (AWS STS tag keys are case-insensitive)", prev, k)
+		}
+		seenKeys[lower] = k
+	}
+	for k, v := range c.Sigv4.Tags {
+		// AWS reserves the "aws:" prefix for both tag keys and values.
+		if hasAWSPrefix(k) {
+			return fmt.Errorf("sigv4.tags key %q must not use the reserved 'aws:' prefix", k)
+		}
+		if hasAWSPrefix(v) {
+			return fmt.Errorf("sigv4.tags value for key %q must not use the reserved 'aws:' prefix", k)
+		}
+		// AWS tag keys must be non-empty and ≤ 128 characters (rune-based).
+		if utf8.RuneCountInString(k) > 128 {
+			return fmt.Errorf("sigv4.tags key %q exceeds maximum length of 128", k)
+		}
+		// AWS tag values must be ≤ 256 characters (rune-based).
+		if utf8.RuneCountInString(v) > 256 {
+			return fmt.Errorf("sigv4.tags value for key %q exceeds maximum length of 256", k)
+		}
+		// Validate allowed characters for both keys and values.
+		// See: https://docs.aws.amazon.com/STS/latest/APIReference/API_Tag.html
+		if !sessionTagPattern.MatchString(k) {
+			return fmt.Errorf("sigv4.tags key %q contains invalid characters (allowed: letters, numbers, whitespace, _.:/=+-@)", k)
+		}
+		if v != "" && !sessionTagPattern.MatchString(v) {
+			return fmt.Errorf("sigv4.tags value for key %q contains invalid characters (allowed: letters, numbers, whitespace, _.:/=+-@)", k)
+		}
+	}
 	return nil
+}
+
+// hasAWSPrefix reports whether s begins with the reserved "aws:" prefix.
+func hasAWSPrefix(s string) bool {
+	return len(s) >= 4 && s[:4] == "aws:"
 }
