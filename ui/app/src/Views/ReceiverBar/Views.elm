@@ -2,7 +2,8 @@ module Views.ReceiverBar.Views exposing (view)
 
 import Html exposing (Html, div, input, li, text)
 import Html.Attributes exposing (class, id, style, tabindex, value)
-import Html.Events exposing (onBlur, onClick, onInput, onMouseEnter, onMouseLeave)
+import Html.Events exposing (onBlur, onClick, onInput, onMouseEnter, onMouseLeave, preventDefaultOn)
+import Json.Decode as Decode
 import Utils.Keyboard exposing (keys, onKeyDown)
 import Utils.List
 import Views.ReceiverBar.Types exposing (Model, Msg(..), Receiver)
@@ -106,6 +107,7 @@ receiverField selected receiver =
                 [ class "dropdown-item"
                 , style "cursor" "pointer"
                 , onClick (FilterByReceiver receiver.regex)
+                , preventDefaultOn "mousedown" (Decode.succeed ( Noop, True ))
                 ]
     in
     div attrs [ text receiver.name ]
