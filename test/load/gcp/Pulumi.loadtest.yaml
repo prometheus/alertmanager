@@ -1,0 +1,2 @@
+config:
+  alertmanager-loadtest:instanceCount: "3"

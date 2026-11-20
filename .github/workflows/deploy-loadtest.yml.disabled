@@ -1,0 +1,58 @@
+---
+name: Deploy Alertmanager load-test infrastructure
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+    paths:
+      - "test/load/gcp/**"
+      - ".github/workflows/deploy-loadtest.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alertmanager-loadtest
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Pulumi stack
+    runs-on: ubuntu-latest
+    environment: alertmanager-loadtest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: test/load/gcp/go.mod
+          cache: false
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - name: Deploy infrastructure
+        uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7.1.0
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        with:
+          command: up
+          cloud-url: ${{ vars.PULUMI_BACKEND_URL }}
+          stack-name: loadtest
+          upsert: true
+          work-dir: test/load/gcp
+          pulumi-version: 3.274.1
+          refresh: true
+          diff: true
+          comment-on-summary: true
+          config-map: |
+            gcp:project:
+              value: ${{ vars.GCP_PROJECT }}
+            gcp:zone:
+              value: ${{ vars.GCP_ZONE }}
