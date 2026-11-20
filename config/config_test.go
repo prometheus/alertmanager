@@ -1056,6 +1056,19 @@ receivers:
 	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
 }
 
+func TestPushoverRejectsMissingConfig(t *testing.T) {
+	in := `
+route:
+  receiver: pushover
+receivers:
+- name: pushover
+  pushover_configs:
+  -
+`
+	_, err := Load(in)
+	require.ErrorContains(t, err, "missing pushover config")
+}
+
 func TestMSTeamsV2RejectsMissingConfig(t *testing.T) {
 	in := `
 route:

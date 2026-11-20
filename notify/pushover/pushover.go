@@ -52,7 +52,7 @@ type Notifier struct {
 
 // New returns a new Pushover notifier.
 func New(c *config.PushoverConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "pushover", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "pushover", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +122,10 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		message = tmplHTML(n.conf.Message)
 	} else {
 		message = tmpl(n.conf.Message)
+	}
+
+	if n.conf.Monospace {
+		parameters.Add("monospace", "1")
 	}
 
 	message, truncated = notify.TruncateInRunes(message, maxMessageLenRunes)

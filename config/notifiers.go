@@ -419,25 +419,26 @@ type PushoverConfig struct {
 
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
-	UserKey     Secret   `yaml:"user_key,omitempty" json:"user_key,omitempty"`
-	UserKeyFile string   `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
-	Token       Secret   `yaml:"token,omitempty" json:"token,omitempty"`
-	TokenFile   string   `yaml:"token_file,omitempty" json:"token_file,omitempty"`
-	Title       string   `yaml:"title,omitempty" json:"title,omitempty"`
-	Message     string   `yaml:"message,omitempty" json:"message,omitempty"`
-	URL         string   `yaml:"url,omitempty" json:"url,omitempty"`
-	URLTitle    string   `yaml:"url_title,omitempty" json:"url_title,omitempty"`
-	Device      string   `yaml:"device,omitempty" json:"device,omitempty"`
-	Sound       string   `yaml:"sound,omitempty" json:"sound,omitempty"`
-	Priority    string   `yaml:"priority,omitempty" json:"priority,omitempty"`
-	Retry       duration `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Expire      duration `yaml:"expire,omitempty" json:"expire,omitempty"`
-	TTL         duration `yaml:"ttl,omitempty" json:"ttl,omitempty"`
-	HTML        bool     `yaml:"html" json:"html,omitempty"`
+	UserKey     commoncfg.Secret `yaml:"user_key,omitempty" json:"user_key,omitempty"`
+	UserKeyFile string           `yaml:"user_key_file,omitempty" json:"user_key_file,omitempty"`
+	Token       commoncfg.Secret `yaml:"token,omitempty" json:"token,omitempty"`
+	TokenFile   string           `yaml:"token_file,omitempty" json:"token_file,omitempty"`
+	Title       string           `yaml:"title,omitempty" json:"title,omitempty"`
+	Message     string           `yaml:"message,omitempty" json:"message,omitempty"`
+	URL         string           `yaml:"url,omitempty" json:"url,omitempty"`
+	URLTitle    string           `yaml:"url_title,omitempty" json:"url_title,omitempty"`
+	Device      string           `yaml:"device,omitempty" json:"device,omitempty"`
+	Sound       string           `yaml:"sound,omitempty" json:"sound,omitempty"`
+	Priority    string           `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Retry       duration         `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Expire      duration         `yaml:"expire,omitempty" json:"expire,omitempty"`
+	TTL         duration         `yaml:"ttl,omitempty" json:"ttl,omitempty"`
+	HTML        bool             `yaml:"html,omitempty" json:"html,omitempty"`
+	Monospace   bool             `yaml:"monospace,omitempty" json:"monospace,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *PushoverConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultPushoverConfig
 	type plain PushoverConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -454,6 +455,9 @@ func (c *PushoverConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	}
 	if c.Token != "" && c.TokenFile != "" {
 		return errors.New("at most one of token & token_file must be configured")
+	}
+	if c.HTML && c.Monospace {
+		return errors.New("at most one of monospace & html must be configured")
 	}
 	return nil
 }
