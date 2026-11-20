@@ -38,8 +38,10 @@ message Entry {
   // Data specific to the receiver which sent the notification
   map<string, ReceiverDataValue> receiver_data = 8;
   // MutedAlerts list of hashes of alerts that were muted at the last
-  // notification time, and therefore excluded from FiringAlerts and
-  // ResolvedAlerts.
+  // notification time, and so not delivered. This is a flag over the two lists
+  // above rather than a third state: a muted alert appears here and in
+  // FiringAlerts or ResolvedAlerts. The receiver was shown FiringAlerts minus
+  // MutedAlerts.
   repeated uint64 muted_alerts = 9;
 }
 
