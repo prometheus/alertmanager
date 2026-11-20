@@ -1,31 +1,33 @@
-import { useSuspenseAPIQuery } from '@/data/api';
+import type { MessageInitShape } from '@bufbuild/protobuf';
+import { createQueryOptions, useTransport } from '@connectrpc/connect-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-type Silence = {
-  id: string;
-  status: {
-    state: 'active' | 'expired' | 'pending';
-  };
-  startsAt: string;
-  updatedAt: string;
-  endsAt: string;
-  createdBy: string;
-  comment: string;
-  matchers: Array<{
-    name: string;
-    value: string;
-    isRegex: boolean;
-    isEqual: boolean;
-  }>;
-};
+import { type ListSilencesResponse, SilenceService } from '@/gen/silence/v3alpha/silence_pb';
 
-export const useSilences = () => {
-  return useSuspenseAPIQuery<Array<Silence>>({
-    path: '/silences',
+const listSilences = SilenceService.method.listSilences;
+const cacheOptions = { staleTime: 30_000, gcTime: 60_000, retry: false };
+
+export type SilenceListInput = MessageInitShape<typeof listSilences.input>;
+
+export function useSilences(input: SilenceListInput) {
+  const transport = useTransport();
+  return useQuery({
+    ...createQueryOptions(listSilences, input, { transport }),
+    ...cacheOptions,
   });
-};
+}
 
-export const useSilence = (id: string) => {
-  return useSuspenseAPIQuery<Silence>({
-    path: `/silence/${id}`,
+export function useSilence(id: string, listInput: SilenceListInput) {
+  const transport = useTransport();
+  const client = useQueryClient();
+  const scoped = createQueryOptions(listSilences, listInput, { transport });
+  const findSilence = (response?: ListSilencesResponse) =>
+    response?.silences.find((silence) => silence.id === id);
+  const cached = findSilence(client.getQueryData(scoped.queryKey));
+
+  return useQuery({
+    ...(cached ? scoped : createQueryOptions(listSilences, {}, { transport })),
+    ...cacheOptions,
+    select: (response) => findSilence(response) ?? null,
   });
-};
+}
