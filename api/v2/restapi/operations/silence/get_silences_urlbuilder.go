@@ -29,10 +29,11 @@ import (
 
 // GetSilencesURL generates an URL for the get silences operation
 type GetSilencesURL struct {
-	Active  *bool
-	Expired *bool
-	Filter  []string
-	Pending *bool
+	Active    *bool
+	CreatedBy *string
+	Expired   *bool
+	Filter    []string
+	Pending   *bool
 
 	_basePath string
 	// avoid unkeyed usage
@@ -74,6 +75,14 @@ func (o *GetSilencesURL) Build() (*url.URL, error) {
 	}
 	if activeQ != "" {
 		qs.Set("active", activeQ)
+	}
+
+	var createdByQ string
+	if o.CreatedBy != nil {
+		createdByQ = *o.CreatedBy
+	}
+	if createdByQ != "" {
+		qs.Set("created_by", createdByQ)
 	}
 
 	var expiredQ string
