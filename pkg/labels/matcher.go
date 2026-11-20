@@ -16,6 +16,7 @@ package labels
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -58,8 +59,12 @@ type Matcher struct {
 	re *regexp.Regexp
 }
 
-// NewMatcher returns a matcher object.
+// NewMatcher returns a matcher object. It returns an error if the label name
+// is empty.
 func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
+	if n == "" {
+		return nil, errors.New("label name cannot be empty")
+	}
 	m := &Matcher{
 		Type:  t,
 		Name:  n,

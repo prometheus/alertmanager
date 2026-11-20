@@ -370,6 +370,10 @@ func TestCompliance(t *testing.T) {
 			err:   "bad matcher format: ",
 		},
 		{
+			input: `{""="bar"}`,
+			err:   `bad matcher format: ""="bar"`,
+		},
+		{
 			input: `job="value`,
 			err:   `matcher value contains unescaped double quote: "value`,
 		},

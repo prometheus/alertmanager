@@ -38,6 +38,10 @@ func TestFallbackMatcherParser(t *testing.T) {
 		input: "foo!bar",
 		err:   "bad matcher format: foo!bar",
 	}, {
+		name:  "empty label name is accepted in neither",
+		input: "\"\"=\"foo\"",
+		err:   "bad matcher format: \"\"=\"foo\"",
+	}, {
 		name:     "input is accepted in matchers/parse but not pkg/labels",
 		input:    "foo🙂=bar",
 		expected: mustNewMatcher(t, labels.MatchEqual, "foo🙂", "bar"),
@@ -85,6 +89,10 @@ func TestFallbackMatchersParser(t *testing.T) {
 		name:  "input is accepted in neither",
 		input: "{foo!bar}",
 		err:   "bad matcher format: foo!bar",
+	}, {
+		name:  "empty label name is accepted in neither",
+		input: "{foo=bar,\"\"=\"foo\"}",
+		err:   "bad matcher format: \"\"=\"foo\"",
 	}, {
 		name:  "input is accepted in matchers/parse but not pkg/labels",
 		input: "{foo🙂=bar,bar=baz🙂}",
