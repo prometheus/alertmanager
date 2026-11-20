@@ -35,6 +35,7 @@ If the labelset resolves to multiple receivers, they are printed out in order as
 
 Routing is loaded from a local configuration file or a running Alertmanager configuration.
 Specifying --config.file takes precedence over --alertmanager.url.
+Use --config.file=- to read the configuration from stdin.
 
 Example:
 
