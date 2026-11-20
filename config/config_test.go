@@ -1479,6 +1479,19 @@ func TestSlackGlobalAppToken(t *testing.T) {
 	if fifthConfig.APIURL.String() != apiURL || fifthConfig.APIURLFile != "" {
 		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", fifthConfig.APIURL.String(), apiURL)
 	}
+
+	// A local webhook URL file is kept and the global app token is not inherited.
+	apiURLFile := "/etc/alertmanager/slack-webhook-url"
+	sixthConfig := conf.Receivers[0].SlackConfigs[5]
+	if sixthConfig.APIURL != nil || sixthConfig.APIURLFile != apiURLFile {
+		t.Fatalf("Invalid Slack URL: %s, URL file: %s\nExpected URL file: %s", sixthConfig.APIURL, sixthConfig.APIURLFile, apiURLFile)
+	}
+	if sixthConfig.AppToken != "" || sixthConfig.AppTokenFile != "" {
+		t.Fatalf("Invalid Slack App token: %q, token file: %q\nExpected none", sixthConfig.AppToken, sixthConfig.AppTokenFile)
+	}
+	if sixthConfig.HTTPConfig == nil || sixthConfig.HTTPConfig.Authorization != nil {
+		t.Fatalf("Unexpected Slack App authorization: %v", sixthConfig.HTTPConfig)
+	}
 }
 
 func TestSlackNoAPIURL(t *testing.T) {

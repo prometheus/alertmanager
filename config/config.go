@@ -439,7 +439,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				return errors.New("no global Slack App URL set")
 			}
 			// we only want to set the app token from global if there's no local authorization or webhook url
-			if sc.AppToken == "" && len(sc.AppTokenFile) == 0 && (sc.HTTPConfig == nil || sc.HTTPConfig.Authorization == nil) && sc.APIURL == nil {
+			if sc.AppToken == "" && len(sc.AppTokenFile) == 0 && (sc.HTTPConfig == nil || sc.HTTPConfig.Authorization == nil) && sc.APIURL == nil && len(sc.APIURLFile) == 0 {
 				sc.AppToken = c.Global.SlackAppToken
 				sc.AppTokenFile = c.Global.SlackAppTokenFile
 			}
