@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -165,16 +166,29 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 		}
 	}
 
-	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLenRunes)
+	alertID := fmt.Sprintf("ALERT{%s}", groupID)
+	maxSummaryLen := maxSummaryLenRunes
+	if n.conf.DisableLabels {
+		// Leave room for the alert ID so that it is never truncated.
+		maxSummaryLen -= utf8.RuneCountInString(alertID) + 1
+	}
+
+	summary, truncated := notify.TruncateInRunes(summary, maxSummaryLen)
 	if truncated {
-		logger.Warn("Truncated summary", "max_runes", maxSummaryLenRunes)
+		logger.Warn("Truncated summary", "max_runes", maxSummaryLen)
+	}
+
+	if n.conf.DisableLabels {
+		if summary != "" {
+			summary += " "
+		}
+		summary += alertID
 	}
 
 	requestBody := issue{Fields: &issueFields{
 		Project:   &issueProject{Key: project},
 		Issuetype: &idNameValue{Name: issueType},
 		Summary:   &summary,
-		Labels:    make([]string, 0, len(n.conf.Labels)+1),
 		Fields:    fieldsWithStringKeys,
 	}}
 
@@ -208,15 +222,18 @@ func (n *Notifier) prepareIssueRequestBody(_ context.Context, logger *slog.Logge
 
 	requestBody.Fields.Description = description
 
-	for i, label := range n.conf.Labels {
-		label, err = tmplTextFunc(label)
-		if err != nil {
-			return issue{}, fmt.Errorf("labels[%d] template: %w", i, err)
+	if !n.conf.DisableLabels {
+		requestBody.Fields.Labels = make([]string, 0, len(n.conf.Labels)+1)
+		for i, label := range n.conf.Labels {
+			label, err = tmplTextFunc(label)
+			if err != nil {
+				return issue{}, fmt.Errorf("labels[%d] template: %w", i, err)
+			}
+			requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
 		}
-		requestBody.Fields.Labels = append(requestBody.Fields.Labels, label)
+		requestBody.Fields.Labels = append(requestBody.Fields.Labels, alertID)
+		sort.Strings(requestBody.Fields.Labels)
 	}
-	requestBody.Fields.Labels = append(requestBody.Fields.Labels, fmt.Sprintf("ALERT{%s}", groupID))
-	sort.Strings(requestBody.Fields.Labels)
 
 	priority, err := tmplTextFunc(n.conf.Priority)
 	if err != nil {
@@ -255,11 +272,16 @@ func (n *Notifier) searchExistingIssue(ctx context.Context, logger *slog.Logger,
 	}
 
 	alertLabel := fmt.Sprintf("ALERT{%s}", groupID)
+	alertFilter := fmt.Sprintf("labels=%q", alertLabel)
+	if n.conf.DisableLabels {
+		// Jira text search ignores punctuation, so search for the group ID alone.
+		alertFilter = fmt.Sprintf("summary ~ %q", groupID)
+	}
 	project, err := tmplTextFunc(n.conf.Project)
 	if err != nil {
 		return nil, false, notify.DefaultReason, fmt.Errorf("invalid project template or value: %w", err)
 	}
-	fmt.Fprintf(&jql, `project=%q and labels=%q order by status ASC,resolutiondate DESC`, project, alertLabel)
+	fmt.Fprintf(&jql, `project=%q and %s order by status ASC,resolutiondate DESC`, project, alertFilter)
 
 	requestBody, searchPath := n.prepareSearchRequest(jql.String())
 
