@@ -54,12 +54,18 @@ func New(c *MattermostConfig, t *template.Template, l *slog.Logger, httpOpts ...
 		return nil, err
 	}
 
+	retrier := &notify.Retrier{}
+	if c.APIURL != nil {
+		// The REST API answers rate-limited requests with HTTP 429.
+		retrier.RetryCodes = []int{http.StatusTooManyRequests}
+	}
+
 	return &Notifier{
 		conf:         c,
 		tmpl:         t,
 		logger:       l,
 		client:       client,
-		retrier:      &notify.Retrier{},
+		retrier:      retrier,
 		postJSONFunc: notify.PostJSON,
 	}, nil
 }
@@ -104,6 +110,10 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		url  string
 		data = notify.GetTemplateData(ctx, n.tmpl, alrt, n.logger)
 	)
+
+	if n.conf.APIURL != nil {
+		return n.notifyAPI(ctx, data)
+	}
 
 	if n.conf.WebhookURL != nil {
 		url = n.conf.WebhookURL.String()
@@ -158,14 +168,21 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 func (n *Notifier) createRequest(tmpl func(string) string) *request {
 	text := tmpl(n.conf.Text)
 	req := &request{
-		Channel:   tmpl(n.conf.Channel),
-		Username:  tmpl(n.conf.Username),
-		IconURL:   tmpl(n.conf.IconURL),
-		IconEmoji: tmpl(n.conf.IconEmoji),
-		Type:      tmpl(n.conf.Type),
+		Channel: tmpl(n.conf.Channel),
+		Type:    tmpl(n.conf.Type),
 	}
 
-	if n.conf.Priority != nil && n.conf.Priority.Priority != "" {
+	// Username, icon and priority are only supported by webhooks. They are not
+	// rendered in REST API mode so that a template error in an ignored field
+	// cannot block the notification.
+	webhookMode := n.conf.APIURL == nil
+	if webhookMode {
+		req.Username = tmpl(n.conf.Username)
+		req.IconURL = tmpl(n.conf.IconURL)
+		req.IconEmoji = tmpl(n.conf.IconEmoji)
+	}
+
+	if webhookMode && n.conf.Priority != nil && n.conf.Priority.Priority != "" {
 		req.Priority = &MattermostPriority{
 			Priority:                tmpl(n.conf.Priority.Priority),
 			RequestedAck:            n.conf.Priority.RequestedAck,

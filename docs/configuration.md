@@ -1162,7 +1162,10 @@ receivers:
 
 ### `<mattermost_config>`
 
-Mattermost notifications are sent via the [Mattermost webhook API](https://developers.mattermost.com/integrate/webhooks/incoming/).
+Mattermost notifications are sent either via an [incoming webhook](https://developers.mattermost.com/integrate/webhooks/incoming/)
+(`webhook_url`) or via the [Mattermost REST API](https://developers.mattermost.com/api-documentation/) (`api_url`).
+The REST API mode authenticates with a bot access token set in `http_config` and is required for `update_message`.
+In REST API mode `username`, `icon_url`, `icon_emoji` and `priority` are not supported and are ignored.
 
 ```yaml
 # Whether to notify about resolved alerts.
@@ -1172,6 +1175,18 @@ Mattermost notifications are sent via the [Mattermost webhook API](https://devel
 # webhook_url and webhook_url_file are mutually exclusive.
 webhook_url: <secret>
 webhook_url_file: <filepath>
+
+# The base URL of the Mattermost REST API, for example https://mattermost.example.com.
+# Requires a bot access token in http_config and channel_id.
+# api_url is mutually exclusive with webhook_url and webhook_url_file.
+[ api_url: <string> ]
+
+# The ID of the channel to post to (not its name). Required with api_url.
+[ channel_id: <string> ]
+
+# Enables updating the existing post of an alert group instead of creating a new one
+# on alert state change. Requires api_url, webhook URLs do not support updates.
+[ update_message: <boolean> | default = false ]
 
 # Overrides the channel the message posts in. Use the channel’s name and not the display name, e.g. use town-square, not Town Square.
 [ channel: <string> | default = '' ]
@@ -1212,7 +1227,23 @@ webhook_url_file: <filepath>
 [ priority: <priority_config> ]
 
 # The HTTP client's configuration.
+# In REST API mode, set the bot access token here, for example via
+# authorization.credentials or authorization.credentials_file.
 [ http_config: <http_config> | default = global.http_config ]
+```
+
+Example of the REST API mode, where a single post is created per alert group and edited on later notifications:
+
+```yaml
+receivers:
+  - name: mattermost
+    mattermost_configs:
+      - api_url: https://mattermost.example.com
+        channel_id: abc123
+        update_message: true
+        http_config:
+          authorization:
+            credentials_file: /etc/alertmanager/secrets/mattermost-bot-token
 ```
 
 #### `<attachment_config>`

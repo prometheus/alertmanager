@@ -1,0 +1,11 @@
+route:
+  receiver: 'mattermost'
+receivers:
+  - name: 'mattermost'
+    mattermost_configs:
+      - api_url: 'https://mattermost.example.com'
+        channel_id: 'abc123'
+        update_message: true
+        http_config:
+          authorization:
+            credentials: 'bot-token'
