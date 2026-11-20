@@ -1,0 +1,14 @@
+.section {
+  scroll-margin-top: 4.5rem;
+}
+
+.label {
+  flex: 0 0 var(--data-list-label-width);
+  overflow-wrap: anywhere;
+}
+
+.value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
