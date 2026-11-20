@@ -448,6 +448,31 @@ func TestBucketIsStale(t *testing.T) {
 		require.Len(t, bucket.items, 3, "Bucket should still have 3 items after IsStale check")
 		require.Len(t, bucket.index, 3, "Bucket index should still have 3 items after IsStale check")
 	})
+
+	t.Run("IsStale returns false when the active item is not the last heap element", func(t *testing.T) {
+		// items is a min-heap ordered by expiry, so the item with the latest
+		// expiry is not necessarily at the final index. Insert an active alert
+		// first and two expired alerts after it so that the heap keeps the
+		// active alert off the last slot and leaves an expired alert there.
+		bucket := NewBucket[model.Fingerprint](3)
+
+		active := model.Alert{Labels: model.LabelSet{"alertname": "Active"}, EndsAt: time.Now().Add(1 * time.Hour)}
+		expired1 := model.Alert{Labels: model.LabelSet{"alertname": "Expired1"}, EndsAt: time.Now().Add(-10 * time.Minute)}
+		expired2 := model.Alert{Labels: model.LabelSet{"alertname": "Expired2"}, EndsAt: time.Now().Add(-5 * time.Minute)}
+
+		bucket.Upsert(active.Fingerprint(), active.EndsAt)
+		bucket.Upsert(expired1.Fingerprint(), expired1.EndsAt)
+		bucket.Upsert(expired2.Fingerprint(), expired2.EndsAt)
+
+		// The scenario is only meaningful if the last heap element is expired
+		// while an active item still lives elsewhere in the heap.
+		require.True(t, bucket.items[bucket.items.Len()-1].expired(time.Now()),
+			"test setup expects the last heap element to be expired")
+
+		// The bucket still holds an active alert, so it must not be stale.
+		require.False(t, bucket.IsStale(),
+			"IsStale must return false while any item is still active, even if it is not the last heap element")
+	})
 }
 
 // Benchmark concurrent access to Bucket.Upsert().
