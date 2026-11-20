@@ -15,6 +15,7 @@ package template
 
 import (
 	"bytes"
+	"encoding/json"
 	tmplhtml "html/template"
 	"io"
 	"net/url"
@@ -205,6 +206,13 @@ var DefaultFuncs = FuncMap{
 			return time.Time{}, err
 		}
 		return t.In(loc), nil
+	},
+	"toJson": func(v any) (string, error) {
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return "", err
+		}
+		return string(bytes), nil
 	},
 }
 

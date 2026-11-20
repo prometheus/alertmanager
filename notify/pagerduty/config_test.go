@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -97,13 +97,13 @@ service_key_file: 'xyz'
 func TestPagerdutyDetails(t *testing.T) {
 	tests := []struct {
 		in      string
-		checkFn func(map[string]string)
+		checkFn func(map[string]any)
 	}{
 		{
 			in: `
 routing_key: 'xyz'
 `,
-			checkFn: func(d map[string]string) {
+			checkFn: func(d map[string]any) {
 				if len(d) != 4 {
 					t.Errorf("expected 4 items, got: %d", len(d))
 				}
@@ -115,7 +115,7 @@ routing_key: 'xyz'
 details:
   key1: val1
 `,
-			checkFn: func(d map[string]string) {
+			checkFn: func(d map[string]any) {
 				if len(d) != 5 {
 					t.Errorf("expected 5 items, got: %d", len(d))
 				}
@@ -129,7 +129,7 @@ details:
   key2: val2
   firing: firing
 `,
-			checkFn: func(d map[string]string) {
+			checkFn: func(d map[string]any) {
 				if len(d) != 6 {
 					t.Errorf("expected 6 items, got: %d", len(d))
 				}
