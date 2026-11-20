@@ -41,7 +41,8 @@ type message struct {
 	IconURL     string       `json:"icon_url,omitempty"`
 	LinkNames   bool         `json:"link_names,omitempty"`
 	Text        string       `json:"text,omitempty"`
-	Attachments []attachment `json:"attachments"`
+	Blocks      any          `json:"blocks,omitempty"`
+	Attachments []attachment `json:"attachments,omitempty"`
 }
 
 // request is the request for sending a Slack notification.
