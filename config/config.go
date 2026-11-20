@@ -36,6 +36,7 @@ import (
 	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/incidentio"
 	"github.com/prometheus/alertmanager/notify/jira"
+	"github.com/prometheus/alertmanager/notify/matrix"
 	"github.com/prometheus/alertmanager/notify/mattermost"
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/msteamsv2"
@@ -234,6 +235,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 		for _, cfg := range receiver.MattermostConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
+		for _, cfg := range receiver.MatrixConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
 	}
@@ -582,6 +586,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 				telegramCfg.BotToken = c.Global.TelegramBotToken
 				telegramCfg.BotTokenFile = c.Global.TelegramBotTokenFile
 			}
+		}
+		for _, matrixCfg := range rcv.MatrixConfigs {
+			if matrixCfg == nil {
+				return errors.New("missing matrix config")
+			}
+			matrixCfg.HTTPConfig = cmp.Or(matrixCfg.HTTPConfig, c.Global.HTTPConfig)
 		}
 		for _, discordCfg := range rcv.DiscordConfigs {
 			if discordCfg == nil {
@@ -982,6 +992,7 @@ type Receiver struct {
 	JiraConfigs       []*jira.JiraConfig             `yaml:"jira_configs,omitempty" json:"jira_configs,omitempty"`
 	RocketchatConfigs []*rocketchat.RocketchatConfig `yaml:"rocketchat_configs,omitempty" json:"rocketchat_configs,omitempty"`
 	MattermostConfigs []*mattermost.MattermostConfig `yaml:"mattermost_configs,omitempty" json:"mattermost_configs,omitempty"`
+	MatrixConfigs     []*matrix.MatrixConfig         `yaml:"matrix_configs,omitempty" json:"matrix_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
