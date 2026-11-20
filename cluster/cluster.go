@@ -60,6 +60,9 @@ type Peer struct {
 	mlist    *memberlist.Memberlist
 	delegate *delegate
 
+	name             string
+	pushPullInterval time.Duration
+
 	resolvedPeers       []string
 	resolvePeersTimeout time.Duration
 
@@ -204,6 +207,8 @@ func Create(
 	}
 
 	p := &Peer{
+		name:                name,
+		pushPullInterval:    pushPullInterval,
 		states:              map[string]State{},
 		stopc:               make(chan struct{}),
 		readyc:              make(chan struct{}),
@@ -292,6 +297,12 @@ func (p *Peer) Join(
 		DefaultRefreshInterval,
 		p.refresh,
 	)
+	if p.pushPullInterval > 0 {
+		go p.runPeriodicTask(
+			p.pushPullInterval,
+			p.delegate.syncLargeState,
+		)
+	}
 
 	return err
 }
@@ -554,20 +565,22 @@ func (p *Peer) AddState(key string, s State, reg prometheus.Registerer) ClusterC
 	send := func(b []byte) {
 		p.delegate.bcast.QueueBroadcast(simpleBroadcast(b))
 	}
-	peers := func() []*memberlist.Node {
-		nodes := p.mlist.Members()
-		for i, n := range nodes {
-			if n.String() == p.Self().Name {
-				nodes = append(nodes[:i], nodes[i+1:]...)
-				break
-			}
-		}
-		return nodes
-	}
 	sendOversize := func(n *memberlist.Node, b []byte) error {
 		return p.mlist.SendReliable(n, b)
 	}
-	return NewChannel(key, send, peers, sendOversize, p.logger, p.stopc, reg)
+	return NewChannel(key, send, p.otherMembers, sendOversize, p.logger, p.stopc, reg)
+}
+
+// otherMembers returns all cluster members except the local node.
+func (p *Peer) otherMembers() []*memberlist.Node {
+	nodes := p.mlist.Members()
+	for i, n := range nodes {
+		if n.String() == p.Self().Name {
+			nodes = append(nodes[:i], nodes[i+1:]...)
+			break
+		}
+	}
+	return nodes
 }
 
 // Leave the cluster, waiting up to timeout.

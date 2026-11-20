@@ -15,12 +15,86 @@ package test
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/go-openapi/strfmt"
+	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/api/v2/client/general"
+	"github.com/prometheus/alertmanager/api/v2/client/silence"
+	"github.com/prometheus/alertmanager/api/v2/models"
 	a "github.com/prometheus/alertmanager/test/with_api_v2"
 )
+
+// TestClusterJoinWithLargeState checks that a peer can join a cluster whose
+// gossip state exceeds memberlist's hard-coded 20 MiB push/pull user state
+// limit introduced in memberlist v0.6.0.
+// See https://github.com/prometheus/alertmanager/issues/5627.
+func TestClusterJoinWithLargeState(t *testing.T) {
+	t.Parallel()
+
+	const (
+		commentSize = 1 << 20 // 1 MiB per silence.
+		numSilences = 24      // ~24 MiB of silence state, above the 20 MiB limit.
+	)
+
+	conf := `
+route:
+  receiver: "default"
+
+receivers:
+- name: "default"
+`
+
+	at := a.NewAcceptanceTest(t, &a.AcceptanceOpts{
+		Tolerance: 1 * time.Second,
+	})
+	amc := at.AlertmanagerCluster(conf, 1)
+	joiner := at.Joiner(conf)
+
+	// No collectors are registered, so Run returns once the seed is up.
+	at.Run()
+
+	seed := amc.Members()[0]
+	comment := strings.Repeat("x", commentSize)
+	isEqual, isRegex := true, false
+	createdBy := "acceptance"
+	start := strfmt.DateTime(time.Now())
+	end := strfmt.DateTime(time.Now().Add(time.Hour))
+	for i := range numSilences {
+		name, value := "alertname", fmt.Sprintf("big-%d", i)
+		_, err := seed.Client().Silence.PostSilences(silence.NewPostSilencesParams().WithSilence(
+			&models.PostableSilence{Silence: models.Silence{
+				Matchers:  models.Matchers{{Name: &name, Value: &value, IsEqual: &isEqual, IsRegex: &isRegex}},
+				StartsAt:  &start,
+				EndsAt:    &end,
+				CreatedBy: &createdBy,
+				Comment:   &comment,
+			}},
+		))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, amc.Join(joiner))
+
+	require.Eventually(t, func() bool {
+		for _, am := range []*a.Alertmanager{seed, joiner} {
+			st, err := am.Client().General.GetStatus(general.NewGetStatusParams())
+			if err != nil || len(st.Payload.Cluster.Peers) != 2 {
+				return false
+			}
+		}
+		return true
+	}, 15*time.Second, 200*time.Millisecond, "joiner did not join a cluster with >20MiB of state")
+
+	require.Eventually(t, func() bool {
+		res, err := joiner.Client().Silence.GetSilences(silence.NewGetSilencesParams())
+		return err == nil && len(res.Payload) == numSilences
+	}, 15*time.Second, 200*time.Millisecond, "silences were not replicated to the joiner")
+}
 
 // TestClusterDeduplication tests, that in an Alertmanager cluster of 3
 // instances, only one should send a notification for a given alert.
