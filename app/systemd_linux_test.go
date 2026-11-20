@@ -382,22 +382,32 @@ func TestSystemdNotifyTimeout(t *testing.T) {
 		}
 	}
 	conn := systemdSocket(t)
-	sender, err := net.DialUnix("unixgram", nil, conn.LocalAddr().(*net.UnixAddr))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, sender.Close()) })
-	require.NoError(t, sender.SetWriteDeadline(time.Now().Add(systemdNotifyTimeout)))
-	for err == nil {
-		_, err = sender.Write([]byte("full"))
-	}
-	expectFullQueue(err)
-
-	done := make(chan error, 1)
-	go func() { done <- sendSystemdNotification(conn.LocalAddr().String(), "READY=1") }()
-	select {
-	case err := <-done:
-		expectFullQueue(err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("notification send exceeded its deadline")
+	done := make(chan error, 2)
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		// Reusing a sender can fill its send buffer before the receive queue is full.
+		for range 4096 {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if err := sendSystemdNotification(conn.LocalAddr().String(), "full"); err != nil {
+				done <- err
+				done <- sendSystemdNotification(conn.LocalAddr().String(), "READY=1")
+				return
+			}
+		}
+		done <- errors.New("receive queue did not fill after 4096 sends")
+	}()
+	for range 2 {
+		select {
+		case err := <-done:
+			expectFullQueue(err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("notification send exceeded its deadline")
+		}
 	}
 }
 
