@@ -16,7 +16,6 @@ package tracing
 import (
 	"time"
 
-	"github.com/prometheus/common/model"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -213,12 +212,13 @@ func EventInhibitRuleTargetMatched(span trace.Span, rule string) {
 	}
 }
 
-// EventInhibited records that inhibit.Inhibitor.Mutes found a source alert
-// that inhibits the alert.
-func EventInhibited(span trace.Span, source model.Fingerprint) {
+// EventInhibited records that inhibit.Inhibitor.Mutes found the source alerts
+// that inhibit the alert. An inhibition rule may have multiple sources, so all
+// inhibiting fingerprints are recorded in a single event.
+func EventInhibited(span trace.Span, inhibitors []string) {
 	if span.IsRecording() {
 		span.AddEvent("alert inhibited",
-			trace.WithAttributes(attribute.String("alerting.inhibit_rule.source.fingerprint", source.String())),
+			trace.WithAttributes(attribute.StringSlice("alerting.inhibit_rule.inhibitors", inhibitors)),
 		)
 	}
 }
