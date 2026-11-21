@@ -326,6 +326,16 @@ func TestTelegramNotifyRichMessage(t *testing.T) {
 			expHTML: fallback,
 		},
 		{
+			name:    "Rich named entities count as one character",
+			message: "<p>" + strings.Repeat("x&nbsp;", 5000) + "</p>",
+			expHTML: "<p>" + strings.Repeat("x&nbsp;", 5000) + "</p>",
+		},
+		{
+			name:    "Custom emoji alternative text counts toward the limit",
+			message: strings.Repeat("x", maxRichMessageLenRunes) + `<img src="tg://emoji?id=5368324170671202286" alt="ok"/>`,
+			expHTML: fallback,
+		},
+		{
 			name:    "Message over the rich message limit falls back",
 			message: strings.Repeat("x", maxRichMessageLenRunes+1),
 			expHTML: fallback,
@@ -495,6 +505,11 @@ func TestRichHTMLTextRuneCount(t *testing.T) {
 		{input: "<p>a  <code>b  c</code></p>", want: 5},
 		{input: "<pre>a  b\n c</pre>", want: 7},
 		{input: "<pre><code>a  b</code></pre> c  d", want: 8},
+		{input: "&apos;&nbsp;&hellip;&mdash;&ndash;&lsquo;&rsquo;&ldquo;&rdquo;", want: 9},
+		{input: "&lt;&nbsp", want: 6},
+		{input: "<img src=\"tg://emoji?id=5368324170671202286\" alt=\"\U0001F44D\">", want: 1},
+		{input: `x<img src="tg://emoji?id=5368324170671202286" alt="ok"/>`, want: 3},
+		{input: `<img src="https://example.com/a.png" alt="photo">`, want: 0},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			require.Equal(t, tc.want, richHTMLTextRuneCount(tc.input))

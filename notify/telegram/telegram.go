@@ -51,6 +51,14 @@ const (
 // collapse to one space outside <pre>, as a browser does.
 var htmlWhitespaceRun = regexp.MustCompile(`[ \t\n\f\r]+`)
 
+// richHTMLEntities decodes the named entities that rich messages support
+// beyond the four telegramHTMLEntityLen knows, so each counts as one rune.
+// See https://core.telegram.org/bots/api#rich-html-style.
+var richHTMLEntities = strings.NewReplacer(
+	"&apos;", "'", "&nbsp;", "\u00a0", "&hellip;", "\u2026", "&mdash;", "\u2014", "&ndash;", "\u2013",
+	"&lsquo;", "\u2018", "&rsquo;", "\u2019", "&ldquo;", "\u201c", "&rdquo;", "\u201d",
+)
+
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
 	conf    *TelegramConfig
@@ -211,19 +219,20 @@ func htmlTextRuneCount(message string) int {
 	return countHTMLTextRunes(message, false)
 }
 
-// richHTMLTextRuneCount counts like htmlTextRuneCount, with each run of
-// whitespace outside <pre> as one rune, as Telegram counts a rich message.
+// richHTMLTextRuneCount counts as Telegram counts a rich message: like
+// htmlTextRuneCount, with each run of whitespace outside <pre> as one rune,
+// the rich named entities as one rune, and custom emoji alternative text.
 func richHTMLTextRuneCount(message string) int {
 	return countHTMLTextRunes(message, true)
 }
 
-func countHTMLTextRunes(message string, collapseWhitespace bool) int {
+func countHTMLTextRunes(message string, rich bool) int {
 	tokenizer := html.NewTokenizer(strings.NewReader(message))
 	count := 0
 	preDepth := 0
 
 	for {
-		switch tokenizer.Next() {
+		switch tt := tokenizer.Next(); tt {
 		case html.ErrorToken:
 			if len(tokenizer.Raw()) > 0 {
 				return utf8.RuneCountInString(message)
@@ -231,9 +240,13 @@ func countHTMLTextRunes(message string, collapseWhitespace bool) int {
 			return count
 		case html.CommentToken, html.DoctypeToken:
 			return utf8.RuneCountInString(message)
-		case html.StartTagToken:
-			if name, _ := tokenizer.TagName(); string(name) == "pre" {
+		case html.StartTagToken, html.SelfClosingTagToken:
+			name, hasAttr := tokenizer.TagName()
+			switch {
+			case string(name) == "pre" && tt == html.StartTagToken:
 				preDepth++
+			case rich && string(name) == "img" && hasAttr:
+				count += customEmojiAltRuneCount(tokenizer)
 			}
 		case html.EndTagToken:
 			if name, _ := tokenizer.TagName(); string(name) == "pre" && preDepth > 0 {
@@ -244,12 +257,36 @@ func countHTMLTextRunes(message string, collapseWhitespace bool) int {
 			// supports a smaller set. Use raw text so unsupported entities
 			// remain literal.
 			text := tokenizer.Raw()
-			if collapseWhitespace && preDepth == 0 {
-				text = htmlWhitespaceRun.ReplaceAll(text, []byte(" "))
+			if rich {
+				if preDepth == 0 {
+					text = htmlWhitespaceRun.ReplaceAll(text, []byte(" "))
+				}
+				text = []byte(richHTMLEntities.Replace(string(text)))
 			}
 			count += telegramHTMLTextRuneCount(text)
 		}
 	}
+}
+
+// customEmojiAltRuneCount returns the length of a custom emoji's alternative
+// text, which counts toward the rich message limit; other images count nothing.
+// See https://core.telegram.org/bots/api#rich-message-limits.
+func customEmojiAltRuneCount(tokenizer *html.Tokenizer) int {
+	var src, alt string
+	for more := true; more; {
+		var key, val []byte
+		key, val, more = tokenizer.TagAttr()
+		switch string(key) {
+		case "src":
+			src = string(val)
+		case "alt":
+			alt = string(val)
+		}
+	}
+	if !strings.HasPrefix(src, "tg://emoji") {
+		return 0
+	}
+	return utf8.RuneCountInString(alt)
 }
 
 // telegramHTMLTextRuneCount counts visible runes in a raw HTML text token.
