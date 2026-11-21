@@ -178,3 +178,29 @@ receivers:
 ```
 
 A more complete version of this example, with Markdown formatting and separate sections for firing and resolved alerts, is available in [`examples/webhook/gotify.yml`](https://github.com/prometheus/alertmanager/blob/main/examples/webhook/gotify.yml).
+
+## Sending a table of alerts as a Telegram rich message
+
+With `rich_message: true`, the Telegram receiver sends the message as a [rich message](https://core.telegram.org/bots/api#rich-message-formatting-options), which can hold tables, headings and collapsible sections. This template sends one table row per alert, shows when each alert started in the reader's own time zone, and folds the descriptions.
+
+```yaml
+route:
+  receiver: telegram
+  group_by: [alertname]
+
+receivers:
+- name: telegram
+  telegram_configs:
+  - bot_token_file: /etc/alertmanager/secrets/telegram-bot-token
+    chat_id: <chat_id>
+    rich_message: true
+    message: |
+      <h3>{{ .Status | toUpper }} {{ .CommonLabels.alertname }}</h3>
+      <table bordered compact>
+      <tr><th>Instance</th><th>Severity</th><th>Started</th></tr>
+      {{ range .Alerts }}<tr><td>{{ .Labels.instance }}</td><td>{{ .Labels.severity }}</td><td><tg-time unix="{{ .StartsAt.Unix }}" format="r">{{ .StartsAt.Format "15:04 MST" }}</tg-time></td></tr>
+      {{ end }}</table>
+      {{ range .Alerts }}{{ if .Annotations.description }}<details><summary>{{ .Labels.instance }}</summary>{{ .Annotations.description }}</details>{{ end }}{{ end }}
+```
+
+Rich HTML collapses whitespace like a browser, so lines are broken with blocks such as `<p>` and table rows or with `<br>`, never with newlines.

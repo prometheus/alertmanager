@@ -15,11 +15,13 @@ package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -39,6 +41,22 @@ const (
 	// Telegram supports up to 4096 characters after entity parsing.
 	// See https://core.telegram.org/bots/api#sendmessage.
 	maxMessageLenRunes = 4096
+	// Rich messages support up to 32768 characters of text and have no
+	// separate limit on the formatted input.
+	// See https://core.telegram.org/bots/api#rich-message-limits.
+	maxRichMessageLenRunes = 32768
+)
+
+// htmlWhitespaceRun matches a run of HTML whitespace, which rich messages
+// collapse to one space outside <pre> and formulas, as a browser does.
+var htmlWhitespaceRun = regexp.MustCompile(`[ \t\n\f\r]+`)
+
+// richHTMLEntities decodes the named entities that rich messages support
+// beyond the four telegramHTMLEntityLen knows, so each counts as one rune.
+// See https://core.telegram.org/bots/api#rich-html-style.
+var richHTMLEntities = strings.NewReplacer(
+	"&apos;", "'", "&nbsp;", "\u00a0", "&hellip;", "\u2026", "&mdash;", "\u2014", "&ndash;", "\u2013",
+	"&lsquo;", "\u2018", "&rsquo;", "\u2019", "&ldquo;", "\u201c", "&rdquo;", "\u201d",
 )
 
 // Notifier implements a Notifier for telegram notifications.
@@ -99,7 +117,13 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		if err != nil {
 			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
-		if len(messageText) > maxMessageLenBytes || htmlTextRuneCount(messageText) > maxMessageLenRunes {
+		var tooLong bool
+		if n.conf.RichMessage {
+			tooLong = richHTMLTextRuneCount(messageText) > maxRichMessageLenRunes
+		} else {
+			tooLong = len(messageText) > maxMessageLenBytes || htmlTextRuneCount(messageText) > maxMessageLenRunes
+		}
+		if tooLong {
 			messageText = `Alertmanager notification could not be sent: message length exceeds Telegram limits.
 			Please check the template used for producing the message content.`
 		}
@@ -123,12 +147,17 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
-	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
-		DisableNotification:   n.conf.DisableNotifications,
-		DisableWebPagePreview: true,
-		ThreadID:              n.conf.MessageThreadID,
-		ParseMode:             n.conf.ParseMode,
-	})
+	var message *telebot.Message
+	if n.conf.RichMessage {
+		message, err = n.sendRichMessage(chatID, messageText)
+	} else {
+		message, err = n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
+			DisableNotification:   n.conf.DisableNotifications,
+			DisableWebPagePreview: true,
+			ThreadID:              n.conf.MessageThreadID,
+			ParseMode:             n.conf.ParseMode,
+		})
+	}
 	if err != nil {
 		if n.conf.Timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
 			err = fmt.Errorf("configured telegram timeout reached (%s)", n.conf.Timeout)
@@ -139,6 +168,37 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 
 	return notify.Success()
+}
+
+// sendRichMessage sends an HTML message through sendRichMessage, which telebot
+// does not implement. Errors come from telebot's response parsing, so they are
+// classified the same way as errors from Send.
+func (n *Notifier) sendRichMessage(chatID int64, html string) (*telebot.Message, error) {
+	params := map[string]any{
+		"chat_id":      chatID,
+		"rich_message": map[string]string{"html": html},
+	}
+	if n.conf.DisableNotifications {
+		params["disable_notification"] = true
+	}
+	if n.conf.MessageThreadID != 0 {
+		params["message_thread_id"] = n.conf.MessageThreadID
+	}
+
+	data, err := n.client.Raw("sendRichMessage", params)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Result *telebot.Message `json:"result"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("could not decode sendRichMessage response: %w", err)
+	}
+	if resp.Result == nil || resp.Result.Chat == nil {
+		return nil, errors.New("sendRichMessage response has no message")
+	}
+	return resp.Result, nil
 }
 
 // failureReason classifies errors returned by the Telegram Bot API so that the
@@ -156,11 +216,24 @@ func failureReason(err error) notify.Reason {
 
 // htmlTextRuneCount excludes HTML markup and attribute values such as link targets.
 func htmlTextRuneCount(message string) int {
+	return countHTMLTextRunes(message, false)
+}
+
+// richHTMLTextRuneCount counts as Telegram counts a rich message: like
+// htmlTextRuneCount, with each run of whitespace outside <pre> and formulas
+// as one rune, the rich named entities as one rune, and custom emoji
+// alternative text.
+func richHTMLTextRuneCount(message string) int {
+	return countHTMLTextRunes(message, true)
+}
+
+func countHTMLTextRunes(message string, rich bool) int {
 	tokenizer := html.NewTokenizer(strings.NewReader(message))
 	count := 0
+	keepWhitespaceDepth := 0
 
 	for {
-		switch tokenizer.Next() {
+		switch tt := tokenizer.Next(); tt {
 		case html.ErrorToken:
 			if len(tokenizer.Raw()) > 0 {
 				return utf8.RuneCountInString(message)
@@ -168,13 +241,63 @@ func htmlTextRuneCount(message string) int {
 			return count
 		case html.CommentToken, html.DoctypeToken:
 			return utf8.RuneCountInString(message)
+		case html.StartTagToken, html.SelfClosingTagToken:
+			name, hasAttr := tokenizer.TagName()
+			switch {
+			case keepsWhitespace(name) && tt == html.StartTagToken:
+				keepWhitespaceDepth++
+			case rich && string(name) == "img" && hasAttr:
+				count += customEmojiAltRuneCount(tokenizer)
+			}
+		case html.EndTagToken:
+			if name, _ := tokenizer.TagName(); keepsWhitespace(name) && keepWhitespaceDepth > 0 {
+				keepWhitespaceDepth--
+			}
 		case html.TextToken:
 			// tokenizer.Text applies HTML5 entity decoding, while Telegram
 			// supports a smaller set. Use raw text so unsupported entities
 			// remain literal.
-			count += telegramHTMLTextRuneCount(tokenizer.Raw())
+			text := tokenizer.Raw()
+			if rich {
+				if keepWhitespaceDepth == 0 {
+					text = htmlWhitespaceRun.ReplaceAll(text, []byte(" "))
+				}
+				text = []byte(richHTMLEntities.Replace(string(text)))
+			}
+			count += telegramHTMLTextRuneCount(text)
 		}
 	}
+}
+
+// keepsWhitespace reports whether a rich message counts every whitespace
+// character inside the tag: preformatted text and formula source.
+func keepsWhitespace(tagName []byte) bool {
+	switch string(tagName) {
+	case "pre", "tg-math", "tg-math-block":
+		return true
+	}
+	return false
+}
+
+// customEmojiAltRuneCount returns the length of a custom emoji's alternative
+// text, which counts toward the rich message limit; other images count nothing.
+// See https://core.telegram.org/bots/api#rich-message-limits.
+func customEmojiAltRuneCount(tokenizer *html.Tokenizer) int {
+	var src, alt string
+	for more := true; more; {
+		var key, val []byte
+		key, val, more = tokenizer.TagAttr()
+		switch string(key) {
+		case "src":
+			src = string(val)
+		case "alt":
+			alt = string(val)
+		}
+	}
+	if !strings.HasPrefix(src, "tg://emoji") {
+		return 0
+	}
+	return utf8.RuneCountInString(alt)
 }
 
 // telegramHTMLTextRuneCount counts visible runes in a raw HTML text token.

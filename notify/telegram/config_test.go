@@ -89,6 +89,24 @@ parse_mode: invalid
 `,
 			expected: errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string"),
 		},
+		{
+			name: "with rich_message and the default parse_mode - it succeeds",
+			in: `
+bot_token: xyz
+chat_id: 123
+rich_message: true
+`,
+		},
+		{
+			name: "with rich_message and parse_mode other than HTML - it fails",
+			in: `
+bot_token: xyz
+chat_id: 123
+parse_mode: MarkdownV2
+rich_message: true
+`,
+			expected: errors.New("rich_message on telegram_config requires parse_mode HTML"),
+		},
 	}
 
 	for _, tt := range tc {
