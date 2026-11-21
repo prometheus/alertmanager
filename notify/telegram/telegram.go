@@ -15,11 +15,13 @@ package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -39,7 +41,15 @@ const (
 	// Telegram supports up to 4096 characters after entity parsing.
 	// See https://core.telegram.org/bots/api#sendmessage.
 	maxMessageLenRunes = 4096
+	// Rich messages support up to 32768 characters of text and have no
+	// separate limit on the formatted input.
+	// See https://core.telegram.org/bots/api#rich-message-limits.
+	maxRichMessageLenRunes = 32768
 )
+
+// htmlWhitespaceRun matches a run of HTML whitespace, which rich messages
+// collapse to one space outside <pre>, as a browser does.
+var htmlWhitespaceRun = regexp.MustCompile(`[ \t\n\f\r]+`)
 
 // Notifier implements a Notifier for telegram notifications.
 type Notifier struct {
@@ -99,7 +109,13 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		if err != nil {
 			return notify.Unrecoverable(err, notify.DefaultReason)
 		}
-		if len(messageText) > maxMessageLenBytes || htmlTextRuneCount(messageText) > maxMessageLenRunes {
+		var tooLong bool
+		if n.conf.RichMessage {
+			tooLong = richHTMLTextRuneCount(messageText) > maxRichMessageLenRunes
+		} else {
+			tooLong = len(messageText) > maxMessageLenBytes || htmlTextRuneCount(messageText) > maxMessageLenRunes
+		}
+		if tooLong {
 			messageText = `Alertmanager notification could not be sent: message length exceeds Telegram limits.
 			Please check the template used for producing the message content.`
 		}
@@ -123,12 +139,17 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
-	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
-		DisableNotification:   n.conf.DisableNotifications,
-		DisableWebPagePreview: true,
-		ThreadID:              n.conf.MessageThreadID,
-		ParseMode:             n.conf.ParseMode,
-	})
+	var message *telebot.Message
+	if n.conf.RichMessage {
+		message, err = n.sendRichMessage(chatID, messageText)
+	} else {
+		message, err = n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
+			DisableNotification:   n.conf.DisableNotifications,
+			DisableWebPagePreview: true,
+			ThreadID:              n.conf.MessageThreadID,
+			ParseMode:             n.conf.ParseMode,
+		})
+	}
 	if err != nil {
 		if n.conf.Timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
 			err = fmt.Errorf("configured telegram timeout reached (%s)", n.conf.Timeout)
@@ -139,6 +160,37 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
 
 	return notify.Success()
+}
+
+// sendRichMessage sends an HTML message through sendRichMessage, which telebot
+// does not implement. Errors come from telebot's response parsing, so they are
+// classified the same way as errors from Send.
+func (n *Notifier) sendRichMessage(chatID int64, html string) (*telebot.Message, error) {
+	params := map[string]any{
+		"chat_id":      chatID,
+		"rich_message": map[string]string{"html": html},
+	}
+	if n.conf.DisableNotifications {
+		params["disable_notification"] = true
+	}
+	if n.conf.MessageThreadID != 0 {
+		params["message_thread_id"] = n.conf.MessageThreadID
+	}
+
+	data, err := n.client.Raw("sendRichMessage", params)
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Result *telebot.Message `json:"result"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("could not decode sendRichMessage response: %w", err)
+	}
+	if resp.Result == nil || resp.Result.Chat == nil {
+		return nil, errors.New("sendRichMessage response has no message")
+	}
+	return resp.Result, nil
 }
 
 // failureReason classifies errors returned by the Telegram Bot API so that the
@@ -156,8 +208,19 @@ func failureReason(err error) notify.Reason {
 
 // htmlTextRuneCount excludes HTML markup and attribute values such as link targets.
 func htmlTextRuneCount(message string) int {
+	return countHTMLTextRunes(message, false)
+}
+
+// richHTMLTextRuneCount counts like htmlTextRuneCount, with each run of
+// whitespace outside <pre> as one rune, as Telegram counts a rich message.
+func richHTMLTextRuneCount(message string) int {
+	return countHTMLTextRunes(message, true)
+}
+
+func countHTMLTextRunes(message string, collapseWhitespace bool) int {
 	tokenizer := html.NewTokenizer(strings.NewReader(message))
 	count := 0
+	preDepth := 0
 
 	for {
 		switch tokenizer.Next() {
@@ -168,11 +231,23 @@ func htmlTextRuneCount(message string) int {
 			return count
 		case html.CommentToken, html.DoctypeToken:
 			return utf8.RuneCountInString(message)
+		case html.StartTagToken:
+			if name, _ := tokenizer.TagName(); string(name) == "pre" {
+				preDepth++
+			}
+		case html.EndTagToken:
+			if name, _ := tokenizer.TagName(); string(name) == "pre" && preDepth > 0 {
+				preDepth--
+			}
 		case html.TextToken:
 			// tokenizer.Text applies HTML5 entity decoding, while Telegram
 			// supports a smaller set. Use raw text so unsupported entities
 			// remain literal.
-			count += telegramHTMLTextRuneCount(tokenizer.Raw())
+			text := tokenizer.Raw()
+			if collapseWhitespace && preDepth == 0 {
+				text = htmlWhitespaceRun.ReplaceAll(text, []byte(" "))
+			}
+			count += telegramHTMLTextRuneCount(text)
 		}
 	}
 }

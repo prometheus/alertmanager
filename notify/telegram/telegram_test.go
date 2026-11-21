@@ -283,6 +283,176 @@ func TestTelegramNotify(t *testing.T) {
 	}
 }
 
+func TestTelegramNotifyRichMessage(t *testing.T) {
+	token := "secret"
+	fallback := `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`
+	// Over both sendMessage limits: 20000 visible characters in 40000 bytes.
+	overSendMessageLimits := strings.Repeat("\u0436", 20000)
+
+	for _, tc := range []struct {
+		name    string
+		message string
+		expHTML string
+	}{
+		{
+			name:    "Characters escaped as in HTML mode",
+			message: "<table><tr><td>{{ .CommonLabels.lbl1 }}</td></tr></table>",
+			expHTML: "<table><tr><td>a &lt; b</td></tr></table>",
+		},
+		{
+			name:    "Message over the sendMessage limits is sent",
+			message: overSendMessageLimits,
+			expHTML: overSendMessageLimits,
+		},
+		{
+			name:    "Message at the rich message limit is sent",
+			message: strings.Repeat("x", maxRichMessageLenRunes),
+			expHTML: strings.Repeat("x", maxRichMessageLenRunes),
+		},
+		{
+			name:    "Whitespace runs count as one character",
+			message: "<p>" + strings.Repeat("x", 16000) + "</p>" + strings.Repeat("\n        ", 300) + "<p>" + strings.Repeat("x", maxRichMessageLenRunes-16001) + "</p>",
+			expHTML: "<p>" + strings.Repeat("x", 16000) + "</p>" + strings.Repeat("\n        ", 300) + "<p>" + strings.Repeat("x", maxRichMessageLenRunes-16001) + "</p>",
+		},
+		{
+			name:    "Collapsed whitespace counts toward the limit",
+			message: "<p>" + strings.Repeat("x", 16000) + "</p>" + strings.Repeat("\n        ", 300) + "<p>" + strings.Repeat("x", maxRichMessageLenRunes-16000) + "</p>",
+			expHTML: fallback,
+		},
+		{
+			name:    "Whitespace in pre counts in full",
+			message: "<pre>" + strings.Repeat("x", 16000) + strings.Repeat(" ", 1000) + strings.Repeat("x", maxRichMessageLenRunes-16001) + "</pre>",
+			expHTML: fallback,
+		},
+		{
+			name:    "Message over the rich message limit falls back",
+			message: strings.Repeat("x", maxRichMessageLenRunes+1),
+			expHTML: fallback,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out []byte
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, "/bot"+token+"/sendRichMessage", r.URL.Path)
+				var err error
+				out, err = io.ReadAll(r.Body)
+				require.NoError(t, err)
+				w.Write([]byte(`{"ok":true,"result":{"message_id":1,"chat":{"id":1234}}}`))
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+
+			notifier, err := New(&TelegramConfig{
+				ChatID:               1234,
+				MessageThreadID:      56,
+				DisableNotifications: true,
+				ParseMode:            "HTML",
+				RichMessage:          true,
+				Message:              tc.message,
+				HTTPConfig:           &commoncfg.HTTPClientConfig{},
+				BotToken:             commoncfg.Secret(token),
+				APIUrl:               &amcommoncfg.URL{URL: u},
+			}, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			ctx = notify.WithGroupKey(ctx, "1")
+
+			verdict := notifier.Notify(ctx, alert.New(model.Alert{
+				Labels:   model.LabelSet{"lbl1": "a < b"},
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false))
+			require.NoError(t, verdict.Err())
+
+			var req struct {
+				ChatID              int64 `json:"chat_id"`
+				MessageThreadID     int   `json:"message_thread_id"`
+				DisableNotification bool  `json:"disable_notification"`
+				RichMessage         struct {
+					HTML string `json:"html"`
+				} `json:"rich_message"`
+			}
+			require.NoError(t, json.Unmarshal(out, &req))
+			require.Equal(t, int64(1234), req.ChatID)
+			require.Equal(t, 56, req.MessageThreadID)
+			require.True(t, req.DisableNotification)
+			require.Equal(t, tc.expHTML, req.RichMessage.HTML)
+		})
+	}
+
+	for _, tc := range []struct {
+		name     string
+		response string
+		expErr   string
+	}{
+		{
+			name:     "Response that is not JSON",
+			response: `<html>Bad Gateway</html>`,
+			expErr:   "could not decode sendRichMessage response",
+		},
+		{
+			name:     "Response without a message",
+			response: `{"ok":true,"result":{"message_id":1}}`,
+			expErr:   "sendRichMessage response has no message",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(tc.response))
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+
+			notifier, err := New(&TelegramConfig{
+				ParseMode:   "HTML",
+				RichMessage: true,
+				Message:     "test",
+				HTTPConfig:  &commoncfg.HTTPClientConfig{},
+				BotToken:    commoncfg.Secret(token),
+				APIUrl:      &amcommoncfg.URL{URL: u},
+			}, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx := notify.WithGroupKey(context.Background(), "1")
+			verdict := notifier.Notify(ctx, alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false))
+			require.True(t, verdict.ShouldRetry())
+			require.ErrorContains(t, verdict.Err(), tc.expErr)
+		})
+	}
+
+	t.Run("Errors are classified as for sendMessage", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 5","parameters":{"retry_after":5}}`))
+		}))
+		defer srv.Close()
+		u, _ := url.Parse(srv.URL)
+
+		notifier, err := New(&TelegramConfig{
+			ParseMode:   "HTML",
+			RichMessage: true,
+			Message:     "test",
+			HTTPConfig:  &commoncfg.HTTPClientConfig{},
+			BotToken:    commoncfg.Secret(token),
+			APIUrl:      &amcommoncfg.URL{URL: u},
+		}, test.CreateTmpl(t), promslog.NewNopLogger())
+		require.NoError(t, err)
+
+		ctx := notify.WithGroupKey(context.Background(), "1")
+		verdict := notifier.Notify(ctx, alert.New(model.Alert{
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}, time.Time{}, false))
+		require.True(t, verdict.ShouldRetry())
+		require.Equal(t, notify.RateLimitedReason, verdict.Reason())
+	})
+}
+
 func TestHTMLTextRuneCount(t *testing.T) {
 	for _, tc := range []struct {
 		input string
@@ -311,6 +481,23 @@ func TestHTMLTextRuneCount(t *testing.T) {
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			require.Equal(t, tc.want, htmlTextRuneCount(tc.input))
+		})
+	}
+}
+
+func TestRichHTMLTextRuneCount(t *testing.T) {
+	for _, tc := range []struct {
+		input string
+		want  int
+	}{
+		{input: "a \t\n b", want: 3},
+		{input: "<p>a</p>\n  <p>b</p>", want: 3},
+		{input: "<p>a  <code>b  c</code></p>", want: 5},
+		{input: "<pre>a  b\n c</pre>", want: 7},
+		{input: "<pre><code>a  b</code></pre> c  d", want: 8},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			require.Equal(t, tc.want, richHTMLTextRuneCount(tc.input))
 		})
 	}
 }

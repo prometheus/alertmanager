@@ -47,6 +47,11 @@ type TelegramConfig struct {
 	DisableNotifications bool             `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
 	ParseMode            string           `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
 
+	// RichMessage sends the message through sendRichMessage, which renders
+	// tables, headings, lists and collapsible sections. It requires the HTML
+	// parse mode.
+	RichMessage bool `yaml:"rich_message,omitempty" json:"rich_message,omitempty"`
+
 	// Timeout is the maximum time allowed to invoke the telegram. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`
@@ -78,6 +83,9 @@ func (c *TelegramConfig) Validate() error {
 		c.ParseMode != "MarkdownV2" &&
 		c.ParseMode != "HTML" {
 		return errors.New("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
+	}
+	if c.RichMessage && c.ParseMode != "HTML" {
+		return errors.New("rich_message on telegram_config requires parse_mode HTML")
 	}
 	return nil
 }
