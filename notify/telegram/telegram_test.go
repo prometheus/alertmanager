@@ -326,6 +326,11 @@ func TestTelegramNotifyRichMessage(t *testing.T) {
 			expHTML: fallback,
 		},
 		{
+			name:    "Whitespace in a formula counts in full",
+			message: "<p>" + strings.Repeat("x", maxRichMessageLenRunes-3) + "<tg-math>a" + strings.Repeat(" ", 1000) + "b</tg-math></p>",
+			expHTML: fallback,
+		},
+		{
 			name:    "Rich named entities count as one character",
 			message: "<p>" + strings.Repeat("x&nbsp;", 5000) + "</p>",
 			expHTML: "<p>" + strings.Repeat("x&nbsp;", 5000) + "</p>",
@@ -505,6 +510,8 @@ func TestRichHTMLTextRuneCount(t *testing.T) {
 		{input: "<p>a  <code>b  c</code></p>", want: 5},
 		{input: "<pre>a  b\n c</pre>", want: 7},
 		{input: "<pre><code>a  b</code></pre> c  d", want: 8},
+		{input: "<tg-math>a  b</tg-math> c  d", want: 8},
+		{input: "<tg-math-block>a  b</tg-math-block>", want: 4},
 		{input: "&apos;&nbsp;&hellip;&mdash;&ndash;&lsquo;&rsquo;&ldquo;&rdquo;", want: 9},
 		{input: "&lt;&nbsp", want: 6},
 		{input: "<img src=\"tg://emoji?id=5368324170671202286\" alt=\"\U0001F44D\">", want: 1},

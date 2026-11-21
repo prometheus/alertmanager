@@ -48,7 +48,7 @@ const (
 )
 
 // htmlWhitespaceRun matches a run of HTML whitespace, which rich messages
-// collapse to one space outside <pre>, as a browser does.
+// collapse to one space outside <pre> and formulas, as a browser does.
 var htmlWhitespaceRun = regexp.MustCompile(`[ \t\n\f\r]+`)
 
 // richHTMLEntities decodes the named entities that rich messages support
@@ -220,8 +220,9 @@ func htmlTextRuneCount(message string) int {
 }
 
 // richHTMLTextRuneCount counts as Telegram counts a rich message: like
-// htmlTextRuneCount, with each run of whitespace outside <pre> as one rune,
-// the rich named entities as one rune, and custom emoji alternative text.
+// htmlTextRuneCount, with each run of whitespace outside <pre> and formulas
+// as one rune, the rich named entities as one rune, and custom emoji
+// alternative text.
 func richHTMLTextRuneCount(message string) int {
 	return countHTMLTextRunes(message, true)
 }
@@ -229,7 +230,7 @@ func richHTMLTextRuneCount(message string) int {
 func countHTMLTextRunes(message string, rich bool) int {
 	tokenizer := html.NewTokenizer(strings.NewReader(message))
 	count := 0
-	preDepth := 0
+	keepWhitespaceDepth := 0
 
 	for {
 		switch tt := tokenizer.Next(); tt {
@@ -243,14 +244,14 @@ func countHTMLTextRunes(message string, rich bool) int {
 		case html.StartTagToken, html.SelfClosingTagToken:
 			name, hasAttr := tokenizer.TagName()
 			switch {
-			case string(name) == "pre" && tt == html.StartTagToken:
-				preDepth++
+			case keepsWhitespace(name) && tt == html.StartTagToken:
+				keepWhitespaceDepth++
 			case rich && string(name) == "img" && hasAttr:
 				count += customEmojiAltRuneCount(tokenizer)
 			}
 		case html.EndTagToken:
-			if name, _ := tokenizer.TagName(); string(name) == "pre" && preDepth > 0 {
-				preDepth--
+			if name, _ := tokenizer.TagName(); keepsWhitespace(name) && keepWhitespaceDepth > 0 {
+				keepWhitespaceDepth--
 			}
 		case html.TextToken:
 			// tokenizer.Text applies HTML5 entity decoding, while Telegram
@@ -258,7 +259,7 @@ func countHTMLTextRunes(message string, rich bool) int {
 			// remain literal.
 			text := tokenizer.Raw()
 			if rich {
-				if preDepth == 0 {
+				if keepWhitespaceDepth == 0 {
 					text = htmlWhitespaceRun.ReplaceAll(text, []byte(" "))
 				}
 				text = []byte(richHTMLEntities.Replace(string(text)))
@@ -266,6 +267,16 @@ func countHTMLTextRunes(message string, rich bool) int {
 			count += telegramHTMLTextRuneCount(text)
 		}
 	}
+}
+
+// keepsWhitespace reports whether a rich message counts every whitespace
+// character inside the tag: preformatted text and formula source.
+func keepsWhitespace(tagName []byte) bool {
+	switch string(tagName) {
+	case "pre", "tg-math", "tg-math-block":
+		return true
+	}
+	return false
 }
 
 // customEmojiAltRuneCount returns the length of a custom emoji's alternative
