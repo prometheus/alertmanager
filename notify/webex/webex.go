@@ -44,7 +44,7 @@ type Notifier struct {
 
 // New returns a new Webex notifier.
 func New(c *config.WebexConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "webex", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "webex", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	w := webhook{
 		Markdown: message,
-		RoomID:   n.conf.RoomID,
+		RoomID:   tmpl(n.conf.RoomID),
 	}
 
 	var payload bytes.Buffer
@@ -108,7 +108,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, err
+		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 
 	return false, nil

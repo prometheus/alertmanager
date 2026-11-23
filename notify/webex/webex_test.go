@@ -27,8 +27,9 @@ import (
 	"github.com/prometheus/common/promslog"
 	"github.com/stretchr/testify/require"
 
-	"github.com/prometheus/alertmanager/config"
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
+	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -81,12 +82,30 @@ func TestWebexTemplating(t *testing.T) {
 			expHeader: "Bearer anewsecret",
 		},
 		{
-			name: "with templating errors, it fails.",
+			name: "with message templating errors, it fails.",
 			cfg: &config.WebexConfig{
 				Message: "{{ ",
 			},
 			commonCfg: &commoncfg.HTTPClientConfig{},
 			errMsg:    "template: :1: unclosed action",
+		},
+		{
+			name: "with a valid roomID set, the roomID is used accordingly.",
+			cfg: &config.WebexConfig{
+				RoomID: "my-room-id",
+			},
+			commonCfg: &commoncfg.HTTPClientConfig{},
+			expJSON:   `{"markdown":"", "roomId":"my-room-id"}`,
+			retry:     false,
+		},
+		{
+			name: "with a valid roomID template, the roomID is used accordingly.",
+			cfg: &config.WebexConfig{
+				RoomID: "{{.GroupLabels.webex_room_id}}",
+			},
+			commonCfg: &commoncfg.HTTPClientConfig{},
+			expJSON:   `{"markdown":"", "roomId":"group-label-room-id"}`,
+			retry:     false,
 		},
 	}
 
@@ -111,6 +130,7 @@ func TestWebexTemplating(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			ctx = notify.WithGroupKey(ctx, "1")
+			ctx = notify.WithGroupLabels(ctx, model.LabelSet{"webex_room_id": "group-label-room-id"})
 
 			ok, err := notifierWebex.Notify(ctx, []*types.Alert{
 				{
