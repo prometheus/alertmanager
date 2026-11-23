@@ -1,4 +1,4 @@
-// Copyright 2022 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -40,26 +40,28 @@ type TelegramConfig struct {
 	BotToken             commoncfg.Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
 	BotTokenFile         string           `yaml:"bot_token_file,omitempty" json:"token_file,omitempty"`
 	ChatID               int64            `yaml:"chat_id,omitempty" json:"chat,omitempty"`
+	ChatIDFile           string           `yaml:"chat_id_file,omitempty" json:"chat_file,omitempty"`
+	MessageThreadID      int              `yaml:"message_thread_id,omitempty" json:"message_thread_id,omitempty"`
 	Message              string           `yaml:"message,omitempty" json:"message,omitempty"`
 	DisableNotifications bool             `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
 	ParseMode            string           `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultTelegramConfig
 	type plain TelegramConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.BotToken == "" && c.BotTokenFile == "" {
-		return errors.New("missing bot_token or bot_token_file on telegram_config")
-	}
 	if c.BotToken != "" && c.BotTokenFile != "" {
 		return errors.New("at most one of bot_token & bot_token_file must be configured")
 	}
-	if c.ChatID == 0 {
-		return errors.New("missing chat_id on telegram_config")
+	if c.ChatID == 0 && c.ChatIDFile == "" {
+		return errors.New("missing chat_id or chat_id_file on telegram_config")
+	}
+	if c.ChatID != 0 && c.ChatIDFile != "" {
+		return errors.New("at most one of chat_id & chat_id_file must be configured")
 	}
 	if c.ParseMode != "" &&
 		c.ParseMode != "Markdown" &&

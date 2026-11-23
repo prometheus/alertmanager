@@ -16,6 +16,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -1031,6 +1032,93 @@ func TestNilRegexp(t *testing.T) {
 			require.Contains(t, err.Error(), tc.errMsg)
 		})
 	}
+}
+
+func TestTelegramDefaultBotToken(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.telegram-default-bot-token.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.telegram-default-bot-token.yml", err)
+	}
+
+	defaultBotToken := conf.Global.TelegramBotToken
+	overrideBotToken := commoncfg.Secret("qwe456")
+	if defaultBotToken != conf.Receivers[0].TelegramConfigs[0].BotToken {
+		t.Fatalf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotToken, defaultBotToken)
+	}
+	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotToken {
+		t.Errorf("Invalid telegram bot token: %s\nExpected: %s", conf.Receivers[1].TelegramConfigs[0].BotToken, string(overrideBotToken))
+	}
+}
+
+func TestTelegramDefaultBotTokenFile(t *testing.T) {
+	conf, err := LoadFile("testdata/conf.telegram-default-bot-token-file.yml")
+	if err != nil {
+		t.Fatalf("Error parsing %s: %s", "testdata/conf.telegram-default-bot-token-file.yml", err)
+	}
+
+	defaultBotToken := conf.Global.TelegramBotTokenFile
+	overrideBotToken := "/override_file"
+	if defaultBotToken != conf.Receivers[0].TelegramConfigs[0].BotTokenFile {
+		t.Fatalf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[0].TelegramConfigs[0].BotTokenFile, defaultBotToken)
+	}
+	if overrideBotToken != conf.Receivers[1].TelegramConfigs[0].BotTokenFile {
+		t.Errorf("Invalid telegram bot token file: %s\nExpected: %s", conf.Receivers[1].TelegramConfigs[0].BotTokenFile, overrideBotToken)
+	}
+}
+
+func TestTelegramBothBotTokenAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-both-bot-token-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-both-bot-token-and-file.yml", err)
+	}
+	if err.Error() != "at most one of telegram_bot_token & telegram_bot_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of telegram_bot_token & telegram_bot_token_file must be configured", err.Error())
+	}
+}
+
+func TestTelegramValidReceiverBothBotTokenAndFile(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-valid-receiver-both-bot-token-and-file.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-valid-receiver-both-bot-token-and-file.yml", err)
+	}
+	if err.Error() != "at most one of telegram_bot_token & telegram_bot_token_file must be configured" {
+		t.Errorf("Expected: %s\nGot: %s", "at most one of telegram_bot_token & telegram_bot_token_file must be configured", err.Error())
+	}
+}
+
+func TestTelegramNoBotToken(t *testing.T) {
+	_, err := LoadFile("testdata/conf.telegram-no-bot-token.yml")
+	if err == nil {
+		t.Fatalf("Expected an error parsing %s: %s", "testdata/conf.telegram-no-bot-token.yml", err)
+	}
+	if err.Error() != "missing bot_token or bot_token_file on telegram_config" {
+		t.Errorf("Expected: %s\nGot: %s", "missing bot_token or bot_token_file on telegram_config", err.Error())
+	}
+}
+
+func TestTelegramFilePaths(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "alertmanager.yml")
+	require.NoError(t, os.WriteFile(filename, []byte(`
+global:
+  telegram_bot_token_file: secrets/global-token
+route:
+  receiver: telegram
+receivers:
+  - name: telegram
+    telegram_configs:
+      - chat_id_file: secrets/chat-id
+      - chat_id: 1234
+        bot_token_file: secrets/receiver-token
+`), 0o600))
+
+	conf, err := LoadFile(filename)
+	require.NoError(t, err)
+	require.Equal(t, "secrets/global-token", conf.Global.TelegramBotTokenFile)
+	configs := conf.Receivers[0].TelegramConfigs
+	require.Len(t, configs, 2)
+	require.Equal(t, "secrets/global-token", configs[0].BotTokenFile)
+	require.Equal(t, "secrets/chat-id", configs[0].ChatIDFile)
+	require.Equal(t, "secrets/receiver-token", configs[1].BotTokenFile)
 }
 
 func TestTelegramUnmarshal(t *testing.T) {

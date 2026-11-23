@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -43,7 +44,7 @@ type Notifier struct {
 
 // New returns a new Telegram notification handler.
 func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	httpclient, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "telegram", httpOpts...)
+	httpclient, err := notify.NewClientWithTracing(*conf.HTTPConfig, "telegram", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -72,18 +73,32 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 	logger.Debug("extracted group key")
 
 	var (
-		err  error
-		data = notify.GetTemplateData(ctx, n.tmpl, alert, logger)
-		tmpl = notify.TmplText(n.tmpl, data, &err)
+		err         error
+		data        = notify.GetTemplateData(ctx, n.tmpl, alert, logger)
+		tmpl        = notify.TmplText(n.tmpl, data, &err)
+		messageText string
+		truncated   bool
 	)
 
-	if n.conf.ParseMode == "HTML" {
+	switch n.conf.ParseMode {
+	case "HTML":
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
-	}
-
-	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
-	if truncated {
-		logger.Warn("Truncated message", "max_runes", maxMessageLenRunes)
+		messageText = tmpl(n.conf.Message)
+		if err != nil {
+			return false, err
+		}
+		if len([]rune(messageText)) > maxMessageLenRunes {
+			messageText = `Alertmanager notification could not be sent: message length exceeds Telegram limits.
+			Please check the template used for producing the message content.`
+		}
+	default:
+		messageText, truncated = notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
+		if err != nil {
+			return false, err
+		}
+		if truncated {
+			logger.Warn("Truncated message", "max_runes", maxMessageLenRunes)
+		}
 	}
 
 	n.client.Token, err = n.getBotToken()
@@ -91,9 +106,16 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return true, err
 	}
 
-	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
+	chatID, err := n.getChatID()
+	if err != nil {
+		return true, err
+	}
+
+	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
+		ThreadID:              n.conf.MessageThreadID,
+		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
 		return true, err
@@ -126,4 +148,19 @@ func (n *Notifier) getBotToken() (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.BotToken), nil
+}
+
+func (n *Notifier) getChatID() (int64, error) {
+	if len(n.conf.ChatIDFile) > 0 {
+		content, err := os.ReadFile(n.conf.ChatIDFile)
+		if err != nil {
+			return 0, fmt.Errorf("could not read %s: %w", n.conf.ChatIDFile, err)
+		}
+		chatID, err := strconv.ParseInt(strings.TrimSpace(string(content)), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("could not parse chat_id from %s: %w", n.conf.ChatIDFile, err)
+		}
+		return chatID, nil
+	}
+	return n.conf.ChatID, nil
 }

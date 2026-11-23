@@ -252,6 +252,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return errors.New("at most one of victorops_api_key & victorops_api_key_file must be configured")
 	}
 
+	if c.Global.TelegramBotToken != "" && len(c.Global.TelegramBotTokenFile) > 0 {
+		return errors.New("at most one of telegram_bot_token & telegram_bot_token_file must be configured")
+	}
+
 	if len(c.Global.SMTPAuthPassword) > 0 && len(c.Global.SMTPAuthPasswordFile) > 0 {
 		return errors.New("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
 	}
@@ -415,6 +419,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 			if telegram.APIUrl == nil {
 				telegram.APIUrl = c.Global.TelegramAPIUrl
+			}
+			if telegram.BotToken == "" && len(telegram.BotTokenFile) == 0 {
+				if c.Global.TelegramBotToken == "" && len(c.Global.TelegramBotTokenFile) == 0 {
+					return errors.New("missing bot_token or bot_token_file on telegram_config")
+				}
+				telegram.BotToken = c.Global.TelegramBotToken
+				telegram.BotTokenFile = c.Global.TelegramBotTokenFile
 			}
 		}
 		for _, discord := range rcv.DiscordConfigs {
@@ -677,6 +688,8 @@ type GlobalConfig struct {
 	VictorOpsAPIKey      commoncfg.Secret       `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
 	VictorOpsAPIKeyFile  string                 `yaml:"victorops_api_key_file,omitempty" json:"victorops_api_key_file,omitempty"`
 	TelegramAPIUrl       *amcommoncfg.URL       `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
+	TelegramBotToken     commoncfg.Secret       `yaml:"telegram_bot_token,omitempty" json:"telegram_bot_token,omitempty"`
+	TelegramBotTokenFile string                 `yaml:"telegram_bot_token_file,omitempty" json:"telegram_bot_token_file,omitempty"`
 	WebexAPIURL          *amcommoncfg.URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
 	SMTPTLSConfig        *commoncfg.TLSConfig   `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
 	JiraAPIURL           *amcommoncfg.URL       `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
