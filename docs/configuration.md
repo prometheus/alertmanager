@@ -1897,6 +1897,10 @@ attributes:
 # AWS External ID used when assuming a role.
 # Can only be used with role_arn.
 [ external_id: <string> ]
+
+# The name of the AWS service to sign requests for.
+# If not specified, the default value is `sns`.
+[ service_name: <string> ]
 ```
 
 ### `<telegram_config>`

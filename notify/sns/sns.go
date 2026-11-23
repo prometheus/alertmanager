@@ -237,6 +237,11 @@ func (n *Notifier) createSNSClient(ctx context.Context, tmplApiURL string) (*sns
 		return nil, fmt.Errorf("region not configured in sns.sigv4.region or in default credentials chain")
 	}
 
+	if n.conf.Sigv4.ServiceName != "" {
+		// Override the AWS service name used when signing requests (defaults to "sns").
+		return sns.NewFromConfig(snsCfg, sns.WithSigV4SigningName(n.conf.Sigv4.ServiceName)), nil
+	}
+
 	return sns.NewFromConfig(snsCfg), nil
 }
 
