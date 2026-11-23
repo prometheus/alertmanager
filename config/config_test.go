@@ -1144,6 +1144,49 @@ receivers:
 	require.Equal(t, "HTML", c.Receivers[0].TelegramConfigs[0].ParseMode)
 }
 
+func TestDiscordConfig(t *testing.T) {
+	in := `
+global:
+  http_config:
+    proxy_url: http://proxy.example.com:3128
+route:
+  receiver: discord
+receivers:
+- name: discord
+  discord_configs:
+  - webhook_url: https://example.com/webhook
+    content: '{{ .Status }}'
+    username: Alertmanager
+    avatar_url: https://example.com/avatar.png
+`
+	cfg, err := Load(in)
+	require.NoError(t, err)
+	require.Len(t, cfg.Receivers, 1)
+	require.Len(t, cfg.Receivers[0].DiscordConfigs, 1)
+	rc := cfg.Receivers[0].DiscordConfigs[0]
+	require.Equal(t, "{{ .Status }}", rc.Content)
+	require.Equal(t, "Alertmanager", rc.Username)
+	require.Equal(t, "https://example.com/avatar.png", rc.AvatarURL)
+	require.True(t, rc.VSendResolved)
+	require.Equal(t, `{{ template "discord.default.title" . }}`, rc.Title)
+	require.Equal(t, `{{ template "discord.default.message" . }}`, rc.Message)
+	require.Same(t, cfg.Global.HTTPConfig, rc.HTTPConfig)
+	require.Equal(t, "http://proxy.example.com:3128", rc.HTTPConfig.ProxyURL.String())
+}
+
+func TestDiscordRejectsMissingConfig(t *testing.T) {
+	in := `
+route:
+  receiver: discord
+receivers:
+- name: discord
+  discord_configs:
+  -
+`
+	_, err := Load(in)
+	require.ErrorContains(t, err, "missing discord config")
+}
+
 func TestPushoverRejectsMissingConfig(t *testing.T) {
 	in := `
 route:

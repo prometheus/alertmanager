@@ -1,4 +1,4 @@
-// Copyright 2021 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,13 +16,13 @@ package discord
 import (
 	"errors"
 
-	commoncfg "github.com/prometheus/common/config"
-
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
+	commoncfg "github.com/prometheus/common/config"
 )
 
-// DefaultDiscordConfig defines default values for Discord configurations.
-var DefaultDiscordConfig = DiscordConfig{
+// defaultDiscordConfig defines default values for Discord configurations.
+var defaultDiscordConfig = DiscordConfig{
 	NotifierConfig: amcommoncfg.NotifierConfig{
 		VSendResolved: true,
 	},
@@ -38,13 +38,16 @@ type DiscordConfig struct {
 	WebhookURL     *amcommoncfg.SecretURL      `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
 	WebhookURLFile string                      `yaml:"webhook_url_file,omitempty" json:"webhook_url_file,omitempty"`
 
-	Title   string `yaml:"title,omitempty" json:"title,omitempty"`
-	Message string `yaml:"message,omitempty" json:"message,omitempty"`
+	Content   string `yaml:"content,omitempty" json:"content,omitempty"`
+	Title     string `yaml:"title,omitempty" json:"title,omitempty"`
+	Message   string `yaml:"message,omitempty" json:"message,omitempty"`
+	Username  string `yaml:"username,omitempty" json:"username,omitempty"`
+	AvatarURL string `yaml:"avatar_url,omitempty" json:"avatar_url,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *DiscordConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultDiscordConfig
+func (c *DiscordConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = defaultDiscordConfig
 	type plain DiscordConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err

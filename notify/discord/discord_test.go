@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 	"github.com/prometheus/alertmanager/types"
@@ -58,7 +59,7 @@ func TestDiscordRetry(t *testing.T) {
 func TestDiscordTemplating(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dec := json.NewDecoder(r.Body)
-		out := make(map[string]interface{})
+		out := make(map[string]any)
 		err := dec.Decode(&out)
 		if err != nil {
 			panic(err)
@@ -151,7 +152,7 @@ func TestDiscordReadingURLFromFile(t *testing.T) {
 	ctx, u, fn := test.GetContextWithCancelingURL()
 	defer fn()
 
-	f, err := os.CreateTemp("", "webhook_url")
+	f, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err, "creating temp file failed")
 	_, err = f.WriteString(u.String() + "\n")
 	require.NoError(t, err, "writing to temp file failed")
@@ -183,11 +184,8 @@ func TestDiscord_Notify(t *testing.T) {
 	}))
 
 	// Create a temporary file to simulate the WebhookURLFile
-	tempFile, err := os.CreateTemp("", "webhook_url")
+	tempFile, err := os.CreateTemp(t.TempDir(), "webhook_url")
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, os.Remove(tempFile.Name()))
-	})
 
 	// Write the fake webhook URL to the temp file
 	_, err = tempFile.WriteString(srv.URL)
@@ -199,6 +197,9 @@ func TestDiscord_Notify(t *testing.T) {
 		HTTPConfig:     &commoncfg.HTTPClientConfig{},
 		Title:          "Test Title",
 		Message:        "Test Message",
+		Content:        "Test Content",
+		Username:       "Test Username",
+		AvatarURL:      "http://example.com/avatar.png",
 	}
 
 	// Create a new Discord notifier
@@ -225,5 +226,5 @@ func TestDiscord_Notify(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	require.JSONEq(t, `{"embeds":[{"title":"Test Title","description":"Test Message","color":10038562}],"content":""}`, resp)
+	require.JSONEq(t, `{"content":"Test Content","embeds":[{"title":"Test Title","description":"Test Message","color":10038562}],"username":"Test Username","avatar_url":"http://example.com/avatar.png"}`, resp)
 }

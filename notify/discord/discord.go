@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	netUrl "net/url"
 	"os"
 	"strings"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
@@ -37,6 +39,8 @@ const (
 	maxTitleLenRunes = 256
 	// https://discord.com/developers/docs/resources/channel#embed-object-embed-limits - 4096 characters or runes.
 	maxDescriptionLenRunes = 4096
+
+	maxContentLenRunes = 2000
 )
 
 const (
@@ -57,7 +61,7 @@ type Notifier struct {
 
 // New returns a new Discord notifier.
 func New(c *DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "discord", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "discord", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +77,10 @@ func New(c *DiscordConfig, t *template.Template, l *slog.Logger, httpOpts ...com
 }
 
 type webhook struct {
-	Content string         `json:"content"`
-	Embeds  []webhookEmbed `json:"embeds"`
+	Content   string         `json:"content"`
+	Embeds    []webhookEmbed `json:"embeds"`
+	Username  string         `json:"username,omitempty"`
+	AvatarURL string         `json:"avatar_url,omitempty"`
 }
 
 type webhookEmbed struct {
@@ -115,6 +121,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		logger.Warn("Truncated message", "max_runes", maxDescriptionLenRunes)
 	}
 
+	content, truncated := notify.TruncateInRunes(tmpl(n.conf.Content), maxContentLenRunes)
+	if err != nil {
+		return false, err
+	}
+	if truncated {
+		logger.Warn("Truncated message", "max_runes", maxContentLenRunes)
+	}
+
 	color := colorGrey
 	if alerts.Status() == model.AlertFiring {
 		color = colorRed
@@ -127,19 +141,29 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if n.conf.WebhookURL != nil {
 		url = n.conf.WebhookURL.String()
 	} else {
-		content, err := os.ReadFile(n.conf.WebhookURLFile)
+		b, err := os.ReadFile(n.conf.WebhookURLFile)
 		if err != nil {
 			return false, fmt.Errorf("read webhook_url_file: %w", err)
 		}
-		url = strings.TrimSpace(string(content))
+		url = strings.TrimSpace(string(b))
 	}
 
 	w := webhook{
+		Content:  content,
+		Username: n.conf.Username,
 		Embeds: []webhookEmbed{{
 			Title:       title,
 			Description: description,
 			Color:       color,
 		}},
+	}
+
+	if len(n.conf.AvatarURL) != 0 {
+		if _, err := netUrl.Parse(n.conf.AvatarURL); err == nil {
+			w.AvatarURL = n.conf.AvatarURL
+		} else {
+			logger.Warn("Bad avatar url", "key", key)
+		}
 	}
 
 	var payload bytes.Buffer
@@ -154,7 +178,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 
 	shouldRetry, err := n.retrier.Check(resp.StatusCode, resp.Body)
 	if err != nil {
-		return shouldRetry, err
+		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 	return false, nil
 }

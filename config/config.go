@@ -429,6 +429,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, discord := range rcv.DiscordConfigs {
+			if discord == nil {
+				return errors.New("missing discord config")
+			}
 			if discord.HTTPConfig == nil {
 				discord.HTTPConfig = c.Global.HTTPConfig
 			}
