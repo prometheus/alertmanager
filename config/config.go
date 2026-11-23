@@ -260,6 +260,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return errors.New("at most one of smtp_auth_password & smtp_auth_password_file must be configured")
 	}
 
+	if len(c.Global.SMTPAuthSecret) > 0 && len(c.Global.SMTPAuthSecretFile) > 0 {
+		return fmt.Errorf("at most one of smtp_auth_secret & smtp_auth_secret_file must be configured")
+	}
+
 	if c.Global.WeChatAPISecret != "" && len(c.Global.WeChatAPISecretFile) > 0 {
 		return errors.New("at most one of wechat_api_secret & wechat_api_secret_file must be configured")
 	}
@@ -276,37 +280,33 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, ec := range rcv.EmailConfigs {
+			if ec == nil {
+				return errors.New("missing email config")
+			}
+			ec.TLSConfig = cmp.Or(ec.TLSConfig, c.Global.SMTPTLSConfig)
+			ec.Smarthost = cmp.Or(ec.Smarthost, c.Global.SMTPSmarthost)
 			if ec.Smarthost.String() == "" {
-				if c.Global.SMTPSmarthost.String() == "" {
-					return errors.New("no global SMTP smarthost set")
-				}
-				ec.Smarthost = c.Global.SMTPSmarthost
+				return errors.New("no global SMTP smarthost set")
 			}
+			ec.From = cmp.Or(ec.From, c.Global.SMTPFrom)
 			if ec.From == "" {
-				if c.Global.SMTPFrom == "" {
-					return errors.New("no global SMTP from set")
-				}
-				ec.From = c.Global.SMTPFrom
+				return errors.New("no global SMTP from set")
 			}
-			if ec.Hello == "" {
-				ec.Hello = c.Global.SMTPHello
-			}
-			if ec.AuthUsername == "" {
-				ec.AuthUsername = c.Global.SMTPAuthUsername
-			}
+			ec.Hello = cmp.Or(ec.Hello, c.Global.SMTPHello)
+			ec.AuthUsername = cmp.Or(ec.AuthUsername, c.Global.SMTPAuthUsername)
 			if ec.AuthPassword == "" && ec.AuthPasswordFile == "" {
 				ec.AuthPassword = c.Global.SMTPAuthPassword
 				ec.AuthPasswordFile = c.Global.SMTPAuthPasswordFile
 			}
-			if ec.AuthSecret == "" {
-				ec.AuthSecret = c.Global.SMTPAuthSecret
-			}
-			if ec.AuthIdentity == "" {
-				ec.AuthIdentity = c.Global.SMTPAuthIdentity
-			}
+			ec.AuthSecret = cmp.Or(ec.AuthSecret, c.Global.SMTPAuthSecret)
+			ec.AuthSecretFile = cmp.Or(ec.AuthSecretFile, c.Global.SMTPAuthSecretFile)
+			ec.AuthIdentity = cmp.Or(ec.AuthIdentity, c.Global.SMTPAuthIdentity)
 			if ec.RequireTLS == nil {
 				ec.RequireTLS = new(bool)
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
+			}
+			if ec.ForceImplicitTLS == nil {
+				ec.ForceImplicitTLS = c.Global.SMTPForceImplicitTLS
 			}
 		}
 		for _, sc := range rcv.SlackConfigs {
@@ -577,12 +577,14 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
 	defaultHTTPConfig := commoncfg.DefaultHTTPClientConfig
+	defaultSMTPTLSConfig := commoncfg.TLSConfig{}
 	return GlobalConfig{
 		ResolveTimeout: model.Duration(5 * time.Minute),
 		HTTPConfig:     &defaultHTTPConfig,
 
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
+		SMTPTLSConfig:   &defaultSMTPTLSConfig,
 		PagerdutyURL:    amcommoncfg.MustParseURL("https://events.pagerduty.com/v2/enqueue"),
 		OpsGenieAPIURL:  amcommoncfg.MustParseURL("https://api.opsgenie.com/"),
 		WeChatAPIURL:    amcommoncfg.MustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
@@ -672,11 +674,14 @@ type GlobalConfig struct {
 	SMTPHello            string                 `yaml:"smtp_hello,omitempty" json:"smtp_hello,omitempty"`
 	SMTPSmarthost        HostPort               `yaml:"smtp_smarthost,omitempty" json:"smtp_smarthost,omitempty"`
 	SMTPAuthUsername     string                 `yaml:"smtp_auth_username,omitempty" json:"smtp_auth_username,omitempty"`
-	SMTPAuthPassword     Secret                 `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
+	SMTPAuthPassword     commoncfg.Secret       `yaml:"smtp_auth_password,omitempty" json:"smtp_auth_password,omitempty"`
 	SMTPAuthPasswordFile string                 `yaml:"smtp_auth_password_file,omitempty" json:"smtp_auth_password_file,omitempty"`
-	SMTPAuthSecret       Secret                 `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthSecret       commoncfg.Secret       `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
+	SMTPAuthSecretFile   string                 `yaml:"smtp_auth_secret_file,omitempty" json:"smtp_auth_secret_file,omitempty"`
 	SMTPAuthIdentity     string                 `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS       bool                   `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
+	SMTPTLSConfig        *commoncfg.TLSConfig   `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
+	SMTPForceImplicitTLS *bool                  `yaml:"smtp_force_implicit_tls,omitempty" json:"smtp_force_implicit_tls,omitempty"`
 	SlackAPIURL          *amcommoncfg.SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	SlackAPIURLFile      string                 `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
 	PagerdutyURL         *amcommoncfg.URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
@@ -694,7 +699,6 @@ type GlobalConfig struct {
 	TelegramBotToken     commoncfg.Secret       `yaml:"telegram_bot_token,omitempty" json:"telegram_bot_token,omitempty"`
 	TelegramBotTokenFile string                 `yaml:"telegram_bot_token_file,omitempty" json:"telegram_bot_token_file,omitempty"`
 	WebexAPIURL          *amcommoncfg.URL       `yaml:"webex_api_url,omitempty" json:"webex_api_url,omitempty"`
-	SMTPTLSConfig        *commoncfg.TLSConfig   `yaml:"smtp_tls_config,omitempty" json:"smtp_tls_config,omitempty"`
 	JiraAPIURL           *amcommoncfg.URL       `yaml:"jira_api_url,omitempty" json:"jira_api_url,omitempty"`
 }
 

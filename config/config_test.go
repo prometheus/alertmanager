@@ -613,9 +613,12 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 				FollowRedirects: true,
 				EnableHTTP2:     true,
 			},
-			ResolveTimeout:  model.Duration(5 * time.Minute),
-			SMTPSmarthost:   HostPort{Host: "localhost", Port: "25"},
-			SMTPFrom:        "alertmanager@example.org",
+			ResolveTimeout: model.Duration(5 * time.Minute),
+			SMTPSmarthost:  HostPort{Host: "localhost", Port: "25"},
+			SMTPFrom:       "alertmanager@example.org",
+			SMTPTLSConfig: &commoncfg.TLSConfig{
+				InsecureSkipVerify: false,
+			},
 			SlackAPIURL:     (*amcommoncfg.SecretURL)(amcommoncfg.MustParseURL("http://slack.example.com/")),
 			SMTPRequireTLS:  true,
 			PagerdutyURL:    amcommoncfg.MustParseURL("https://events.pagerduty.com/v2/enqueue"),
@@ -661,6 +664,9 @@ func TestEmptyFieldsAndRegex(t *testing.T) {
 						Smarthost:  HostPort{Host: "localhost", Port: "25"},
 						HTML:       "{{ template \"email.default.html\" . }}",
 						RequireTLS: &boolFoo,
+						TLSConfig: &commoncfg.TLSConfig{
+							InsecureSkipVerify: false,
+						},
 					},
 				},
 			},
@@ -751,8 +757,12 @@ func TestGlobalAndLocalSMTPPassword(t *testing.T) {
 	require.Equal(t, "/tmp/localuser1password", config.Receivers[0].EmailConfigs[1].AuthPasswordFile, "second email should use password file /tmp/localuser1password")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[1].AuthPassword, "password field should be empty when file provided")
 
-	require.Equal(t, Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
+	require.Equal(t, commoncfg.Secret("mysecret"), config.Receivers[0].EmailConfigs[2].AuthPassword, "third email should use password mysecret")
 	require.Emptyf(t, config.Receivers[0].EmailConfigs[2].AuthPasswordFile, "file field should be empty when password provided")
+
+	require.Equal(t, commoncfg.Secret("myprecious"), config.Receivers[0].EmailConfigs[3].AuthSecret, "fourth email should use secret myprecious")
+
+	require.Equal(t, "/tmp/localuser4secret", config.Receivers[0].EmailConfigs[4].AuthSecretFile, "fifth email should use secret file /tmp/localuser4secret")
 }
 
 func TestGroupByAll(t *testing.T) {

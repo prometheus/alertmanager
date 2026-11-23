@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/textproto"
 	"regexp"
+	"slices"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -146,24 +147,37 @@ type EmailConfig struct {
 	amcommoncfg.NotifierConfig `yaml:",inline" json:",inline"`
 
 	// Email address to notify.
-	To               string              `yaml:"to,omitempty" json:"to,omitempty"`
-	From             string              `yaml:"from,omitempty" json:"from,omitempty"`
-	Hello            string              `yaml:"hello,omitempty" json:"hello,omitempty"`
-	Smarthost        HostPort            `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
-	AuthUsername     string              `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
-	AuthPassword     Secret              `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
-	AuthPasswordFile string              `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
-	AuthSecret       Secret              `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
-	AuthIdentity     string              `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
-	Headers          map[string]string   `yaml:"headers,omitempty" json:"headers,omitempty"`
-	HTML             string              `yaml:"html,omitempty" json:"html,omitempty"`
-	Text             string              `yaml:"text,omitempty" json:"text,omitempty"`
-	RequireTLS       *bool               `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
-	TLSConfig        commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+	To               string               `yaml:"to,omitempty" json:"to,omitempty"`
+	From             string               `yaml:"from,omitempty" json:"from,omitempty"`
+	Hello            string               `yaml:"hello,omitempty" json:"hello,omitempty"`
+	Smarthost        HostPort             `yaml:"smarthost,omitempty" json:"smarthost,omitempty"`
+	AuthUsername     string               `yaml:"auth_username,omitempty" json:"auth_username,omitempty"`
+	AuthPassword     commoncfg.Secret     `yaml:"auth_password,omitempty" json:"auth_password,omitempty"`
+	AuthPasswordFile string               `yaml:"auth_password_file,omitempty" json:"auth_password_file,omitempty"`
+	AuthSecret       commoncfg.Secret     `yaml:"auth_secret,omitempty" json:"auth_secret,omitempty"`
+	AuthSecretFile   string               `yaml:"auth_secret_file,omitempty" json:"auth_secret_file,omitempty"`
+	AuthIdentity     string               `yaml:"auth_identity,omitempty" json:"auth_identity,omitempty"`
+	Headers          map[string]string    `yaml:"headers,omitempty" json:"headers,omitempty"`
+	HTML             string               `yaml:"html,omitempty" json:"html,omitempty"`
+	Text             string               `yaml:"text,omitempty" json:"text,omitempty"`
+	RequireTLS       *bool                `yaml:"require_tls,omitempty" json:"require_tls,omitempty"`
+	TLSConfig        *commoncfg.TLSConfig `yaml:"tls_config,omitempty" json:"tls_config,omitempty"`
+	// ForceImplicitTLS controls whether to use implicit TLS (direct TLS connection).
+	// true: force use of implicit TLS (direct TLS connection)
+	// false: force disable implicit TLS (use explicit TLS/STARTTLS if required)
+	// nil (default): auto-detect based on port (465=implicit, other=explicit) for backward compatibility
+	ForceImplicitTLS *bool           `yaml:"force_implicit_tls,omitempty" json:"force_implicit_tls,omitempty"`
+	Threading        ThreadingConfig `yaml:"threading,omitempty" json:"threading,omitempty"`
+}
+
+// ThreadingConfig configures mail threading.
+type ThreadingConfig struct {
+	Enabled      bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	ThreadByDate string `yaml:"thread_by_date,omitempty" json:"thread_by_date,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *EmailConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultEmailConfig
 	type plain EmailConfig
 	if err := unmarshal((*plain)(c)); err != nil {
@@ -182,6 +196,18 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		normalizedHeaders[normalized] = v
 	}
 	c.Headers = normalizedHeaders
+
+	if c.Threading.Enabled {
+		if _, ok := normalizedHeaders["References"]; ok {
+			return errors.New("conflicting configuration: threading.enabled conflicts with custom References header")
+		}
+		if _, ok := normalizedHeaders["In-Reply-To"]; ok {
+			return errors.New("conflicting configuration: threading.enabled conflicts with custom In-Reply-To header")
+		}
+		if !slices.Contains([]string{"none", "daily"}, c.Threading.ThreadByDate) {
+			return errors.New("threading.thread_by_date must be either 'none' or 'daily'")
+		}
+	}
 
 	return nil
 }

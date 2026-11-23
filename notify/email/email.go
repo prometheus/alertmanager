@@ -30,6 +30,7 @@ import (
 	"net/textproto"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -78,47 +79,47 @@ func (n *Email) auth(mechs string) (smtp.Auth, error) {
 		return nil, nil
 	}
 
-	err := &types.MultiError{}
-	for _, mech := range strings.Split(mechs, " ") {
+	var errs error
+	for mech := range strings.SplitSeq(mechs, " ") {
 		switch mech {
 		case "CRAM-MD5":
-			secret := string(n.conf.AuthSecret)
+			secret, secretErr := n.getAuthSecret()
+			if secretErr != nil {
+				errs = errors.Join(errs, secretErr)
+				continue
+			}
 			if secret == "" {
-				err.Add(errors.New("missing secret for CRAM-MD5 auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing secret for CRAM-MD5 auth mechanism"))
 				continue
 			}
 			return smtp.CRAMMD5Auth(username, secret), nil
-
 		case "PLAIN":
 			password, passwordErr := n.getPassword()
 			if passwordErr != nil {
-				err.Add(passwordErr)
+				errs = errors.Join(errs, passwordErr)
 				continue
 			}
 			if password == "" {
-				err.Add(errors.New("missing password for PLAIN auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing password for PLAIN auth mechanism"))
 				continue
 			}
-			identity := n.conf.AuthIdentity
-
-			return smtp.PlainAuth(identity, username, password, n.conf.Smarthost.Host), nil
+			return smtp.PlainAuth(n.conf.AuthIdentity, username, password, n.conf.Smarthost.Host), nil
 		case "LOGIN":
 			password, passwordErr := n.getPassword()
 			if passwordErr != nil {
-				err.Add(passwordErr)
+				errs = errors.Join(errs, passwordErr)
 				continue
 			}
 			if password == "" {
-				err.Add(errors.New("missing password for LOGIN auth mechanism"))
+				errs = errors.Join(errs, errors.New("missing password for LOGIN auth mechanism"))
 				continue
 			}
 			return LoginAuth(username, password), nil
+		default:
+			errs = errors.Join(errs, errors.New("unknown auth mechanism: "+mech))
 		}
 	}
-	if err.Len() == 0 {
-		err.Add(errors.New("unknown auth mechanism: " + mechs))
-	}
-	return nil, err
+	return nil, errs
 }
 
 // Notify implements the Notifier interface.
@@ -129,8 +130,17 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		err     error
 		success = false
 	)
-	if n.conf.Smarthost.Port == "465" {
-		tlsConfig, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
+	// Determine whether to use Implicit TLS
+	var useImplicitTLS bool
+	if n.conf.ForceImplicitTLS != nil {
+		useImplicitTLS = *n.conf.ForceImplicitTLS
+	} else {
+		// Default logic: port 465 uses implicit TLS (backward compatibility)
+		useImplicitTLS = n.conf.Smarthost.Port == "465"
+	}
+
+	if useImplicitTLS {
+		tlsConfig, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
 			return false, fmt.Errorf("parse TLS configuration: %w", err)
 		}
@@ -172,12 +182,12 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	}
 
 	// Global Config guarantees RequireTLS is not nil.
-	if *n.conf.RequireTLS {
+	if *n.conf.RequireTLS && !useImplicitTLS {
 		if ok, _ := c.Extension("STARTTLS"); !ok {
 			return true, fmt.Errorf("'require_tls' is true (default) but %q does not advertise the STARTTLS extension", n.conf.Smarthost)
 		}
 
-		tlsConf, err := commoncfg.NewTLSConfig(&n.conf.TLSConfig)
+		tlsConf, err := commoncfg.NewTLSConfig(n.conf.TLSConfig)
 		if err != nil {
 			return false, fmt.Errorf("parse TLS configuration: %w", err)
 		}
@@ -241,7 +251,15 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return true, fmt.Errorf("send DATA command: %w", err)
 	}
-	defer message.Close()
+	closeOnce := sync.OnceValue(func() error {
+		return message.Close()
+	})
+	// Close the message when this method exits in order to not leak resources. Even though we're calling this explicitly
+	// further down, the method may exit before then.
+	defer func() {
+		// If we try close an already-closed writer, it'll send a subsequent request to the server which is invalid.
+		_ = closeOnce()
+	}()
 
 	buffer := &bytes.Buffer{}
 	for header, t := range n.conf.Headers {
@@ -254,6 +272,31 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 
 	if _, ok := n.conf.Headers["Message-Id"]; !ok {
 		fmt.Fprintf(buffer, "Message-Id: %s\r\n", fmt.Sprintf("<%d.%d@%s>", time.Now().UnixNano(), rand.Uint64(), n.hostname))
+	}
+
+	if n.conf.Threading.Enabled {
+		key, err := notify.ExtractGroupKey(ctx)
+		if err != nil {
+			return false, err
+		}
+		// Add threading headers. All notifications for the same alert group
+		// (identified by key hash) are threaded together.
+		threadBy := ""
+		if n.conf.Threading.ThreadByDate != "none" {
+			// ThreadByDate is 'daily':
+			// Use current date so all mails for this alert today thread together.
+			threadBy = time.Now().Format("2006-01-02")
+		}
+		keyHash := key.Hash()
+		if len(keyHash) > 16 {
+			keyHash = keyHash[:16]
+		}
+		// The thread root ID is a Message-ID that doesn't correspond to
+		// any actual email. Email clients following the (commonly used) JWZ
+		// algorithm will create a dummy container to group these messages.
+		threadRootID := fmt.Sprintf("<alert-%s-%s@alertmanager>", keyHash, threadBy)
+		fmt.Fprintf(buffer, "References: %s\r\n", threadRootID)
+		fmt.Fprintf(buffer, "In-Reply-To: %s\r\n", threadRootID)
 	}
 
 	multipartBuffer := &bytes.Buffer{}
@@ -330,6 +373,11 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 		return false, fmt.Errorf("write body buffer: %w", err)
 	}
 
+	// Complete the message and await response.
+	if err = closeOnce(); err != nil {
+		return true, fmt.Errorf("delivery failure: %w", err)
+	}
+
 	success = true
 	return false, nil
 }
@@ -370,4 +418,15 @@ func (n *Email) getPassword() (string, error) {
 		return strings.TrimSpace(string(content)), nil
 	}
 	return string(n.conf.AuthPassword), nil
+}
+
+func (n *Email) getAuthSecret() (string, error) {
+	if len(n.conf.AuthSecretFile) > 0 {
+		content, err := os.ReadFile(n.conf.AuthSecretFile)
+		if err != nil {
+			return "", fmt.Errorf("could not read %s: %w", n.conf.AuthSecretFile, err)
+		}
+		return string(content), nil
+	}
+	return string(n.conf.AuthSecret), nil
 }
