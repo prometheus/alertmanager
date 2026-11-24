@@ -22,6 +22,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -46,8 +47,14 @@ type Notifier struct {
 	conf    *TelegramConfig
 	tmpl    *template.Template
 	logger  *slog.Logger
-	client  *telebot.Bot
 	retrier *notify.Retrier
+
+	httpClient *http.Client
+
+	// Notify is called concurrently by the aggregation groups of a receiver,
+	// so the bot is only ever replaced under the lock and never modified.
+	mtx sync.Mutex
+	bot *telebot.Bot
 }
 
 // New returns a new Telegram notification handler.
@@ -61,17 +68,17 @@ func New(conf *TelegramConfig, t *template.Template, l *slog.Logger, httpOpts ..
 		httpclient.Timeout = conf.Timeout
 	}
 
-	client, err := createTelegramClient(conf.APIUrl.String(), conf.ParseMode, httpclient)
-	if err != nil {
+	// Fail early on a bad configuration instead of at the first notification.
+	if _, err := createTelegramClient(conf.APIUrl.String(), conf.ParseMode, httpclient, ""); err != nil {
 		return nil, err
 	}
 
 	return &Notifier{
-		conf:    conf,
-		tmpl:    t,
-		logger:  l,
-		client:  client,
-		retrier: &notify.Retrier{},
+		conf:       conf,
+		tmpl:       t,
+		logger:     l,
+		httpClient: httpclient,
+		retrier:    &notify.Retrier{},
 	}, nil
 }
 
@@ -113,9 +120,13 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		}
 	}
 
-	n.client.Token, err = n.getBotToken()
+	token, err := n.getBotToken()
 	if err != nil {
 		return notify.Retry(0, err, notify.DefaultReason)
+	}
+	bot, err := n.botForToken(token)
+	if err != nil {
+		return notify.Unrecoverable(err, notify.DefaultReason)
 	}
 
 	chatID, err := n.getChatID()
@@ -123,7 +134,7 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
-	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
+	message, err := bot.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
 		ThreadID:              n.conf.MessageThreadID,
@@ -249,8 +260,27 @@ func telegramHTMLEntityLen(text []byte) int {
 	return end
 }
 
-func createTelegramClient(apiURL, parseMode string, httpClient *http.Client) (*telebot.Bot, error) {
+// botForToken returns a bot that sends with the given token. The token is
+// read from the file on every notification so that rotated tokens are picked
+// up, which means a bot can only be reused while the token stays the same.
+func (n *Notifier) botForToken(token string) (*telebot.Bot, error) {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	if n.bot != nil && n.bot.Token == token {
+		return n.bot, nil
+	}
+	bot, err := createTelegramClient(n.conf.APIUrl.String(), n.conf.ParseMode, n.httpClient, token)
+	if err != nil {
+		return nil, err
+	}
+	n.bot = bot
+	return bot, nil
+}
+
+func createTelegramClient(apiURL, parseMode string, httpClient *http.Client, token string) (*telebot.Bot, error) {
 	bot, err := telebot.NewBot(telebot.Settings{
+		Token:     token,
 		URL:       apiURL,
 		ParseMode: parseMode,
 		Client:    httpClient,

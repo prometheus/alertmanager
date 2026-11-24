@@ -514,3 +514,100 @@ func TestTelegramTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestTelegramNotifyConcurrently(t *testing.T) {
+	token := "secret"
+
+	tokenFile := t.TempDir() + "/token"
+	require.NoError(t, os.WriteFile(tokenFile, []byte(token+"\n"), 0o600))
+
+	for _, tc := range []struct {
+		name string
+		cfg  TelegramConfig
+	}{
+		{
+			name: "bot_token",
+			cfg:  TelegramConfig{BotToken: commoncfg.Secret(token)},
+		},
+		{
+			name: "bot_token_file",
+			cfg:  TelegramConfig{BotTokenFile: tokenFile},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/bot"+token+"/sendMessage" {
+					http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+					return
+				}
+				w.Write([]byte(`{"ok":true,"result":{"chat":{}}}`))
+			}))
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+
+			tc.cfg.Message = "test"
+			tc.cfg.HTTPConfig = &commoncfg.HTTPClientConfig{}
+			tc.cfg.APIUrl = &amcommoncfg.URL{URL: u}
+
+			notifier, err := New(&tc.cfg, test.CreateTmpl(t), promslog.NewNopLogger())
+			require.NoError(t, err)
+
+			ctx := notify.WithGroupKey(context.Background(), "1")
+			testAlert := alert.New(model.Alert{
+				StartsAt: time.Now(),
+				EndsAt:   time.Now().Add(time.Hour),
+			}, time.Time{}, false)
+
+			// Every aggregation group notifies through the same integration
+			// from its own goroutine, so Notify has to be safe to call
+			// concurrently. Run it under the race detector.
+			const workers = 8
+			verdicts := make(chan notify.NotifyVerdict, workers)
+			for range workers {
+				go func() {
+					verdicts <- notifier.Notify(ctx, testAlert)
+				}()
+			}
+			for range workers {
+				verdict := <-verdicts
+				require.NoError(t, verdict.Err())
+			}
+		})
+	}
+}
+
+func TestTelegramNotifyPicksUpRotatedTokenFile(t *testing.T) {
+	tokenFile := t.TempDir() + "/token"
+
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		w.Write([]byte(`{"ok":true,"result":{"chat":{}}}`))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+
+	notifier, err := New(&TelegramConfig{
+		Message:      "test",
+		HTTPConfig:   &commoncfg.HTTPClientConfig{},
+		BotTokenFile: tokenFile,
+		APIUrl:       &amcommoncfg.URL{URL: u},
+	}, test.CreateTmpl(t), promslog.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := notify.WithGroupKey(context.Background(), "1")
+	testAlert := alert.New(model.Alert{
+		StartsAt: time.Now(),
+		EndsAt:   time.Now().Add(time.Hour),
+	}, time.Time{}, false)
+
+	for _, token := range []string{"first", "first", "second"} {
+		require.NoError(t, os.WriteFile(tokenFile, []byte(token+"\n"), 0o600))
+		require.NoError(t, notifier.Notify(ctx, testAlert).Err())
+	}
+	require.Equal(t, []string{
+		"/botfirst/sendMessage",
+		"/botfirst/sendMessage",
+		"/botsecond/sendMessage",
+	}, paths)
+}
