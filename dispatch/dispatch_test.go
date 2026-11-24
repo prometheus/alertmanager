@@ -728,11 +728,11 @@ route:
 	require.Equal(t, route.Routes[0].Key(), same.key)
 }
 
-// TestMatchRoutes checks that the dispatcher groups an alert once per matched
+// TestMatchSlots checks that the dispatcher groups an alert once per matched
 // slot, and that a route is still matched when another route of its slot is
 // shadowed by a sibling: the deduplication must happen on the matches, not by
 // picking one route per slot up front.
-func TestMatchRoutes(t *testing.T) {
+func TestMatchSlots(t *testing.T) {
 	confData := `receivers:
 - name: 'default'
 - name: 'team'
@@ -763,15 +763,20 @@ route:
 	require.Same(t, team.slot, twin.slot)
 	require.NotSame(t, shadow.slot, team.slot)
 
+	slotsFor := func(lset model.LabelSet) []*slot {
+		var slots []*slot
+		d.matchSlots(lset, func(s *slot) { slots = append(slots, s) })
+		return slots
+	}
 	// The first team route is shadowed by its sibling, the second one is not:
 	// the alert is grouped in both slots, once each.
-	require.Equal(t, []*Route{shadow, twin}, d.matchRoutes(model.LabelSet{"env": "prod", "service": "api"}, nil))
+	require.Equal(t, []*slot{shadow.slot, twin.slot}, slotsFor(model.LabelSet{"env": "prod", "service": "api"}))
 	// Nothing below the parents matches, so they are matched themselves. They
 	// have the same key and inherit the same options, so they share a slot and
-	// the alert is grouped once, through the first of them.
+	// the alert is grouped once.
 	require.Same(t, route.Routes[0].slot, route.Routes[1].slot)
-	require.Equal(t, []*Route{route.Routes[0]}, d.matchRoutes(model.LabelSet{"env": "prod"}, nil))
-	require.Equal(t, []*Route{route}, d.matchRoutes(model.LabelSet{"service": "api"}, nil))
+	require.Equal(t, []*slot{route.Routes[0].slot}, slotsFor(model.LabelSet{"env": "prod"}))
+	require.Equal(t, []*slot{route.slot}, slotsFor(model.LabelSet{"service": "api"}))
 }
 
 func TestGroupsWithLimits(t *testing.T) {
@@ -1192,7 +1197,7 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 				})
 				ready.Done()
 				<-start
-				dispatcher.groupAlert(context.Background(), alrt, route)
+				dispatcher.groupAlert(context.Background(), alrt, route.slot)
 			}()
 		}
 		ready.Wait()
@@ -1266,7 +1271,7 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	go displaced.run(func(context.Context, ...*alert.Alert) bool { return true })
 
 	// Trigger the CAS replacement.
-	dispatcher.groupAlert(context.Background(), newAlert(groupLabels), route)
+	dispatcher.groupAlert(context.Background(), newAlert(groupLabels), route.slot)
 
 	// The displaced group should have been swapped out for a fresh one.
 	el, ok := route.slot.groups.Load(displaced.fingerprint())
@@ -2137,9 +2142,10 @@ func TestRoutingAllocations(t *testing.T) {
 	a := newAlert(model.LabelSet{"alertname": "A", "cluster": "c1", "env": "prod"})
 
 	require.Zero(t, testing.AllocsPerRun(100, func() {
-		var buf [4]*Route
-		if len(d.matchRoutes(a.Labels, buf[:0])) != 1 {
-			t.Fatal("expected one route")
+		n := 0
+		d.matchSlots(a.Labels, func(*slot) { n++ })
+		if n != 1 {
+			t.Fatal("expected one slot")
 		}
 	}))
 	ctx := context.Background()

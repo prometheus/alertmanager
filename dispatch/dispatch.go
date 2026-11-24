@@ -316,28 +316,25 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 	defer span.End()
 
 	now := time.Now()
-	var buf [4]*Route
-	for _, r := range d.matchRoutes(alrt.Labels, buf[:0]) {
-		tracing.EventRouteMatched(span, r.RouteOpts.Receiver)
-		d.groupAlert(ctx, alrt, r)
-	}
+	d.matchSlots(alrt.Labels, func(s *slot) {
+		tracing.EventRouteMatched(span, s.opts.Receiver)
+		d.groupAlert(ctx, alrt, s)
+	})
 	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 }
 
-// matchRoutes appends the routes matching the labels to routes, one per slot:
-// routes sharing a slot share their groups, so grouping the alert through a
-// second route of the slot would only repeat the work of the first. The
-// matches are deduplicated by slot as they are added, with a linear scan: an
-// alert matches one route nearly always and a handful at most, and comparing
-// that many pointers stays cheaper than a set, which allocates and hashes, up
-// to fanouts of over a hundred routes.
-func (d *Dispatcher) matchRoutes(lset model.LabelSet, routes []*Route) []*Route {
+// matchSlots calls visit once for each slot the labels route to. Routes
+// sharing a slot share their groups, so an alert is grouped once per slot.
+func (d *Dispatcher) matchSlots(lset model.LabelSet, visit func(*slot)) {
+	var buf [16]*slot
+	seen := buf[:0]
 	d.route.match(lset, func(r *Route) {
-		if !slices.ContainsFunc(routes, func(m *Route) bool { return m.slot == r.slot }) {
-			routes = append(routes, r)
+		if slices.Contains(seen, r.slot) {
+			return
 		}
+		seen = append(seen, r.slot)
+		visit(r.slot)
 	})
-	return routes
 }
 
 func (d *Dispatcher) doMaintenance() {
@@ -540,10 +537,9 @@ func (d *Dispatcher) Stop() {
 // Returns false if notifying failed.
 type notifyFunc func(context.Context, ...*alert.Alert) bool
 
-// groupAlert determines in which aggregation group the alert falls
-// and inserts it.
-func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *Route) {
-	s := route.slot
+// groupAlert determines in which aggregation group of the slot the alert
+// falls and inserts it.
+func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, s *slot) {
 	_, span := tracer.StartGroupAlert(ctx, alrt, s.opts.Receiver)
 	defer span.End()
 
