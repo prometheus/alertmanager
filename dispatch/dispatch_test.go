@@ -2123,37 +2123,6 @@ route:
 	})
 }
 
-func TestGroupFingerprint(t *testing.T) {
-	t.Parallel()
-	labels := model.LabelSet{"alertname": "A", "cluster": "c1", "service": "s", "instance": "i", "é": "ü"}
-	for name, opts := range map[string]*RouteOpts{
-		"subset":          {GroupBy: map[model.LabelName]struct{}{"alertname": {}, "cluster": {}}},
-		"absent label":    {GroupBy: map[model.LabelName]struct{}{"alertname": {}, "missing": {}}},
-		"only absent":     {GroupBy: map[model.LabelName]struct{}{"missing": {}}},
-		"empty group_by":  {GroupBy: map[model.LabelName]struct{}{}},
-		"group_by_all":    {GroupByAll: true},
-		"utf8 label":      {GroupBy: map[model.LabelName]struct{}{"é": {}, "alertname": {}}},
-		"all labels":      {GroupBy: map[model.LabelName]struct{}{"alertname": {}, "cluster": {}, "service": {}, "instance": {}, "é": {}}},
-		"more than eight": {GroupBy: map[model.LabelName]struct{}{"alertname": {}, "cluster": {}, "service": {}, "instance": {}, "é": {}, "a": {}, "b": {}, "c": {}, "d": {}, "e": {}}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			a := newAlert(labels)
-			require.Equal(t, getGroupLabels(a, opts).Fingerprint(), groupFingerprint(a, opts))
-		})
-	}
-	wide := model.LabelSet{}
-	for _, n := range []model.LabelName{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"} {
-		wide[n] = "v"
-	}
-	opts := &RouteOpts{GroupBy: map[model.LabelName]struct{}{}}
-	for n := range wide {
-		opts.GroupBy[n] = struct{}{}
-	}
-	a := newAlert(wide)
-	require.Equal(t, getGroupLabels(a, opts).Fingerprint(), groupFingerprint(a, opts))
-}
-
 // TestRoutingAllocations checks that matching routes and finding the group of
 // an alert do not allocate, as both run for every alert update.
 func TestRoutingAllocations(t *testing.T) {
@@ -2163,7 +2132,8 @@ func TestRoutingAllocations(t *testing.T) {
 		GroupBy:  []model.LabelName{"alertname", "cluster"},
 		Routes:   []*config.Route{{Receiver: "team", Match: map[string]string{"env": "prod"}}},
 	}, nil)
-	d := &Dispatcher{route: route}
+	d, _, _ := setupDispatcher(t, route)
+	d.state.Store(DispatcherStateWaitingToStart)
 	a := newAlert(model.LabelSet{"alertname": "A", "cluster": "c1", "env": "prod"})
 
 	require.Zero(t, testing.AllocsPerRun(100, func() {
@@ -2172,7 +2142,9 @@ func TestRoutingAllocations(t *testing.T) {
 			t.Fatal("expected one route")
 		}
 	}))
+	ctx := context.Background()
+	d.routeAlert(ctx, a) // Creates the group.
 	require.Zero(t, testing.AllocsPerRun(100, func() {
-		groupFingerprint(a, &route.Routes[0].RouteOpts)
+		d.routeAlert(ctx, a)
 	}))
 }

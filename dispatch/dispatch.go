@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"runtime"
 	"slices"
 	"sort"
@@ -105,6 +106,8 @@ type slot struct {
 	key string
 	// opts are the routing options shared by the routes of the slot.
 	opts RouteOpts
+	// groupByNames are the keys of opts.GroupBy, sorted.
+	groupByNames []model.LabelName
 	// matchers are the matchers of the routes, the same for all of them.
 	matchers labels.Matchers
 	// routes are the routes feeding the slot, in Walk order.
@@ -117,10 +120,11 @@ type slot struct {
 // newSlot returns the slot of a route.
 func newSlot(r *Route) *slot {
 	return &slot{
-		key:      r.Key(),
-		opts:     r.RouteOpts,
-		matchers: r.Matchers,
-		routes:   []*Route{r},
+		key:          r.Key(),
+		opts:         r.RouteOpts,
+		groupByNames: slices.Sorted(maps.Keys(r.RouteOpts.GroupBy)),
+		matchers:     r.Matchers,
+		routes:       []*Route{r},
 	}
 }
 
@@ -544,7 +548,11 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 	defer span.End()
 
 	now := time.Now()
-	fp := groupFingerprint(alrt, &s.opts)
+	// The fingerprint of getGroupLabels(alrt, &s.opts), built only on a miss.
+	fp := alrt.Fingerprint()
+	if !s.opts.GroupByAll {
+		fp = alrt.Labels.FingerprintForLabels(s.groupByNames...)
+	}
 
 	el, loaded := s.groups.Load(fp)
 	if loaded {
@@ -682,20 +690,6 @@ func getGroupLabels(alrt *alert.Alert, opts *RouteOpts) model.LabelSet {
 	}
 
 	return groupLabels
-}
-
-// groupFingerprint returns getGroupLabels(alrt, opts).Fingerprint() without
-// building the label set, which only a group miss needs.
-func groupFingerprint(alrt *alert.Alert, opts *RouteOpts) model.Fingerprint {
-	if opts.GroupByAll {
-		return alrt.Fingerprint()
-	}
-	var buf [8]model.LabelName
-	names := buf[:0]
-	for ln := range opts.GroupBy {
-		names = append(names, ln)
-	}
-	return alrt.Labels.FingerprintForLabels(names...)
 }
 
 // aggrGroup aggregates alert fingerprints into groups to which a
