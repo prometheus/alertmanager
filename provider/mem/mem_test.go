@@ -579,26 +579,22 @@ func TestSlurpAndSubscribeShards(t *testing.T) {
 
 			const n = 4096
 			var (
-				mu      sync.Mutex
 				seen    = make([]map[model.Fingerprint]int, shards)
-				total   atomic.Int64
 				readers sync.WaitGroup
 			)
 			// Closing the iterator only marks the listener done; its channels
 			// are closed by the next listener GC, which lets the readers exit.
-			t.Cleanup(func() {
+			stopReaders := func() {
 				its[0].Close()
 				alerts.gcListeners()
 				readers.Wait()
-			})
+			}
+			t.Cleanup(stopReaders)
 			for i, it := range its {
 				seen[i] = map[model.Fingerprint]int{}
 				readers.Go(func() {
 					for a := range it.Next() {
-						mu.Lock()
 						seen[i][a.Data.Fingerprint()]++
-						mu.Unlock()
-						total.Add(1)
 					}
 				})
 			}
@@ -616,16 +612,17 @@ func TestSlurpAndSubscribeShards(t *testing.T) {
 				a2.UpdatedAt = now.Add(time.Second)
 				require.NoError(t, alerts.Put(context.Background(), &a2))
 			}
-			require.Eventually(t, func() bool { return total.Load() == 2*n }, 10*time.Second, time.Millisecond)
+			stopReaders()
 
-			mu.Lock()
-			defer mu.Unlock()
+			total := 0
 			for i, m := range seen {
 				for fp, c := range m {
 					require.Equal(t, 2, c, "shard %d saw only one update of %v", i, fp)
 				}
 				require.InDelta(t, n/shards, len(m), 0.3*n/float64(shards), "shard %d", i)
+				total += len(m)
 			}
+			require.Equal(t, n, total)
 		})
 	}
 }

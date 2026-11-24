@@ -431,20 +431,20 @@ func benchmarkGroupsRouteLabels(b *testing.B, labels model.LabelSet) {
 // steady state of a firing alert.
 func BenchmarkRouteAlert(b *testing.B) {
 	b.Run("8 routes", func(b *testing.B) {
-		benchmarkRouteAlert(b, buildDeepRouteTree(2, 2, 2, nil))
+		benchmarkRouteAlert(b, 2, 2, 2)
 	})
 	b.Run("500 routes", func(b *testing.B) {
-		benchmarkRouteAlert(b, buildDeepRouteTree(25, 4, 5, nil))
+		benchmarkRouteAlert(b, 25, 4, 5)
 	})
 }
 
-func benchmarkRouteAlert(b *testing.B, route *Route) {
+func benchmarkRouteAlert(b *testing.B, numTeams, numClusters, numPriorities int) {
 	b.ReportAllocs()
-	d, _, _ := setupDispatcher(b, route)
+	d, _, _ := setupDispatcher(b, buildDeepRouteTree(numTeams, numClusters, numPriorities, nil))
 	// Keep new groups from starting their run loop.
 	d.state.Store(DispatcherStateWaitingToStart)
 	ctx := context.Background()
-	alrt := makeBenchAlertBatch(1, 0, 2, 2, 2)[0]
+	alrt := makeBenchAlertBatch(1, numTeams*numClusters*numPriorities-1, numTeams, numClusters, numPriorities)[0]
 	d.routeAlert(ctx, alrt)
 
 	for b.Loop() {

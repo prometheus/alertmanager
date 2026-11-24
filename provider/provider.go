@@ -98,18 +98,14 @@ type Alerts interface {
 	// They are not guaranteed to be in chronological order.
 	Subscribe(name string) AlertIterator
 
-	// SlurpAndSubcribe returns a list of all active alerts which are available
-	// in the provider before the call to SlurpAndSubcribe and shards iterators
-	// over all alerts available after the call to SlurpAndSubcribe. Updates to
-	// one alert are always delivered on the same iterator, in order, so a
-	// consumer per iterator can process them concurrently. Closing any of the
-	// iterators closes them all.
-	// SlurpAndSubcribe can be used by clients which need to build in memory state
-	// to know when they've processed the 'initial' batch of alerts in a provider
-	// after they reload their subscription.
-	// Implementation of SlurpAndSubcribe is optional - providers may choose to
-	// return an empty list for the first return value and the result of Subscribe
-	// for the second return value.
+	// SlurpAndSubscribe returns the active alerts present before the call and
+	// shards iterators over alerts put after it, so callers can load the
+	// initial snapshot before processing live updates. Updates to one alert
+	// are always delivered on the same iterator, in order, so a consumer per
+	// iterator can process them concurrently. Closing any of the iterators
+	// cancels the subscription.
+	// Implementation of SlurpAndSubscribe is optional - providers may choose
+	// to return an empty list and []AlertIterator{Subscribe(name)}.
 	SlurpAndSubscribe(name string, shards int) ([]*alert.Alert, []AlertIterator)
 
 	// GetPending returns an iterator over all alerts that have
