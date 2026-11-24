@@ -109,12 +109,16 @@ func TestSlackAppTokenStatusRoundTrip(t *testing.T) {
 		wantWebhook bool
 	}{
 		{name: "inherited inline token", global: "global:\n  slack_app_token: xoxb-global", secret: "xoxb-global"},
-		{name: "local inline token with message updates",
+		{
+			name:     "local inline token with message updates",
 			settings: "\n        app_token: xoxb-local\n        update_message: true\n        post_updates_to_thread: true",
-			secret:   "xoxb-local"},
+			secret:   "xoxb-local",
+		},
 		{name: "inherited token file", global: "global:\n  slack_app_token_file: slack-token", tokenFile: "slack-token"},
-		{name: "webhook file overrides inherited token", global: "global:\n  slack_app_token: xoxb-global",
-			settings: "\n        api_url_file: slack-webhook", secret: "xoxb-global", wantWebhook: true},
+		{
+			name: "webhook file overrides inherited token", global: "global:\n  slack_app_token: xoxb-global",
+			settings: "\n        api_url_file: slack-webhook", secret: "xoxb-global", wantWebhook: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := config.Load(fmt.Sprintf(`%s
