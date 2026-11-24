@@ -576,24 +576,31 @@ func TestSlurpAndSubscribeShards(t *testing.T) {
 
 			_, its := alerts.SlurpAndSubscribe("test", shards)
 			require.Len(t, its, shards)
-			t.Cleanup(its[0].Close)
 
 			const n = 4096
 			var (
-				mu    sync.Mutex
-				seen  = make([]map[model.Fingerprint]int, shards)
-				total atomic.Int64
+				mu      sync.Mutex
+				seen    = make([]map[model.Fingerprint]int, shards)
+				total   atomic.Int64
+				readers sync.WaitGroup
 			)
+			// Closing the iterator only marks the listener done; its channels
+			// are closed by the next listener GC, which lets the readers exit.
+			t.Cleanup(func() {
+				its[0].Close()
+				alerts.gcListeners()
+				readers.Wait()
+			})
 			for i, it := range its {
 				seen[i] = map[model.Fingerprint]int{}
-				go func() {
+				readers.Go(func() {
 					for a := range it.Next() {
 						mu.Lock()
 						seen[i][a.Data.Fingerprint()]++
 						mu.Unlock()
 						total.Add(1)
 					}
-				}()
+				})
 			}
 
 			now := time.Now()
