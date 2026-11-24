@@ -120,6 +120,7 @@ require (
 	github.com/miekg/dns v1.1.73 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
+	github.com/pandatix/go-abnf v0.5.5 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
