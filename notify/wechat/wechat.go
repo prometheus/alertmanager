@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -41,6 +42,9 @@ type Notifier struct {
 	logger *slog.Logger
 	client *http.Client
 
+	// Notify is called concurrently by the aggregation groups of a receiver,
+	// so the cached access token is guarded by a mutex.
+	mtx           sync.Mutex
 	accessToken   string
 	accessTokenAt time.Time
 }
@@ -96,7 +100,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
 	// Refresh AccessToken over 2 hours
-	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
+	accessToken := n.cachedToken()
+	if accessToken == "" {
 		parameters := url.Values{}
 		apiSecret, err := n.getApiSecret()
 		if err != nil {
@@ -128,8 +133,8 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 		}
 
 		// Cache accessToken
-		n.accessToken = wechatToken.AccessToken
-		n.accessTokenAt = time.Now()
+		accessToken = wechatToken.AccessToken
+		n.storeToken(accessToken)
 	}
 
 	msg := &weChatMessage{
@@ -162,7 +167,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	postMessageURL := n.conf.APIURL.Copy()
 	postMessageURL.Path += "message/send"
 	q := postMessageURL.Query()
-	q.Set("access_token", n.accessToken)
+	q.Set("access_token", accessToken)
 	postMessageURL.RawQuery = q.Encode()
 
 	resp, err := notify.PostJSON(ctx, n.client, postMessageURL.String(), &buf)
@@ -193,11 +198,42 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 
 	// AccessToken is expired
 	if weResp.Code == 42001 {
-		n.accessToken = ""
+		n.invalidateToken(accessToken)
 		return notify.Retry(0, errors.New(weResp.Error), notify.DefaultReason)
 	}
 
 	return notify.Unrecoverable(errors.New(weResp.Error), notify.DefaultReason)
+}
+
+// cachedToken returns the cached access token, or an empty string if there is
+// none or it is older than 2 hours.
+func (n *Notifier) cachedToken() string {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	if time.Since(n.accessTokenAt) > 2*time.Hour {
+		return ""
+	}
+	return n.accessToken
+}
+
+func (n *Notifier) storeToken(token string) {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	n.accessToken = token
+	n.accessTokenAt = time.Now()
+}
+
+// invalidateToken drops the cached token if it is still the given one. Another
+// notification may already have replaced an expired token with a fresh one.
+func (n *Notifier) invalidateToken(token string) {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	if n.accessToken == token {
+		n.accessToken = ""
+	}
 }
 
 func (n *Notifier) getApiSecret() (string, error) {
