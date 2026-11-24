@@ -394,6 +394,111 @@ func TestTemplateExpansion(t *testing.T) {
 			},
 			exp: "[key2 key4]",
 		},
+		{
+			title: "Template using toJson with string",
+			in:    `{{ "test" | toJson }}`,
+			exp:   `"test"`,
+		},
+		{
+			title: "Template using toJson with number",
+			in:    `{{ 42 | toJson }}`,
+			exp:   `42`,
+		},
+		{
+			title: "Template using toJson with boolean",
+			in:    `{{ true | toJson }}`,
+			exp:   `true`,
+		},
+		{
+			title: "Template using toJson with map",
+			in:    `{{ . | toJson }}`,
+			data:  map[string]any{"key": "value", "number": 123},
+			exp:   `{"key":"value","number":123}`,
+		},
+		{
+			title: "Template using toJson with slice",
+			in:    `{{ . | toJson }}`,
+			data:  []string{"a", "b", "c"},
+			exp:   `["a","b","c"]`,
+		},
+		{
+			title: "Template using toJson with KV",
+			in:    `{{ .CommonLabels | toJson }}`,
+			data: Data{
+				CommonLabels: KV{"severity": "critical", "job": "foo"},
+			},
+			exp: `{"job":"foo","severity":"critical"}`,
+		},
+		{
+			title: "Template using toJson with Alerts",
+			in:    `{{ .Alerts | toJson }}`,
+			data: Data{
+				Alerts: Alerts{
+					{
+						Status: "firing",
+						Labels: KV{"alertname": "test"},
+					},
+				},
+			},
+			exp: `[{"status":"firing","labels":{"alertname":"test"},"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
+		},
+		{
+			title: "Template using toJson with Alerts.Firing()",
+			in:    `{{ .Alerts.Firing | toJson }}`,
+			data: Data{
+				Alerts: Alerts{
+					{Status: "firing"},
+					{Status: "resolved"},
+				},
+			},
+			exp: `[{"status":"firing","labels":null,"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
+		},
+		{
+			title: "Template creates empty dict when using dict on nil",
+			in:    `{{- $test := dict -}}{{ $test }}`,
+			exp:   "map[]",
+		},
+		{
+			title: "Template creates dict with args",
+			in:    `{{- $test := dict "a" 1 "b" 2 "c" 3 -}}{{ $test }}`,
+			exp:   "map[a:1 b:2 c:3]",
+		},
+		{
+			title: "Template using dict with odd number of arguments",
+			in:    `{{ dict "a" }}`,
+			fail:  true,
+		},
+		{
+			title: "Template using dict with non-string key",
+			in:    `{{ dict 1 "value" }}`,
+			fail:  true,
+		},
+		{
+			title: "Template creates empty list when using list on nil",
+			in:    `{{- $test := list -}}{{ $test }}`,
+			exp:   "[]",
+		},
+		{
+			title: "Template creates list with args",
+			in:    `{{- $test := list "a" "b" "c" -}}{{ $test }}`,
+			exp:   "[a b c]",
+		},
+		{
+			title: "Template appends to list",
+			in:    `{{- $test := list "a" "b" -}}{{ $test = append $test "c" "d" -}}{{ $test }}`,
+			exp:   "[a b c d]",
+		},
+		{
+			title: "Compose json array using list and append",
+			data: Data{
+				Alerts: Alerts{
+					{Status: "firing"},
+					{Status: "resolved"},
+				},
+			},
+			in:  `{{- $newList := list -}}{{ range .Alerts }}{{ $m := dict "status" .Status "labels" .Labels }}{{ $newList = append $newList $m }}{{ end }}{{ toJson $newList }}`,
+			exp: `[{"labels":null,"status":"firing"},{"labels":null,"status":"resolved"}]`,
+		},
 	} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {
@@ -531,6 +636,25 @@ func TestTemplateFuncs(t *testing.T) {
 		in:     `{{ . | tz "Invalid/Timezone" }}`,
 		data:   time.Date(2024, 1, 1, 8, 15, 30, 0, time.UTC),
 		expErr: "template: :1:7: executing \"\" at <tz \"Invalid/Timezone\">: error calling tz: unknown time zone Invalid/Timezone",
+	}, {
+		title: "Template using toJson with string",
+		in:    `{{ "hello" | toJson }}`,
+		exp:   `"hello"`,
+	}, {
+		title: "Template using toJson with map",
+		in:    `{{ . | toJson }}`,
+		data:  map[string]string{"key": "value"},
+		exp:   `{"key":"value"}`,
+	}, {
+		title: "Template using toJson with Alerts.Firing()",
+		in:    `{{ .Alerts.Firing | toJson }}`,
+		data: Data{
+			Alerts: Alerts{
+				{Status: "firing", Labels: KV{"alertname": "test"}},
+				{Status: "resolved"},
+			},
+		},
+		exp: `[{"status":"firing","labels":{"alertname":"test"},"annotations":null,"startsAt":"0001-01-01T00:00:00Z","endsAt":"0001-01-01T00:00:00Z","generatorURL":"","fingerprint":""}]`,
 	}} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {

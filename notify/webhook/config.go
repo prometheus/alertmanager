@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,15 +15,15 @@ package webhook
 
 import (
 	"errors"
+	"time"
 
 	commoncfg "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 )
 
-// DefaultWebhookConfig defines default values for Webhook configurations.
-var DefaultWebhookConfig = WebhookConfig{
+// defaultWebhookConfig defines default values for Webhook configurations.
+var defaultWebhookConfig = WebhookConfig{
 	NotifierConfig: amcommoncfg.NotifierConfig{
 		VSendResolved: true,
 	},
@@ -36,8 +36,8 @@ type WebhookConfig struct {
 	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
 
 	// URL to send POST request to.
-	URL     *amcommoncfg.SecretURL `yaml:"url" json:"url"`
-	URLFile string                 `yaml:"url_file" json:"url_file"`
+	URL     amcommoncfg.SecretTemplateURL `yaml:"url,omitempty" json:"url,omitempty"`
+	URLFile string                        `yaml:"url_file" json:"url_file"`
 
 	// MaxAlerts is the maximum number of alerts to be sent per webhook message.
 	// Alerts exceeding this threshold will be truncated. Setting this to 0
@@ -46,20 +46,21 @@ type WebhookConfig struct {
 
 	// Timeout is the maximum time allowed to invoke the webhook. Setting this to 0
 	// does not impose a timeout.
-	Timeout model.Duration `yaml:"timeout" json:"timeout"`
+	Timeout time.Duration `yaml:"timeout" json:"timeout"`
+	Payload any           `yaml:"payload,omitempty" json:"payload,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultWebhookConfig
+func (c *WebhookConfig) UnmarshalYAML(unmarshal func(any) error) error {
+	*c = defaultWebhookConfig
 	type plain WebhookConfig
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil && c.URLFile == "" {
+	if c.URL == "" && c.URLFile == "" {
 		return errors.New("one of url or url_file must be configured")
 	}
-	if c.URL != nil && c.URLFile != "" {
+	if c.URL != "" && c.URLFile != "" {
 		return errors.New("at most one of url & url_file must be configured")
 	}
 	return nil

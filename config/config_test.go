@@ -561,6 +561,40 @@ func TestJSONUnmarshal(t *testing.T) {
 	}
 }
 
+func TestLoadWebhookConfig(t *testing.T) {
+	const input = `
+global:
+  http_config:
+    follow_redirects: false
+route:
+  receiver: webhook
+receivers:
+- name: webhook
+  webhook_configs:
+  - url: 'https://example.com/{{ .GroupLabels.alertname }}'
+    timeout: 5s
+    payload:
+      status: '{{ .Status }}'
+  - url_file: /path/to/webhook-url
+    http_config:
+      follow_redirects: true
+`
+	cfg, err := Load(input)
+	require.NoError(t, err)
+	require.Len(t, cfg.Receivers, 1)
+	webhooks := cfg.Receivers[0].WebhookConfigs
+	require.Len(t, webhooks, 2)
+	require.Equal(t, amcommoncfg.SecretTemplateURL("https://example.com/{{ .GroupLabels.alertname }}"), webhooks[0].URL)
+	require.Equal(t, 5*time.Second, webhooks[0].Timeout)
+	require.Equal(t, map[interface{}]interface{}{"status": "{{ .Status }}"}, webhooks[0].Payload)
+	require.True(t, webhooks[0].SendResolved())
+	require.False(t, webhooks[0].HTTPConfig.FollowRedirects)
+	require.True(t, webhooks[1].HTTPConfig.FollowRedirects)
+
+	_, err = Load(strings.Replace(input, "  - url_file: /path/to/webhook-url", "  - url: ''", 1))
+	require.ErrorContains(t, err, "one of url or url_file must be configured")
+}
+
 func TestMarshalIdempotency(t *testing.T) {
 	c, err := LoadFile("testdata/conf.good.yml")
 	if err != nil {

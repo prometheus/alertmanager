@@ -17,25 +17,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	commoncfg "github.com/prometheus/common/config"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
-	"github.com/prometheus/alertmanager/tracing"
 	"github.com/prometheus/alertmanager/types"
 )
-
-var tracer = otel.Tracer("github.com/prometheus/alertmanager/notify/webhook")
 
 // Notifier implements a Notifier for generic webhooks.
 type Notifier struct {
@@ -48,14 +42,10 @@ type Notifier struct {
 
 // New returns a new Webhook.
 func New(conf *WebhookConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*conf.HTTPConfig, "webhook", httpOpts...)
+	client, err := notify.NewClientWithTracing(*conf.HTTPConfig, "webhook", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
-
-	// instrument for tracing
-	client.Transport = tracing.Transport(client.Transport)
-
 	return &Notifier{
 		conf:   conf,
 		tmpl:   t,
@@ -87,22 +77,16 @@ func truncateAlerts(maxAlerts uint64, alerts []*types.Alert) ([]*types.Alert, ui
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, error) {
-	ctx, span := tracer.Start(ctx, "webhook.Notifier.Notify", trace.WithAttributes(
-		attribute.Int("alerts", len(alerts)),
-	))
-	defer span.End()
-
 	alerts, numTruncated := truncateAlerts(n.conf.MaxAlerts, alerts)
 	data := notify.GetTemplateData(ctx, n.tmpl, alerts, n.logger)
 
 	groupKey, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
-		// @tjhop: should we `return false, err` here as we do in most
-		// other Notify() implementations?
-		n.logger.Error("error extracting group key", "err", err)
+		return false, err
 	}
 
-	// @tjhop: should we debug log the key here like most other Notify() implementations?
+	logger := n.logger.With("group_key", groupKey)
+	logger.Debug("extracted group key")
 
 	msg := &Message{
 		Version:         "4",
@@ -116,19 +100,38 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		return false, err
 	}
 
+	// Override the payload if a custom one is configured.
+	if n.conf.Payload != nil {
+		buf, err = n.renderPayload(msg)
+		if err != nil {
+			return false, fmt.Errorf("failed to render custom payload: %w", err)
+		}
+	}
+
 	var url string
-	if n.conf.URL != nil {
-		url = n.conf.URL.String()
+	var tmplErr error
+	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
+
+	if n.conf.URL != "" {
+		url = tmpl(string(n.conf.URL))
 	} else {
 		content, err := os.ReadFile(n.conf.URLFile)
 		if err != nil {
 			return false, fmt.Errorf("read url_file: %w", err)
 		}
-		url = strings.TrimSpace(string(content))
+		url = tmpl(strings.TrimSpace(string(content)))
+	}
+
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to template webhook URL: %w", tmplErr)
+	}
+
+	if url == "" {
+		return false, errors.New("webhook URL is empty after templating")
 	}
 
 	if n.conf.Timeout > 0 {
-		postCtx, cancel := context.WithTimeoutCause(ctx, time.Duration(n.conf.Timeout), fmt.Errorf("configured webhook timeout reached (%s)", n.conf.Timeout))
+		postCtx, cancel := context.WithTimeoutCause(ctx, n.conf.Timeout, fmt.Errorf("configured webhook timeout reached (%s)", n.conf.Timeout))
 		defer cancel()
 		ctx = postCtx
 	}
@@ -147,4 +150,27 @@ func (n *Notifier) Notify(ctx context.Context, alerts ...*types.Alert) (bool, er
 		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 	return shouldRetry, err
+}
+
+func (n *Notifier) renderPayload(
+	data *Message,
+) (bytes.Buffer, error) {
+	var (
+		tmplTextErr  error
+		tmplText     = notify.TmplText(n.tmpl, data.Data, &tmplTextErr)
+		tmplTextFunc = func(tmpl string) (string, error) {
+			return tmplText(tmpl), tmplTextErr
+		}
+	)
+	var err error
+	rendered, err := template.DeepCopyWithTemplate(n.conf.Payload, tmplTextFunc)
+	if err != nil {
+		return bytes.Buffer{}, err
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(rendered); err != nil {
+		return bytes.Buffer{}, err
+	}
+	return buf, nil
 }
