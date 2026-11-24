@@ -1451,6 +1451,46 @@ receivers:
 	require.NoError(t, err)
 }
 
+func TestSlackRedactedConfigReload(t *testing.T) {
+	// Config.String() redacts api_url, as served by /api/v2/status.
+	// Loading that output must not fail the bot-token validation.
+	in := `
+global:
+  slack_api_url: https://slack.com/api/chat.postMessage
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+        update_message: true
+        post_updates_to_thread: true
+`
+	conf, err := Load(in)
+	require.NoError(t, err)
+
+	_, err = Load(conf.String())
+	require.NoError(t, err)
+}
+
+func TestSlackGlobalAPIURLFileWithAppToken(t *testing.T) {
+	// slack_api_url_file can't be compared with slack_app_url at load time,
+	// so it can't be combined with slack_app_token.
+	in := `
+global:
+  slack_app_token: xoxb-token
+  slack_api_url_file: /etc/alertmanager/slack-url
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+`
+	_, err := Load(in)
+	require.EqualError(t, err, "at most one of slack_app_token/slack_app_token_file & slack_api_url/slack_api_url_file must be configured")
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
