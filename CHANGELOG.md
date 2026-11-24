@@ -4,6 +4,10 @@ Please do **not** add any entries in this section. If your change affects
 behaviour, describe it in the pull request description. Those entries are added
 here, when the release is prepared.
 
+## 0.35.1 / 2026-11-24
+
+* [BUGFIX] Raise the HTTP server idle timeout from 90s to 6m so it outlasts the 5m client idle timeout used by Prometheus, avoiding failed alert POSTs on connections closed by the server. #5744
+
 ## 0.35.0 / 2026-11-09
 
 * [CHANGE] Promote the `auto-gomemlimit` feature flag to the `--auto-gomemlimit` command-line flag. This is a breaking change: the `--enable-feature=auto-gomemlimit` option has been removed. #5464
