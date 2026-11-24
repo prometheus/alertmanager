@@ -452,6 +452,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			}
 		}
 		for _, msteams := range rcv.MSTeamsConfigs {
+			if msteams == nil {
+				return errors.New("missing msteams config")
+			}
 			if msteams.HTTPConfig == nil {
 				msteams.HTTPConfig = c.Global.HTTPConfig
 			}

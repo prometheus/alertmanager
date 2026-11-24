@@ -1,4 +1,4 @@
-// Copyright 2015 Prometheus Team
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,12 +16,11 @@ package msteams
 import (
 	"errors"
 
-	commoncfg "github.com/prometheus/common/config"
-
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
+	commoncfg "github.com/prometheus/common/config"
 )
 
-// DefaultMSTeamsConfig defines default values for MSTeams configurations.
 var DefaultMSTeamsConfig = MSTeamsConfig{
 	NotifierConfig: amcommoncfg.NotifierConfig{
 		VSendResolved: true,
@@ -42,7 +41,7 @@ type MSTeamsConfig struct {
 	Text    string `yaml:"text,omitempty" json:"text,omitempty"`
 }
 
-func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(any) error) error {
 	*c = DefaultMSTeamsConfig
 	type plain MSTeamsConfig
 	if err := unmarshal((*plain)(c)); err != nil {

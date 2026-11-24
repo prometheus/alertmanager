@@ -28,18 +28,16 @@ import (
 	"github.com/prometheus/common/model"
 
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
+
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
 )
 
 const (
-	TextColorAttention = "attention"
-	TextColorGood      = "good"
-
-	TextSizeLarge = "large"
-
-	TextWeightBolder = "bolder"
+	colorRed   = "8C1A1A"
+	colorGreen = "2DC72D"
+	colorGrey  = "808080"
 )
 
 type Notifier struct {
@@ -52,9 +50,19 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
+// Message card reference can be found at https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference.
+type teamsMessage struct {
+	Context    string `json:"@context"`
+	Type       string `json:"type"`
+	Title      string `json:"title"`
+	Summary    string `json:"summary"`
+	Text       string `json:"text"`
+	ThemeColor string `json:"themeColor"`
+}
+
 // New returns a new notifier that uses the Microsoft Teams Webhook API.
 func New(c *MSTeamsConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := commoncfg.NewClientFromConfig(*c.HTTPConfig, "msteams", httpOpts...)
+	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "msteams", httpOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,30 +108,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return false, err
 	}
 
-	card := NewAdaptiveCard()
-	card.AppendItem(AdaptiveCardTextBlockItem{
-		Color:  getTeamsTextColor(types.Alerts(as...)),
-		Text:   title,
-		Size:   TextSizeLarge,
-		Weight: TextWeightBolder,
-		Wrap:   true,
-	})
-	card.AppendItem(AdaptiveCardTextBlockItem{
-		Text: text,
-		Wrap: true,
-	})
-
-	card.AppendItem(AdaptiveCardActionSetItem{
-		Actions: []AdaptiveCardActionItem{
-			AdaptiveCardOpenURLActionItem{
-				Title: "View URL",
-				URL:   n.tmpl.ExternalURL.String(),
-			},
-		},
-	})
-
-	msg := NewAdaptiveCardsMessage(card)
-	msg.Summary = summary
+	alerts := types.Alerts(as...)
+	color := colorGrey
+	switch alerts.Status() {
+	case model.AlertFiring:
+		color = colorRed
+	case model.AlertResolved:
+		color = colorGreen
+	}
 
 	var url string
 	if n.conf.WebhookURL != nil {
@@ -136,8 +128,17 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		url = strings.TrimSpace(string(content))
 	}
 
+	t := teamsMessage{
+		Context:    "http://schema.org/extensions",
+		Type:       "MessageCard",
+		Title:      title,
+		Summary:    summary,
+		Text:       text,
+		ThemeColor: color,
+	}
+
 	var payload bytes.Buffer
-	if err = json.NewEncoder(&payload).Encode(msg); err != nil {
+	if err = json.NewEncoder(&payload).Encode(t); err != nil {
 		return false, err
 	}
 
@@ -153,12 +154,4 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		return shouldRetry, notify.NewErrorWithReason(notify.GetFailureReasonFromStatusCode(resp.StatusCode), err)
 	}
 	return shouldRetry, err
-}
-
-// getTeamsTextColor returns the text color for the message title.
-func getTeamsTextColor(alerts model.Alerts) string {
-	if alerts.Status() == model.AlertFiring {
-		return TextColorAttention
-	}
-	return TextColorGood
 }
