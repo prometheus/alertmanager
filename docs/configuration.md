@@ -216,8 +216,9 @@ the same group key whenever their group labels match. If their receiver and all
 their other options are equal too, they share their alert groups, and an alert
 matched by both is grouped once. Otherwise the groups share notification log
 entries if the receiver is the same, so a notification sent for one of them can
-suppress the same notification for the other: merge such routes, or define a
-second receiver for the same destination.
+suppress the same notification for the other. Alertmanager and
+`amtool check-config` warn about such routes: merge them, or define a second
+receiver for the same destination.
 
 See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#grouping) for more information on grouping.
 

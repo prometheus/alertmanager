@@ -14,6 +14,7 @@
 package dispatch
 
 import (
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -1122,5 +1123,59 @@ routes:
 	for _, idx := range indices {
 		require.GreaterOrEqual(t, idx, 0, "Index should be >= 0")
 		require.Less(t, idx, totalNodes, "Index should be < total nodes")
+	}
+}
+
+type routeKeyCases struct {
+	Receivers string `yaml:"receivers"`
+	Cases     []struct {
+		Name    string `yaml:"name"`
+		Warning string `yaml:"warning"`
+		Config  string `yaml:"config"`
+	} `yaml:"cases"`
+}
+
+// TestRouteWarnings checks the warning about routes with the same key and
+// receiver but different options against the trees in testdata, and that it
+// agrees with the slots: routes it does not report share their groups.
+func TestRouteWarnings(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("testdata/route_keys.yaml")
+	require.NoError(t, err)
+	var cases routeKeyCases
+	require.NoError(t, yaml.UnmarshalStrict(data, &cases))
+	require.NotEmpty(t, cases.Cases)
+
+	for _, tc := range cases.Cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			conf, err := config.Load(tc.Config + cases.Receivers)
+			require.NoError(t, err)
+			tree := NewRoute(conf.Route, nil)
+
+			warnings := tree.Warnings()
+			if tc.Warning == "" {
+				require.Empty(t, warnings)
+			} else {
+				require.Len(t, warnings, 1)
+				require.Contains(t, warnings[0], tc.Warning)
+			}
+
+			// Routes with the same key and receiver share a slot exactly when
+			// no option differs.
+			d := &Dispatcher{route: tree}
+			d.assignSlots()
+			var routes []*Route
+			tree.Walk(func(r *Route) { routes = append(routes, r) })
+			for i, a := range routes {
+				for _, b := range routes[i+1:] {
+					if a.Key() != b.Key() || a.RouteOpts.Receiver != b.RouteOpts.Receiver {
+						continue
+					}
+					require.Equal(t, len(differingOptions(&a.RouteOpts, &b.RouteOpts)) == 0, a.slot == b.slot, "%s and %s", a.ID(), b.ID())
+				}
+			}
+		})
 	}
 }

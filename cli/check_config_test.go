@@ -15,6 +15,11 @@ package cli
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
 )
 
 func TestCheckConfig(t *testing.T) {
@@ -27,4 +32,14 @@ func TestCheckConfig(t *testing.T) {
 	if err == nil {
 		t.Fatalf("failed to detect invalid file.")
 	}
+
+	// Routes with the same matchers and receiver but different options load
+	// with a warning.
+	err = CheckConfig([]string{"testdata/conf.routes-same-key.yml"})
+	require.NoError(t, err)
+	cfg, err := config.LoadFile("testdata/conf.routes-same-key.yml")
+	require.NoError(t, err)
+	warnings := dispatch.NewRoute(cfg.Route, nil).Warnings()
+	require.Len(t, warnings, 1)
+	require.Contains(t, warnings[0], "have the same matchers and receiver")
 }

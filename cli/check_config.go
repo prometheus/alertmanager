@@ -20,6 +20,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 
 	"github.com/prometheus/alertmanager/config"
+	"github.com/prometheus/alertmanager/dispatch"
 	"github.com/prometheus/alertmanager/template"
 )
 
@@ -70,6 +71,9 @@ func CheckConfig(args []string) error {
 			failed++
 		} else {
 			fmt.Printf("  SUCCESS\n")
+			for _, w := range dispatch.NewRoute(cfg.Route, nil).Warnings() {
+				fmt.Printf("  WARNING: %s\n", w)
+			}
 		}
 
 		if cfg != nil {
