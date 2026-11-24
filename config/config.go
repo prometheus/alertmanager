@@ -199,6 +199,7 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		}
 		for _, cfg := range receiver.SlackConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
+			cfg.AppTokenFile = join(cfg.AppTokenFile)
 		}
 		for _, cfg := range receiver.VictorOpsConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
@@ -438,38 +439,35 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 			if sc.AppURL == nil {
 				return errors.New("no global Slack App URL set")
 			}
-			// we only want to set the app token from global if there's no local authorization or webhook url
-			if sc.AppToken == "" && len(sc.AppTokenFile) == 0 && (sc.HTTPConfig == nil || sc.HTTPConfig.Authorization == nil) && sc.APIURL == nil {
+			hasAPIURL := sc.APIURL != nil || sc.APIURLFile != ""
+			// Inherit the app token only when the receiver has no local credentials or webhook.
+			if sc.AppToken == "" && sc.AppTokenFile == "" && !hasAPIURL && (sc.HTTPConfig == nil || sc.HTTPConfig.Authorization == nil) {
 				sc.AppToken = c.Global.SlackAppToken
 				sc.AppTokenFile = c.Global.SlackAppTokenFile
 			}
-			if sc.APIURL == nil && len(sc.APIURLFile) == 0 {
+			hasAppToken := sc.AppToken != "" || sc.AppTokenFile != ""
+			if !hasAPIURL && !hasAppToken {
 				sc.APIURL = c.Global.SlackAPIURL
 				sc.APIURLFile = c.Global.SlackAPIURLFile
-			}
-			if sc.APIURL == nil && len(sc.APIURLFile) == 0 && sc.AppToken == "" && len(sc.AppTokenFile) == 0 {
-				return errors.New("no Slack API URL nor App token set either inline or in a file")
+				if sc.APIURL == nil && sc.APIURLFile == "" {
+					return errors.New("no Slack API URL nor App token set either inline or in a file")
+				}
 			}
 			if sc.HTTPConfig == nil {
-				// we don't want to change the global http config when setting the receiver's http config, do we do a copy
-				httpconfig := *c.Global.HTTPConfig
-				sc.HTTPConfig = &httpconfig
+				httpConfig := *c.Global.HTTPConfig
+				sc.HTTPConfig = &httpConfig
 			}
-			if sc.AppToken != "" || len(sc.AppTokenFile) != 0 {
+			apiURL := sc.APIURL
+			if hasAppToken {
 				if sc.HTTPConfig.Authorization != nil {
 					return errors.New("http authorization can't be set when using Slack App tokens")
 				}
-				sc.HTTPConfig.Authorization = &commoncfg.Authorization{
-					Type:            "Bearer",
-					Credentials:     commoncfg.Secret(sc.AppToken),
-					CredentialsFile: sc.AppTokenFile,
-				}
-				sc.APIURL = (*amcommoncfg.SecretURL)(sc.AppURL)
+				apiURL = (*amcommoncfg.SecretURL)(sc.AppURL)
 			}
-			if err := slack.ValidateUpdateMessageAPIURL(sc.UpdateMessage, sc.APIURL, sc.APIURLFile); err != nil {
+			if err := slack.ValidateUpdateMessageAPIURL(sc.UpdateMessage, apiURL, sc.APIURLFile); err != nil {
 				return err
 			}
-			if err := slack.ValidatePostUpdatesToThreadAPIURL(sc.PostUpdatesToThread, sc.APIURL, sc.APIURLFile); err != nil {
+			if err := slack.ValidatePostUpdatesToThreadAPIURL(sc.PostUpdatesToThread, apiURL, sc.APIURLFile); err != nil {
 				return err
 			}
 		}

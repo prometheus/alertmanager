@@ -14,16 +14,22 @@
 package receiver
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/stretchr/testify/require"
 
-	amcommoncfg "github.com/prometheus/alertmanager/config/common"
-	"github.com/prometheus/alertmanager/notify/webhook"
-
 	"github.com/prometheus/alertmanager/config"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/test"
+	"github.com/prometheus/alertmanager/notify/webhook"
 )
 
 type sendResolved bool
@@ -84,6 +90,59 @@ func TestBuildReceiverIntegrations(t *testing.T) {
 				require.Equal(t, tc.exp[i].SendResolved(), integrations[i].SendResolved())
 				require.Equal(t, tc.exp[i].Name(), integrations[i].Name())
 				require.Equal(t, tc.exp[i].Index(), integrations[i].Index())
+			}
+		})
+	}
+}
+
+func TestBuildSlackAppTokenIntegrations(t *testing.T) {
+	t.Parallel()
+
+	for name, credentials := range map[string]string{
+		"inline": "slack_app_token: xoxb-test",
+		"file":   "slack_app_token_file: token",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			type request struct {
+				path, authorization string
+			}
+			requests := make(chan request, 2)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests <- request{r.URL.Path, r.Header.Get("Authorization")}
+				w.Header().Set("Content-Type", "application/json")
+				io.WriteString(w, `{"ok":true}`)
+			}))
+			t.Cleanup(server.Close)
+
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "token"), []byte("xoxb-test\n"), 0o600))
+			configFile := filepath.Join(dir, "alertmanager.yml")
+			require.NoError(t, os.WriteFile(configFile, fmt.Appendf(nil, `
+global:
+  %s
+route:
+  receiver: slack
+receivers:
+  - name: slack
+    slack_configs:
+      - channel: alerts
+        app_url: %s/chat.postMessage
+`, credentials, server.URL), 0o600))
+			cfg, err := config.LoadFile(configFile)
+			require.NoError(t, err)
+			original := cfg.String()
+			tmpl := test.CreateTmpl(t)
+			ctx := notify.WithGroupKey(t.Context(), "slack-test")
+
+			for range 2 {
+				integrations, err := BuildReceiverIntegrations(cfg.Receivers[0], tmpl, nil)
+				require.NoError(t, err)
+				require.Len(t, integrations, 1)
+				require.Equal(t, original, cfg.String())
+				require.NoError(t, integrations[0].Notify(ctx).Err())
+				require.Equal(t, request{"/chat.postMessage", "Bearer xoxb-test"}, <-requests)
 			}
 		})
 	}
