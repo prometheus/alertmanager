@@ -52,6 +52,10 @@ type Notifier struct {
 	// all find the cache empty only asks the API once. It is never held while
 	// sending a message.
 	refreshMtx sync.Mutex
+
+	// beforeRefresh, when set, is called by refreshToken before it waits for
+	// refreshMtx. Tests use it to see which notifications missed the cache.
+	beforeRefresh func()
 }
 
 // token is the AccessToken with corpid and corpsecret.
@@ -187,6 +191,9 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 // the cache wait for each other, so only the first one asks the API and the
 // rest pick up the token it stored. On failure ok is false and verdict says why.
 func (n *Notifier) refreshToken(ctx context.Context, tmpl func(string) string, tmplErr *error) (accessToken string, verdict notify.NotifyVerdict, ok bool) {
+	if n.beforeRefresh != nil {
+		n.beforeRefresh()
+	}
 	n.refreshMtx.Lock()
 	defer n.refreshMtx.Unlock()
 

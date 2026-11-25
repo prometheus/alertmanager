@@ -189,14 +189,23 @@ func TestGetApiSecretFromMissingFile(t *testing.T) {
 }
 
 func TestWechatNotifyConcurrently(t *testing.T) {
-	var tokenRequests atomic.Int32
+	const workers = 8
+
+	var (
+		tokenRequests atomic.Int32
+		missed        atomic.Int32
+		allMissed     = make(chan struct{})
+	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/gettoken"):
 			tokenRequests.Add(1)
-			// Keep the request in flight so the other notifications
-			// find the cache still empty.
-			time.Sleep(100 * time.Millisecond)
+			// Hold the first token request until every notification has
+			// missed the cache, so none of them can take the cache hit path.
+			select {
+			case <-allMissed:
+			case <-r.Context().Done():
+			}
 			fmt.Fprint(w, `{"access_token":"token"}`)
 		case r.URL.Query().Get("access_token") == "token":
 			fmt.Fprint(w, `{"errcode":0,"errmsg":"ok"}`)
@@ -219,6 +228,11 @@ func TestWechatNotifyConcurrently(t *testing.T) {
 		promslog.NewNopLogger(),
 	)
 	require.NoError(t, err)
+	notifier.beforeRefresh = func() {
+		if missed.Add(1) == workers {
+			close(allMissed)
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -228,7 +242,6 @@ func TestWechatNotifyConcurrently(t *testing.T) {
 	// Every aggregation group notifies through the same integration from its
 	// own goroutine, so Notify has to be safe to call concurrently. Run it
 	// under the race detector.
-	const workers = 8
 	verdicts := make(chan notify.NotifyVerdict, workers)
 	for range workers {
 		go func() {
