@@ -194,6 +194,9 @@ func TestWechatNotifyConcurrently(t *testing.T) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/gettoken"):
 			tokenRequests.Add(1)
+			// Keep the request in flight so the other notifications
+			// find the cache still empty.
+			time.Sleep(100 * time.Millisecond)
 			fmt.Fprint(w, `{"access_token":"token"}`)
 		case r.URL.Query().Get("access_token") == "token":
 			fmt.Fprint(w, `{"errcode":0,"errmsg":"ok"}`)
@@ -237,10 +240,11 @@ func TestWechatNotifyConcurrently(t *testing.T) {
 		require.NoError(t, verdict.Err())
 	}
 
-	// Once the token is cached, later notifications reuse it.
-	before := tokenRequests.Load()
+	// The burst of notifications that all missed the cache shares one
+	// token request, and later notifications reuse the cached token.
+	require.Equal(t, int32(1), tokenRequests.Load())
 	require.NoError(t, notifier.Notify(ctx, testAlert).Err())
-	require.Equal(t, before, tokenRequests.Load())
+	require.Equal(t, int32(1), tokenRequests.Load())
 }
 
 func TestWechatInvalidateToken(t *testing.T) {
