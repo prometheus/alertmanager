@@ -11,3 +11,5 @@ modules:
     name: prometheus/alertmanager/eventrecorder
   - path: silence/silencepb
     name: prometheus/alertmanager/silence
+deps:
+  - buf.build/bufbuild/protovalidate

@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,10 @@ type Route struct {
 
 	// Idx contains the index of this route in the config
 	Idx int
+
+	// slot holds the groups of this route in the dispatcher the route is
+	// bound to, shared with the routes with the same key and equal options.
+	slot *slot
 }
 
 // NewRoute returns a new route.
@@ -142,28 +147,34 @@ func newRoutes(croutes []*config.Route, parent *Route, counter *int) []*Route {
 // Match does a depth-first left-to-right search through the route tree
 // and returns the matching routing nodes.
 func (r *Route) Match(lset model.LabelSet) []*Route {
+	var all []*Route
+	r.match(lset, func(m *Route) { all = append(all, m) })
+	return all
+}
+
+// match calls visit for every route of the tree the label set is routed to,
+// in Walk order, and reports whether r itself matched the label set.
+func (r *Route) match(lset model.LabelSet, visit func(*Route)) bool {
 	if !r.Matchers.Matches(lset) {
-		return nil
+		return false
 	}
 
-	var all []*Route
-
+	matched := false
 	for _, cr := range r.Routes {
-		matches := cr.Match(lset)
-
-		all = append(all, matches...)
-
-		if matches != nil && !cr.Continue {
+		if !cr.match(lset, visit) {
+			continue
+		}
+		matched = true
+		if !cr.Continue {
 			break
 		}
 	}
 
 	// If no child nodes were matches, the current node itself is a match.
-	if len(all) == 0 {
-		all = append(all, r)
+	if !matched {
+		visit(r)
 	}
-
-	return all
+	return true
 }
 
 // Key returns a key for the route. It does not uniquely identify the route in general.
@@ -210,6 +221,85 @@ func (r *Route) Walk(visit func(*Route)) {
 	}
 }
 
+// Warnings returns one warning per set of routes with the same key and
+// receiver whose options differ (#3817): groups with the same labels in such
+// routes share a group key and can suppress each other's notifications in the
+// notification log.
+func (r *Route) Warnings() []string {
+	type routeKey struct {
+		key, receiver string
+	}
+	var order []routeKey
+	sets := map[routeKey][]*Route{}
+	r.Walk(func(rt *Route) {
+		rk := routeKey{rt.Key(), rt.RouteOpts.Receiver}
+		if _, ok := sets[rk]; !ok {
+			order = append(order, rk)
+		}
+		sets[rk] = append(sets[rk], rt)
+	})
+
+	var warnings []string
+	for _, rk := range order {
+		routes := sets[rk]
+		if len(routes) < 2 {
+			continue
+		}
+		differ := map[string]struct{}{}
+		for _, rt := range routes[1:] {
+			for _, name := range differingOptions(&routes[0].RouteOpts, &rt.RouteOpts) {
+				differ[name] = struct{}{}
+			}
+		}
+		if len(differ) == 0 {
+			continue
+		}
+		names := slices.DeleteFunc(slices.Clone(optionNames), func(name string) bool {
+			_, ok := differ[name]
+			return !ok
+		})
+		ids := make([]string, 0, len(routes))
+		for _, rt := range routes {
+			ids = append(ids, rt.ID())
+		}
+		warnings = append(warnings, fmt.Sprintf(
+			"routes %s and %s have the same matchers and receiver %q but differ in %s, so their alert groups have the same group key and share notification log entries: a notification sent for one of them can suppress the same notification for the other. Merge the routes or use distinct receivers",
+			strings.Join(ids[:len(ids)-1], ", "), ids[len(ids)-1], rk.receiver, strings.Join(names, ", "),
+		))
+	}
+	return warnings
+}
+
+var optionNames = []string{"group_by", "group_wait", "group_interval", "repeat_interval", "mute_time_intervals", "active_time_intervals", "labels"}
+
+// differingOptions returns the configuration names of the routing options,
+// other than the receiver, in which a and b differ.
+func differingOptions(a, b *RouteOpts) []string {
+	var names []string
+	if a.GroupByAll != b.GroupByAll || (!a.GroupByAll && !maps.Equal(a.GroupBy, b.GroupBy)) {
+		names = append(names, "group_by")
+	}
+	if a.GroupWait != b.GroupWait {
+		names = append(names, "group_wait")
+	}
+	if a.GroupInterval != b.GroupInterval {
+		names = append(names, "group_interval")
+	}
+	if a.RepeatInterval != b.RepeatInterval {
+		names = append(names, "repeat_interval")
+	}
+	if !sameNames(a.MuteTimeIntervals, b.MuteTimeIntervals) {
+		names = append(names, "mute_time_intervals")
+	}
+	if !sameNames(a.ActiveTimeIntervals, b.ActiveTimeIntervals) {
+		names = append(names, "active_time_intervals")
+	}
+	if !maps.Equal(a.Labels, b.Labels) {
+		names = append(names, "labels")
+	}
+	return names
+}
+
 // RouteOpts holds various routing options necessary for processing alerts
 // that match a given route.
 type RouteOpts struct {
@@ -236,6 +326,18 @@ type RouteOpts struct {
 
 	// Merged labels from this route and all of its parent routes.
 	Labels model.LabelSet
+}
+
+// equal reports whether ro and p are the same routing options: routes with
+// the same key and equal options produce the same groups and notify them the
+// same way.
+func (ro *RouteOpts) equal(p *RouteOpts) bool {
+	return ro.Receiver == p.Receiver && len(differingOptions(ro, p)) == 0
+}
+
+// sameNames reports whether a and b hold the same names, in any order.
+func sameNames(a, b []string) bool {
+	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
 }
 
 func (ro *RouteOpts) String() string {

@@ -140,7 +140,7 @@ threading:
 			expected: errors.New("threading.thread_by_date must be either 'none' or 'daily'"),
 		},
 		{
-			name: "with duplicate headers - it failes",
+			name: "with duplicate headers - it fails",
 			in: `
 to: foobar@example.com
 headers: {X-Custom-Header: CustomValue, X-CUSTOM-HEADER: AnotherValue}

@@ -211,6 +211,15 @@ If an alert does not match any children of a node (no matching child nodes, or
 none exist), the alert is handled based on the configuration parameters of the
 current node.
 
+Two routes with the same matchers from the root down produce alert groups with
+the same group key whenever their group labels match. If their receiver and all
+their other options are equal too, they share their alert groups, and an alert
+matched by both is grouped once. Otherwise the groups share notification log
+entries if the receiver is the same, so a notification sent for one of them can
+suppress the same notification for the other. Alertmanager and
+`amtool check-config` warn about such routes: merge them, or define a second
+receiver for the same destination.
+
 See [Alertmanager concepts](https://prometheus.io/docs/alerting/alertmanager/#grouping) for more information on grouping.
 
 ```yaml
@@ -1651,7 +1660,7 @@ Rocketchat notifications are sent via the [Rocketchat REST API](https://develope
 [ channel: <tmpl_string> ]
 
 # The sender token and token_id
-# See https://docs.rocket.chat/use-rocket.chat/user-guides/user-panel/my-account#personal-access-tokens
+# See https://docs.rocket.chat/docs/manage-personal-access-tokens
 # token and token_file are mutually exclusive.
 # token_id and token_id_file are mutually exclusive.
 token: <secret>
@@ -2107,8 +2116,8 @@ url_file: <filepath>
 
 ### `<wechat_config>`
 
-WeChat notifications are sent via the [WeChat
-API](https://developers.weixin.qq.com/doc/offiaccount/en/Message_Management/Service_Center_messages.html).
+WeChat notifications are sent via the [WeChat Work
+API](https://developer.work.weixin.qq.com/document/path/90236).
 
 ```yaml
 # Whether to notify about resolved alerts.

@@ -20,11 +20,57 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/mdlayher/vsock"
 	"github.com/prometheus/exporter-toolkit/web"
 )
+
+// listenerReadiness serializes startup notifications with listener completion.
+type listenerReadiness struct {
+	mtx       sync.Mutex
+	remaining int
+	stopped   bool
+	notifier  LifecycleNotifier
+}
+
+// started reports readiness once every listener enters its accept loop.
+func (r *listenerReadiness) started() {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	r.remaining--
+	if r.remaining == 0 && !r.stopped {
+		r.notifier.Ready()
+	}
+}
+
+// stop prevents readiness after any listener closes or stops serving.
+func (r *listenerReadiness) stop() {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	r.stopped = true
+}
+
+// readyListener reports when the HTTP server enters its accept loop.
+// At this point, the server has completed TLS and authentication setup.
+type readyListener struct {
+	net.Listener
+	readiness *listenerReadiness
+	once      sync.Once
+}
+
+// Accept reports this listener's readiness once before accepting connections.
+func (l *readyListener) Accept() (net.Conn, error) {
+	l.once.Do(l.readiness.started)
+	return l.Listener.Accept()
+}
+
+// Close prevents readiness before http.Server.Serve returns a listener error.
+func (l *readyListener) Close() error {
+	l.readiness.stop()
+	return l.Listener.Close()
+}
 
 // listenAll eagerly binds every listener described by flags so that the
 // bound addresses are known before serving begins (Addr/Addrs can then

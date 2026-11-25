@@ -539,6 +539,8 @@ func postSilences(
 }
 
 func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
+	t.Parallel()
+
 	type test struct {
 		silenceMatchers []*silencepb.Matcher
 		filterMatchers  []*labels.Matcher
@@ -615,6 +617,26 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 			[]*labels.Matcher{createLabelMatcher(t, "label", "(foo|bar)", labels.MatchRegexp)},
 			true,
 		},
+		{
+			[]*silencepb.Matcher{createSilenceMatcher(t, "label", "value", silencepb.Matcher_EQUAL)},
+			[]*labels.Matcher{{Name: "label", Value: "value", Type: -1}},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{nil},
+			[]*labels.Matcher{{}},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{{}},
+			[]*labels.Matcher{nil},
+			false,
+		},
+		{
+			[]*silencepb.Matcher{nil, {}},
+			[]*labels.Matcher{{}},
+			true,
+		},
 	}
 
 	for _, test := range tests {
@@ -628,6 +650,25 @@ func TestCheckSilenceMatchesFilterLabels(t *testing.T) {
 			t.Fatal("unexpected match result between silence and filter. expected:", test.expected, ", actual:", actual)
 		}
 	}
+
+	t.Run("empty filter", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, CheckSilenceMatchesFilterLabels(&silencepb.Silence{}, nil))
+		require.True(t, CheckSilenceMatchesFilterLabels(&silencepb.Silence{MatcherSets: []*silencepb.MatcherSet{{}}}, nil))
+	})
+
+	t.Run("multiple stored sets", func(t *testing.T) {
+		t.Parallel()
+		alertname := &labels.Matcher{Name: "alertname", Value: "Foo", Type: labels.MatchEqual}
+		service := &labels.Matcher{Name: "service", Value: "api", Type: labels.MatchEqual}
+		sil := &silencepb.Silence{MatcherSets: []*silencepb.MatcherSet{
+			nil,
+			{Matchers: []*silencepb.Matcher{{Name: "alertname", Pattern: "Foo", Type: silencepb.Matcher_EQUAL}}},
+			{Matchers: []*silencepb.Matcher{{Name: "service", Pattern: "api", Type: silencepb.Matcher_EQUAL}}},
+		}}
+		require.True(t, CheckSilenceMatchesFilterLabels(sil, []*labels.Matcher{service}))
+		require.False(t, CheckSilenceMatchesFilterLabels(sil, []*labels.Matcher{alertname, service}))
+	})
 }
 
 func convertDateTime(ts time.Time) *strfmt.DateTime {

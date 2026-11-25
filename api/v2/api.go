@@ -34,7 +34,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_model "github.com/prometheus/common/model"
 	"github.com/prometheus/common/version"
-	"go.opentelemetry.io/otel/codes"
 
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/api/metrics"
@@ -401,16 +400,14 @@ func (api *API) postAlertsHandler(params alert_ops.PostAlertsParams) middleware.
 	if err := api.alerts.Put(ctx, validAlerts...); err != nil {
 		message := "Failed to create alerts"
 		logger.Error(message, "err", err)
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err)
+		tracing.RecordErrorWithStatus(span, message, err)
 		return alert_ops.NewPostAlertsInternalServerError().WithPayload(err.Error())
 	}
 
 	if validationErrs != nil {
 		message := "Failed to validate alerts"
 		logger.Error(message, "err", validationErrs.Error())
-		span.SetStatus(codes.Error, message)
-		span.RecordError(validationErrs)
+		tracing.RecordErrorWithStatus(span, message, validationErrs)
 		return alert_ops.NewPostAlertsBadRequest().WithPayload(validationErrs.Error())
 	}
 
@@ -484,8 +481,7 @@ func (api *API) getAlertGroupsHandler(params alertgroup_ops.GetAlertGroupsParams
 	if err != nil {
 		message := "Failed to get alert groups"
 		logger.Error(message, "err", err)
-		span.SetStatus(codes.Error, message)
-		span.RecordError(err)
+		tracing.RecordErrorWithStatus(span, message, err)
 		return alertgroup_ops.NewGetAlertGroupsInternalServerError()
 	}
 
@@ -798,41 +794,11 @@ func SortSilences(sils open_api_models.GettableSilences) {
 	})
 }
 
-// CheckSilenceMatchesFilterLabels returns true if
-// a given silence matches a list of matchers.
-// A silence matches a filter (list of matchers) if
-// for all matchers in the filter, there exists a matcher in the silence
-// such that their names, types, and values are equivalent.
+// CheckSilenceMatchesFilterLabels reports whether one matcher set in s contains
+// every requested matcher with the same name, type, and value.
+// A silence with no matcher sets does not match.
 func CheckSilenceMatchesFilterLabels(s *silencepb.Silence, matchers []*labels.Matcher) bool {
-	// Check if any matcher set matches (OR logic)
-	for _, ms := range s.MatcherSets {
-		if checkMatcherSetMatchesFilterLabels(ms, matchers) {
-			return true
-		}
-	}
-	return false
-}
-
-func checkMatcherSetMatchesFilterLabels(ms *silencepb.MatcherSet, matchers []*labels.Matcher) bool {
-	for _, matcher := range matchers {
-		found := false
-		for _, m := range ms.Matchers {
-			if matcher.Name == m.Name &&
-				(matcher.Type == labels.MatchEqual && m.Type == silencepb.Matcher_EQUAL ||
-					matcher.Type == labels.MatchRegexp && m.Type == silencepb.Matcher_REGEXP ||
-					matcher.Type == labels.MatchNotEqual && m.Type == silencepb.Matcher_NOT_EQUAL ||
-					matcher.Type == labels.MatchNotRegexp && m.Type == silencepb.Matcher_NOT_REGEXP) &&
-				matcher.Value == m.Pattern {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	return true
+	return silence.HasLabelMatchers(s, matchers)
 }
 
 func (api *API) getSilenceHandler(params silence_ops.GetSilenceParams) middleware.Responder {

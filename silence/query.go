@@ -22,8 +22,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
-	"go.opentelemetry.io/otel/trace"
 
+	"github.com/prometheus/alertmanager/pkg/labels"
 	pb "github.com/prometheus/alertmanager/silence/silencepb"
 )
 
@@ -82,6 +82,89 @@ func QMatches(set model.LabelSet) QueryParam {
 	}
 }
 
+// HasMatchers reports whether one stored matcher set contains every matcher
+// from one of the requested sets. Matchers must have the same name, type, and pattern.
+// No requested sets means every silence matches.
+// A nil or empty requested set also matches every silence.
+// Nil matchers do not match.
+func HasMatchers(sil *pb.Silence, sets ...*pb.MatcherSet) bool {
+	if len(sets) == 0 {
+		return true
+	}
+	for _, requested := range sets {
+		if len(requested.GetMatchers()) == 0 {
+			return true
+		}
+		for _, stored := range sil.GetMatcherSets() {
+			if containsMatchers(stored.GetMatchers(), requested.GetMatchers(), protoMatcherEqual) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasLabelMatchers reports whether one stored matcher set contains every requested
+// label matcher with the same name, type, and value. It compares definitions
+// without evaluating label values. A silence with no matcher sets does not match.
+// Nil matchers do not match.
+func HasLabelMatchers(sil *pb.Silence, matchers []*labels.Matcher) bool {
+	for _, stored := range sil.GetMatcherSets() {
+		if containsMatchers(stored.GetMatchers(), matchers, labelMatcherEqual) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsMatchers[T any](stored []*pb.Matcher, requested []T, equal func(T, *pb.Matcher) bool) bool {
+	for _, matcher := range requested {
+		if !slices.ContainsFunc(stored, func(candidate *pb.Matcher) bool {
+			return equal(matcher, candidate)
+		}) {
+			return false
+		}
+	}
+	return true
+}
+
+func protoMatcherEqual(requested, stored *pb.Matcher) bool {
+	return requested != nil && stored != nil &&
+		requested.Name == stored.Name && requested.Type == stored.Type && requested.Pattern == stored.Pattern
+}
+
+func labelMatcherEqual(requested *labels.Matcher, stored *pb.Matcher) bool {
+	if requested == nil || stored == nil {
+		return false
+	}
+	if requested.Name != stored.Name || requested.Value != stored.Pattern {
+		return false
+	}
+	switch requested.Type {
+	case labels.MatchEqual:
+		return stored.Type == pb.Matcher_EQUAL
+	case labels.MatchNotEqual:
+		return stored.Type == pb.Matcher_NOT_EQUAL
+	case labels.MatchRegexp:
+		return stored.Type == pb.Matcher_REGEXP
+	case labels.MatchNotRegexp:
+		return stored.Type == pb.Matcher_NOT_REGEXP
+	default:
+		return false
+	}
+}
+
+// QHasMatchers filters silences by matcher definitions using HasMatchers.
+// It compares names, types, and patterns without evaluating label values.
+func QHasMatchers(sets ...*pb.MatcherSet) QueryParam {
+	return func(q *query) error {
+		q.filters = append(q.filters, func(sil *pb.Silence, _ *Silences, _ time.Time) (bool, error) {
+			return HasMatchers(sil, sets...), nil
+		})
+		return nil
+	}
+}
+
 // QState filters queried silences by the given states.
 func QState(states ...SilenceState) QueryParam {
 	return func(q *query) error {
@@ -98,12 +181,11 @@ func QState(states ...SilenceState) QueryParam {
 	}
 }
 
-// QueryOne queries with the given parameters and returns the first result.
-// Returns ErrNotFound if the query result is empty.
+// QueryOne returns the first matching silence.
+// It returns ErrNotFound if no silence matches.
+// Callers must not modify the returned silence or any data it references.
 func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Silence, error) {
-	_, span := tracer.Start(ctx, "silence.Silences.QueryOne",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "silence.Silences.QueryOne")
 	defer span.End()
 	res, _, err := s.Query(ctx, params...)
 	if err != nil {
@@ -115,30 +197,35 @@ func (s *Silences) QueryOne(ctx context.Context, params ...QueryParam) (*pb.Sile
 	return res[0], nil
 }
 
-// Query for silences based on the given query parameters. It returns the
-// resulting silences and the state version the result is based on.
+// Query returns matching silences and the state version used by the query.
+// Callers must not modify the returned silences or any data they reference.
 func (s *Silences) Query(ctx context.Context, params ...QueryParam) ([]*pb.Silence, int, error) {
 	return s.QueryAt(ctx, s.nowUTC(), params...)
 }
 
 // QueryAt evaluates query filters at the given time.
+// Callers must not modify the returned silences or any data they reference.
+// Clone a silence before modifying it.
+// The records remain valid after the store replaces or removes them.
 // It reads the current stored records, not a historical snapshot.
 func (s *Silences) QueryAt(ctx context.Context, at time.Time, params ...QueryParam) ([]*pb.Silence, int, error) {
-	_, span := tracer.Start(ctx, "silence.Silences.Query",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "silence.Silences.Query")
 	defer span.End()
 	s.metrics.queriesTotal.Inc()
 	defer prometheus.NewTimer(s.metrics.queryDuration).ObserveDuration()
 
+	if err := ctx.Err(); err != nil {
+		s.metrics.queryErrorsTotal.Inc()
+		return nil, 0, err
+	}
 	q := &query{}
 	for _, p := range params {
 		if err := p(q); err != nil {
 			s.metrics.queryErrorsTotal.Inc()
-			return nil, s.Version(), err
+			return nil, 0, err
 		}
 	}
-	sils, version, err := s.query(q, at)
+	sils, version, err := s.query(ctx, q, at)
 	if err != nil {
 		s.metrics.queryErrorsTotal.Inc()
 	}
@@ -154,9 +241,7 @@ func (s *Silences) Version() int {
 
 // CountState counts silences by state.
 func (s *Silences) CountState(ctx context.Context, states ...SilenceState) (int, error) {
-	_, span := tracer.Start(ctx, "silence.Silences.CountState",
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	_, span := tracer.Start(ctx, "silence.Silences.CountState")
 	defer span.End()
 
 	now := s.nowUTC()
@@ -174,7 +259,10 @@ func (s *Silences) CountState(ctx context.Context, states ...SilenceState) (int,
 }
 
 // query executes the given query and returns the resulting silences.
-func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
+func (s *Silences) query(ctx context.Context, q *query, now time.Time) ([]*pb.Silence, int, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
 	var res []*pb.Silence
 	var err error
 
@@ -198,19 +286,24 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 			}
 		}
 		// All filters matched, append the silence to the result.
-		return append(res, cloneSilence(sil)), nil
+		return append(res, sil), nil
 	}
-
-	// Preallocate result slice if we have IDs (if not this will be a no-op)
-	res = make([]*pb.Silence, 0, len(q.ids))
 
 	// Take a read lock on Silences: we can read but not modify the Silences struct.
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
+	if err := ctx.Err(); err != nil {
+		return nil, s.version, err
+	}
+
 	// If we have IDs, only consider the silences with the given IDs, if they exist.
 	if q.ids != nil {
+		res = make([]*pb.Silence, 0, len(q.ids))
 		for _, id := range q.ids {
+			if err := ctx.Err(); err != nil {
+				return nil, s.version, err
+			}
 			if sil, ok := s.st[id]; ok {
 				scannedCount++
 				// append the silence to the results if it satisfies the query.
@@ -232,11 +325,17 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 			// Track how many silences we skipped using the version index.
 			s.metrics.querySkippedTotal.Add(float64(start))
 		}
-		// Preallocate result slice with a reasonable capacity. If we are
-		// scanning less than 64 silences, we can allocate that many,
-		// otherwise we just allocate 64 and let it grow as needed.
-		res = make([]*pb.Silence, 0, min(64, len(s.vi)-start))
+		// Unfiltered queries return every scanned silence.
+		// Limit initial capacity for filtered queries.
+		capacity := len(s.vi) - start
+		if len(q.filters) > 0 {
+			capacity = min(64, capacity)
+		}
+		res = make([]*pb.Silence, 0, capacity)
 		for _, sv := range s.vi[start:] {
+			if err := ctx.Err(); err != nil {
+				return nil, s.version, err
+			}
 			scannedCount++
 			sil := s.st[sv.id]
 			// append the silence to the results if it satisfies the query.
@@ -247,5 +346,8 @@ func (s *Silences) query(q *query, now time.Time) ([]*pb.Silence, int, error) {
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, s.version, err
+	}
 	return res, s.version, nil
 }

@@ -63,10 +63,13 @@ func (a *App) Start() error {
 
 	go func() {
 		errCh := make(chan error, len(a.listeners))
+		readiness := &listenerReadiness{remaining: len(a.listeners), notifier: a.opts.Lifecycle}
 		for idx, listener := range a.listeners {
 			server := a.servers[idx]
 			go func() {
-				errCh <- web.Serve(listener, server, a.opts.WebConfig, a.logger)
+				err := web.Serve(&readyListener{Listener: listener, readiness: readiness}, server, a.opts.WebConfig, a.logger)
+				readiness.stop()
+				errCh <- err
 			}()
 		}
 		reported := false
@@ -111,7 +114,7 @@ func (a *App) reloadRouter() {
 				reloadCh = nil
 				continue
 			}
-			if err := a.coordinator.Reload(); err != nil {
+			if err := a.reloadConfig(); err != nil {
 				a.logger.Error("configuration reload failed", "err", err)
 			}
 		// webReload is the request/response trigger from the /-/reload
@@ -120,7 +123,7 @@ func (a *App) reloadRouter() {
 		// instead of logging it. This channel is App-owned (allocated in
 		// New, never closed externally), so it needs no comma-ok guard.
 		case errc := <-a.webReload:
-			errc <- a.coordinator.Reload()
+			errc <- a.reloadConfig()
 		}
 	}
 }
@@ -167,7 +170,18 @@ func (a *App) Reload() error {
 	if a.stopped {
 		return errors.New("alertmanager/app: App.Reload called after Stop")
 	}
-	return a.coordinator.Reload()
+	return a.reloadConfig()
+}
+
+// reloadConfig keeps each reload and its lifecycle notifications together.
+func (a *App) reloadConfig() error {
+	a.reloadMtx.Lock()
+	defer a.reloadMtx.Unlock()
+
+	a.opts.Lifecycle.Reloading()
+	err := a.coordinator.Reload()
+	a.opts.Lifecycle.Reloaded(err)
+	return err
 }
 
 // cleanup is a single named teardown step on the LIFO shutdown stack.
@@ -201,6 +215,9 @@ func (a *App) Stop(ctx context.Context) error {
 	// mtx across both bodies guarantees we observe a consistent view (and
 	// that no Start can launch goroutines after this point).
 	started := a.started
+	if started {
+		a.opts.Lifecycle.Stopping()
+	}
 
 	var stopErr error
 	// Bound the whole teardown by shutdownTimeout. Deriving it from ctx

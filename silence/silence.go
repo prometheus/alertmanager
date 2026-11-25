@@ -30,8 +30,6 @@ import (
 	uuid "github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promslog"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -201,8 +199,9 @@ func (s *Silences) setSilence(msil *pb.MeshSilence, now time.Time) (changed, add
 	return changed, added, nil
 }
 
-// Set the specified silence. If a silence with the ID already exists and the modification
-// modifies history, the old silence gets expired and a new one is created.
+// Set stores the specified silence. If a change modifies the history of an existing
+// silence, Set expires it and creates a new silence.
+// After a successful call, callers must not modify sil or any data it references.
 func (s *Silences) Set(ctx context.Context, sil *pb.Silence) error {
 	_, span := tracer.Start(ctx, "silences.Set")
 	defer span.End()
@@ -327,9 +326,7 @@ func (s *Silences) Expire(ctx context.Context, id string) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	_, span := tracer.Start(ctx, "silences.Expire", trace.WithAttributes(
-		attribute.String("alerting.silence.id", id),
-	))
+	_, span := tracer.StartSilencesExpire(ctx, id)
 	defer span.End()
 
 	return s.expire(id, s.nowUTC())

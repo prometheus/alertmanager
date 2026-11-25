@@ -174,3 +174,28 @@ func TestGC(t *testing.T) {
 	}
 	require.Len(t, resolved, n)
 }
+
+func TestSwapReturnsPrevious(t *testing.T) {
+	t.Parallel()
+	a := NewAlerts()
+
+	a1 := alert.New(model.Alert{Labels: model.LabelSet{"foo": "bar"}, EndsAt: time.Now().Add(time.Hour)}, time.Now(), false)
+	prev, err := a.Swap(a1)
+	require.NoError(t, err)
+	require.Nil(t, prev, "no previous alert on first insert")
+
+	a2 := *a1
+	a2.Annotations = model.LabelSet{"summary": "changed"}
+	prev, err = a.Swap(&a2)
+	require.NoError(t, err)
+	require.Same(t, a1, prev, "Swap must return the alert it replaced")
+
+	got, err := a.Get(a1.Fingerprint())
+	require.NoError(t, err)
+	require.Same(t, &a2, got)
+
+	other := alert.New(model.Alert{Labels: model.LabelSet{"foo": "baz"}, EndsAt: time.Now().Add(time.Hour)}, time.Now(), false)
+	prev, err = a.Swap(other)
+	require.NoError(t, err)
+	require.Nil(t, prev, "a different fingerprint has no previous alert")
+}

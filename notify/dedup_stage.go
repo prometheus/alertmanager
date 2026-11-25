@@ -19,12 +19,10 @@ import (
 	"log/slog"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/prometheus/alertmanager/alert"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
+	"github.com/prometheus/alertmanager/tracing"
 )
 
 // DedupStage filters alerts.
@@ -122,11 +120,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 		return ctx, nil, errors.New("group key missing")
 	}
 
-	ctx, span := tracer.Start(ctx, "notify.DedupStage.Exec",
-		trace.WithAttributes(attribute.String("alerting.group.key", gkey)),
-		trace.WithAttributes(attribute.Int("alerting.alerts.count", len(alerts))),
-		trace.WithSpanKind(trace.SpanKindInternal),
-	)
+	ctx, span := tracer.StartDedupStage(ctx, gkey, len(alerts))
 	defer span.End()
 
 	repeatInterval, ok := RepeatInterval(ctx)
@@ -167,7 +161,7 @@ func (n *DedupStage) Exec(ctx context.Context, _ *slog.Logger, alerts ...*alert.
 	}
 
 	if updateReason.shouldNotify() {
-		span.AddEvent("notify.DedupStage.Exec nflog needs update")
+		tracing.EventDedupNeedsUpdate(span)
 		return ctx, alerts, nil
 	}
 	return ctx, nil, nil

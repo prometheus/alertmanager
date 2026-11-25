@@ -15,11 +15,28 @@ package app
 
 import (
 	"net"
+	"net/http"
 	"testing"
 
 	"github.com/prometheus/exporter-toolkit/web"
 	"github.com/stretchr/testify/require"
 )
+
+// TestListenerReadinessAfterServeError checks readiness before the serve error is consumed.
+func TestListenerReadinessAfterServeError(t *testing.T) {
+	t.Parallel()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	require.NoError(t, listener.Close())
+	events := make(lifecycleRecorder, 1)
+	readiness := &listenerReadiness{remaining: 2, notifier: events}
+	err = (&http.Server{}).Serve(&readyListener{Listener: listener, readiness: readiness})
+	require.ErrorIs(t, err, net.ErrClosed)
+
+	// A later listener reaches its accept loop before the lifecycle loop reads the error.
+	readiness.started()
+	require.Empty(t, events)
+}
 
 // freePort binds an ephemeral port, records its address, then releases it
 // so callers can reuse the (now free) address. There is an inherent race

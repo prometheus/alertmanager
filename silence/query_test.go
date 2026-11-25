@@ -14,6 +14,7 @@
 package silence
 
 import (
+	"context"
 	"sort"
 	"testing"
 	"testing/synctest"
@@ -49,6 +50,94 @@ func TestSilenceQueryAt(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, active)
 	})
+}
+
+func TestQueryAtReadOnly(t *testing.T) {
+	t.Parallel()
+
+	store, err := New(Options{Metrics: prometheus.NewRegistry(), Retention: 24 * time.Hour})
+	require.NoError(t, err)
+	now := store.nowUTC()
+	end := now.Add(2 * time.Hour)
+	sil := newStateTestSilence(now.Add(time.Hour), end)
+	require.NoError(t, store.Set(t.Context(), sil))
+
+	readOnly, _, err := store.QueryAt(t.Context(), now, QIDs(sil.Id))
+	require.NoError(t, err)
+	require.Len(t, readOnly, 1)
+	require.Same(t, store.st[sil.Id].Silence, readOnly[0])
+	require.NoError(t, store.Expire(t.Context(), sil.Id))
+	updated, _, err := store.QueryAt(t.Context(), now, QIDs(sil.Id))
+	require.NoError(t, err)
+	require.Len(t, updated, 1)
+	require.NotSame(t, readOnly[0], updated[0])
+	require.Equal(t, end, readOnly[0].EndsAt.AsTime())
+}
+
+func TestQueryResultCapacity(t *testing.T) {
+	t.Parallel()
+	store, err := New(Options{Metrics: prometheus.NewRegistry()})
+	require.NoError(t, err)
+	now := store.nowUTC()
+	for range 100 {
+		require.NoError(t, store.Set(t.Context(), newStateTestSilence(now, now.Add(time.Hour))))
+	}
+
+	result, _, err := store.Query(t.Context(), QSince(10))
+	require.NoError(t, err)
+	require.Len(t, result, 90)
+	require.Equal(t, 90, cap(result))
+
+	result, _, err = store.Query(t.Context(), QState(SilenceStatePending))
+	require.NoError(t, err)
+	require.Empty(t, result)
+	require.Equal(t, 64, cap(result))
+}
+
+func TestQueryCancellation(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		params       []QueryParam
+		cancelBefore bool
+		wantCalls    int
+	}{
+		{name: "before query", cancelBefore: true},
+		{name: "full scan", wantCalls: 1},
+		{name: "ID query", params: []QueryParam{QIDs("1", "2")}, wantCalls: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store, err := New(Options{Metrics: prometheus.NewRegistry()})
+			require.NoError(t, err)
+			store.st = state{
+				"1": {Silence: &pb.Silence{Id: "1"}},
+				"2": {Silence: &pb.Silence{Id: "2"}},
+			}
+			store.vi = versionIndex{{id: "1"}, {id: "2"}}
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			if tc.cancelBefore {
+				cancel()
+			}
+			calls := 0
+			params := append(tc.params, func(q *query) error {
+				q.filters = append(q.filters, func(*pb.Silence, *Silences, time.Time) (bool, error) {
+					calls++
+					cancel()
+					return true, nil
+				})
+				return nil
+			})
+			result, _, err := store.QueryAt(ctx, time.Now(), params...)
+			require.ErrorIs(t, err, context.Canceled)
+			require.Nil(t, result)
+			require.Equal(t, tc.wantCalls, calls)
+			require.True(t, store.mtx.TryLock(), "canceled query must release its read lock")
+			store.mtx.Unlock()
+		})
+	}
 }
 
 func TestQState(t *testing.T) {
@@ -254,6 +343,75 @@ func TestQMatches(t *testing.T) {
 	}
 }
 
+func TestHasMatchers(t *testing.T) {
+	t.Parallel()
+
+	zero := &pb.Matcher{}
+	for _, tc := range []struct {
+		name      string
+		stored    []*pb.MatcherSet
+		requested []*pb.Matcher
+		want      bool
+	}{
+		{"skip nil stored entries", []*pb.MatcherSet{nil, {Matchers: []*pb.Matcher{nil, zero}}}, []*pb.Matcher{zero}, true},
+		{"nil stored matcher is not a zero matcher", []*pb.MatcherSet{{Matchers: []*pb.Matcher{nil}}}, []*pb.Matcher{zero}, false},
+		{"nil requested matcher is not a zero matcher", []*pb.MatcherSet{{Matchers: []*pb.Matcher{zero}}}, []*pb.Matcher{nil}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, HasMatchers(&pb.Silence{MatcherSets: tc.stored}, &pb.MatcherSet{Matchers: tc.requested}))
+		})
+	}
+}
+
+func TestQHasMatchers(t *testing.T) {
+	t.Parallel()
+
+	store, err := New(Options{Metrics: prometheus.NewRegistry()})
+	require.NoError(t, err)
+	now := time.Now()
+	alertname := &pb.Matcher{Name: "alertname", Pattern: "Foo", Type: pb.Matcher_EQUAL}
+	severity := &pb.Matcher{Name: "severity", Pattern: "critical", Type: pb.Matcher_NOT_EQUAL}
+	service := &pb.Matcher{Name: "service", Pattern: "api|worker", Type: pb.Matcher_REGEXP}
+	missing := &pb.Matcher{Name: "missing", Pattern: "Foo", Type: pb.Matcher_EQUAL}
+	multi := newStateTestSilence(now, now.Add(time.Hour))
+	multi.MatcherSets = []*pb.MatcherSet{
+		{Matchers: []*pb.Matcher{alertname, severity}},
+		{Matchers: []*pb.Matcher{service}},
+	}
+	require.NoError(t, store.Set(t.Context(), multi))
+	other := newStateTestSilence(now, now.Add(time.Hour))
+	other.MatcherSets[0].Matchers[0].Pattern = "Bar"
+	require.NoError(t, store.Set(t.Context(), other))
+
+	for _, tc := range []struct {
+		name string
+		sets []*pb.MatcherSet
+		want []string
+	}{
+		{"no filters", nil, []string{multi.Id, other.Id}},
+		{"empty set", []*pb.MatcherSet{{Matchers: []*pb.Matcher{missing}}, {}}, []string{multi.Id, other.Id}},
+		{"nil set", []*pb.MatcherSet{nil}, []string{multi.Id, other.Id}},
+		{"subset", []*pb.MatcherSet{{Matchers: []*pb.Matcher{alertname}}}, []string{multi.Id}},
+		{"AND within one stored set", []*pb.MatcherSet{{Matchers: []*pb.Matcher{severity, alertname}}}, []string{multi.Id}},
+		{"AND cannot span stored sets", []*pb.MatcherSet{{Matchers: []*pb.Matcher{alertname, service}}}, nil},
+		{"OR across requested sets", []*pb.MatcherSet{{Matchers: []*pb.Matcher{missing}}, {Matchers: []*pb.Matcher{service}}}, []string{multi.Id}},
+		{"names must be identical", []*pb.MatcherSet{{Matchers: []*pb.Matcher{missing}}}, nil},
+		{"patterns must be identical", []*pb.MatcherSet{{Matchers: []*pb.Matcher{{Name: "service", Pattern: "api", Type: pb.Matcher_REGEXP}}}}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result, _, err := store.Query(t.Context(), QHasMatchers(tc.sets...))
+			require.NoError(t, err)
+			ids := make([]string, 0, len(result))
+			for _, sil := range result {
+				ids = append(ids, sil.Id)
+			}
+			require.ElementsMatch(t, tc.want, ids)
+		})
+	}
+}
+
 func TestQSince(t *testing.T) {
 	type testCase struct {
 		index versionIndex
@@ -421,7 +579,7 @@ func TestSilencesQuery(t *testing.T) {
 
 	for _, c := range cases {
 		// Run default query of retrieving all silences.
-		res, _, err := s.query(c.q, time.Time{})
+		res, _, err := s.query(t.Context(), c.q, time.Time{})
 		require.NoError(t, err, "unexpected error on querying")
 
 		// Currently there are no sorting guarantees in the querying API.
