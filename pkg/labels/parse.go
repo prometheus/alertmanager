@@ -66,6 +66,7 @@ func ParseMatchers(s string) ([]*Matcher, error) {
 	for _, r := range s {
 		switch r {
 		case ',':
+			escaped = false
 			if !insideQuotes {
 				tokens = append(tokens, token.String())
 				token.Reset()

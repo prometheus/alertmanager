@@ -398,6 +398,54 @@ func TestMatchers(t *testing.T) {
 				return append(ms, m)
 			}(),
 		},
+		{
+			input: `foo="\,",bar="baz"`,
+			want: func() []*Matcher {
+				m1, _ := NewMatcher(MatchEqual, "foo", `\,`)
+				m2, _ := NewMatcher(MatchEqual, "bar", "baz")
+				return []*Matcher{m1, m2}
+			}(),
+		},
+		{
+			input: `foo=~"a\,",bar="x,y"`,
+			want: func() []*Matcher {
+				m1, _ := NewMatcher(MatchRegexp, "foo", `a\,`)
+				m2, _ := NewMatcher(MatchEqual, "bar", "x,y")
+				return []*Matcher{m1, m2}
+			}(),
+		},
+		{
+			input: `{foo="a\,",bar="b"}`,
+			want: func() []*Matcher {
+				m1, _ := NewMatcher(MatchEqual, "foo", `a\,`)
+				m2, _ := NewMatcher(MatchEqual, "bar", "b")
+				return []*Matcher{m1, m2}
+			}(),
+		},
+		{
+			input: `foo="a\\,",bar="b"`,
+			want: func() []*Matcher {
+				m1, _ := NewMatcher(MatchEqual, "foo", `a\,`)
+				m2, _ := NewMatcher(MatchEqual, "bar", "b")
+				return []*Matcher{m1, m2}
+			}(),
+		},
+		{
+			input: `foo="a\",b",bar="c"`,
+			want: func() []*Matcher {
+				m1, _ := NewMatcher(MatchEqual, "foo", `a",b`)
+				m2, _ := NewMatcher(MatchEqual, "bar", "c")
+				return []*Matcher{m1, m2}
+			}(),
+		},
+		{
+			input: `foo=a\,bar="x,y"`,
+			want: func() []*Matcher {
+				m1, _ := NewMatcher(MatchEqual, "foo", `a\`)
+				m2, _ := NewMatcher(MatchEqual, "bar", "x,y")
+				return []*Matcher{m1, m2}
+			}(),
+		},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
 			got, err := ParseMatchers(tc.input)
