@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -146,6 +147,56 @@ func TestNotifyWithInvalidTemplate(t *testing.T) {
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "template \"unknown_template\" not defined")
 			require.Contains(t, err.Error(), tc.errMsg)
+		})
+	}
+}
+
+func TestNotifyWithSigV4ServiceName(t *testing.T) {
+	for _, tc := range []struct {
+		title        string
+		serviceName  string
+		expectedName string
+	}{
+		{
+			title:        "default signing name",
+			serviceName:  "",
+			expectedName: "sns",
+		},
+		{
+			title:        "custom signing name",
+			serviceName:  "aps",
+			expectedName: "aps",
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			var gotAuthHeader string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotAuthHeader = r.Header.Get("Authorization")
+				w.Header().Set("Content-Type", "text/xml")
+				_, _ = w.Write([]byte(`<PublishResponse xmlns="https://sns.amazonaws.com/doc/2010-03-31/"><PublishResult><MessageId>msg-id</MessageId></PublishResult><ResponseMetadata><RequestId>req-id</RequestId></ResponseMetadata></PublishResponse>`))
+			}))
+			defer server.Close()
+
+			notifier, err := New(
+				&SNSConfig{
+					HTTPConfig: &commoncfg.HTTPClientConfig{},
+					APIUrl:     server.URL,
+					TopicARN:   "TestTopic",
+					Message:    "test message",
+					Sigv4: sigv4.SigV4Config{
+						Region:      "us-west-2",
+						AccessKey:   "access_key",
+						SecretKey:   "secret_key",
+						ServiceName: tc.serviceName,
+					},
+				},
+				createTmpl(t),
+				logger,
+			)
+			require.NoError(t, err)
+
+			require.NoError(t, notifier.Notify(context.Background(), &alert.Alert{}).Err())
+			require.Contains(t, gotAuthHeader, "/us-west-2/"+tc.expectedName+"/aws4_request")
 		})
 	}
 }
