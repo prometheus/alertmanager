@@ -88,7 +88,7 @@ It's important not to load balance traffic between Prometheus and its Alertmanag
 Alertmanager supports configuration to limit the number of active alerts per alertname.
 This can be configured using the [--alerts.per-alertname-limit] flag.
 
-When the limit is reached any new alerts are dropped, heartbeats from already know alerts are processed.
+When the limit is reached any new alerts are dropped, heartbeats from already known alerts are processed.
 The known alert (fingerprint) automatically expire to make room for new alerts.
 
 This feature is useful when an unexpected high number of instances of the same alert are sent to Alertmanager.
