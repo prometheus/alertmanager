@@ -230,6 +230,11 @@ func validateBotTokenAPIURL(option string, enabled bool, apiURL *amcommoncfg.Sec
 	if !enabled {
 		return nil
 	}
+	// A redacted api_url (e.g. from /api/v2/status) deserialises as
+	// &url.URL{}, whose String() is "". The real value is unknown.
+	if apiURL != nil && apiURL.String() == "" {
+		return nil
+	}
 	if apiURL == nil && apiURLFile != "" {
 		return errors.New(option + " can't be used with api_url_file")
 	}

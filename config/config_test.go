@@ -1398,6 +1398,99 @@ func TestSlackPostUpdatesToThreadWebhookURL(t *testing.T) {
 	require.EqualError(t, err, "post_updates_to_thread can only be used with bot tokens. api_url must be set to https://slack.com/api/chat.postMessage")
 }
 
+func TestSlackRedactedConfigUpdateMessage(t *testing.T) {
+	// A redacted config (e.g. from /api/v2/status) has api_url: <secret>.
+	// SecretURL.UnmarshalYAML deserialises this into an empty *url.URL.
+	// The update_message validation must not reject it.
+	in := `
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+        api_url: <secret>
+        update_message: true
+`
+	conf, err := Load(in)
+	require.NoError(t, err)
+	require.True(t, conf.Receivers[0].SlackConfigs[0].UpdateMessage)
+}
+
+func TestSlackRedactedConfigPostUpdatesToThread(t *testing.T) {
+	in := `
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+        api_url: <secret>
+        post_updates_to_thread: true
+`
+	conf, err := Load(in)
+	require.NoError(t, err)
+	require.True(t, conf.Receivers[0].SlackConfigs[0].PostUpdatesToThread)
+}
+
+func TestSlackRedactedGlobalAPIURL(t *testing.T) {
+	// A redacted global slack_api_url (e.g. from /api/v2/status)
+	// must not cause a validation error.
+	in := `
+global:
+  slack_api_url: <secret>
+  slack_app_token: <secret>
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+`
+	_, err := Load(in)
+	require.NoError(t, err)
+}
+
+func TestSlackRedactedConfigReload(t *testing.T) {
+	// Config.String() redacts api_url, as served by /api/v2/status.
+	// Loading that output must not fail the bot-token validation.
+	in := `
+global:
+  slack_api_url: https://slack.com/api/chat.postMessage
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+        update_message: true
+        post_updates_to_thread: true
+`
+	conf, err := Load(in)
+	require.NoError(t, err)
+
+	_, err = Load(conf.String())
+	require.NoError(t, err)
+}
+
+func TestSlackGlobalAPIURLFileWithAppToken(t *testing.T) {
+	// slack_api_url_file can't be compared with slack_app_url at load time,
+	// so it can't be combined with slack_app_token.
+	in := `
+global:
+  slack_app_token: xoxb-token
+  slack_api_url_file: /etc/alertmanager/slack-url
+route:
+  receiver: foo
+receivers:
+  - name: foo
+    slack_configs:
+      - channel: alerts
+`
+	_, err := Load(in)
+	require.EqualError(t, err, "at most one of slack_app_token/slack_app_token_file & slack_api_url/slack_api_url_file must be configured")
+}
+
 func TestSlackGlobalAppToken(t *testing.T) {
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
 	if err != nil {
