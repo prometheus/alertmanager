@@ -96,6 +96,71 @@ func TestGetStatusHandlerWithNilPeer(t *testing.T) {
 	}
 }
 
+func TestSlackAppTokenStatusRoundTrip(t *testing.T) {
+	api, err := NewAPI(nil, nil, nil, nil, promslog.NewNopLogger(), prometheus.NewRegistry())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name        string
+		global      string
+		settings    string
+		secret      string
+		tokenFile   string
+		wantWebhook bool
+	}{
+		{name: "inherited inline token", global: "global:\n  slack_app_token: xoxb-global", secret: "xoxb-global"},
+		{
+			name:     "local inline token with message updates",
+			settings: "\n        app_token: xoxb-local\n        update_message: true\n        post_updates_to_thread: true",
+			secret:   "xoxb-local",
+		},
+		{name: "inherited token file", global: "global:\n  slack_app_token_file: slack-token", tokenFile: "slack-token"},
+		{
+			name: "webhook file overrides inherited token", global: "global:\n  slack_app_token: xoxb-global",
+			settings: "\n        api_url_file: slack-webhook", secret: "xoxb-global", wantWebhook: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := config.Load(fmt.Sprintf(`%s
+route:
+  receiver: slack
+receivers:
+  - name: slack
+    slack_configs:
+      - channel: alerts%s
+`, tc.global, tc.settings))
+			require.NoError(t, err)
+			api.Update(cfg, nil)
+
+			rec := httptest.NewRecorder()
+			api.Handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v2/status", nil))
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			var status open_api_models.AlertmanagerStatus
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+			require.NotNil(t, status.Config)
+			require.NotNil(t, status.Config.Original)
+			original := *status.Config.Original
+			if tc.secret != "" {
+				require.NotContains(t, original, tc.secret)
+			}
+			reloaded, err := config.Load(original)
+			require.NoError(t, err)
+			slackConfig := reloaded.Receivers[0].SlackConfigs[0]
+			require.Nil(t, slackConfig.HTTPConfig.Authorization)
+			require.Nil(t, slackConfig.APIURL)
+			require.Equal(t, tc.tokenFile, slackConfig.AppTokenFile)
+			switch {
+			case tc.wantWebhook:
+				require.Empty(t, slackConfig.AppToken)
+				require.Equal(t, "slack-webhook", slackConfig.APIURLFile)
+			case tc.tokenFile == "":
+				require.EqualValues(t, "<secret>", slackConfig.AppToken)
+			}
+			require.Equal(t, original, reloaded.String())
+		})
+	}
+}
+
 func assertEqualStrings(t *testing.T, expected, actual string) {
 	if expected != actual {
 		t.Fatal("expected: ", expected, ", actual: ", actual)

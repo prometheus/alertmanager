@@ -28,6 +28,7 @@ import (
 	commoncfg "github.com/prometheus/common/config"
 
 	"github.com/prometheus/alertmanager/alert"
+	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
@@ -38,7 +39,19 @@ const maxTitleLenRunes = 1024
 
 // New returns a new Slack notification handler.
 func New(c *SlackConfig, t *template.Template, l *slog.Logger, httpOpts ...commoncfg.HTTPClientOption) (*Notifier, error) {
-	client, err := notify.NewClientWithTracing(*c.HTTPConfig, "slack", httpOpts...)
+	httpConfig := *c.HTTPConfig
+	if c.AppToken != "" || c.AppTokenFile != "" {
+		httpConfig.Authorization = &commoncfg.Authorization{
+			Type:            "Bearer",
+			Credentials:     c.AppToken,
+			CredentialsFile: c.AppTokenFile,
+		}
+		// Keep the effective URL out of the shared, serializable configuration.
+		conf := *c
+		conf.APIURL = (*amcommoncfg.SecretURL)(c.AppURL)
+		c = &conf
+	}
+	client, err := notify.NewClientWithTracing(httpConfig, "slack", httpOpts...)
 	if err != nil {
 		return nil, err
 	}

@@ -1399,86 +1399,37 @@ func TestSlackPostUpdatesToThreadWebhookURL(t *testing.T) {
 }
 
 func TestSlackGlobalAppToken(t *testing.T) {
+	t.Parallel()
+
 	conf, err := LoadFile("testdata/conf.slack-default-app-token.yml")
-	if err != nil {
-		t.Fatalf("Error parsing %s: %s", "testdata/conf.slack-default-app-token.yml", err)
-	}
+	require.NoError(t, err)
 
-	// no override
-	defaultToken := conf.Global.SlackAppToken
-	firstAuth := commoncfg.Authorization{
+	configs := conf.Receivers[0].SlackConfigs
+	require.Len(t, configs, 5)
+	for _, cfg := range configs[:3] {
+		require.Nil(t, cfg.APIURL)
+		require.Empty(t, cfg.APIURLFile)
+		require.Nil(t, cfg.HTTPConfig.Authorization)
+	}
+	require.Equal(t, conf.Global.SlackAppToken, configs[0].AppToken)
+	require.Equal(t, conf.Global.SlackAppURL, configs[0].AppURL)
+	require.EqualValues(t, "xoxb-1234-xxxxxx", configs[1].AppToken)
+	require.Equal(t, conf.Global.SlackAppToken, configs[2].AppToken)
+	require.Equal(t, "http://api.fakeslack.example/", configs[2].AppURL.String())
+	require.Nil(t, conf.Global.HTTPConfig.Authorization)
+
+	// The legacy workaround still uses the global API URL and receiver authorization.
+	require.Empty(t, configs[3].AppToken)
+	require.Equal(t, conf.Global.SlackAPIURL, configs[3].APIURL)
+	require.Equal(t, &commoncfg.Authorization{
 		Type:        "Bearer",
-		Credentials: commoncfg.Secret(defaultToken),
-	}
-	firstConfig := conf.Receivers[0].SlackConfigs[0]
-	if firstConfig.AppToken != defaultToken {
-		t.Fatalf("Invalid Slack App token: %s\nExpected: %s", firstConfig.AppToken, defaultToken)
-	}
-	if firstConfig.APIURL.String() != conf.Global.SlackAppURL.String() {
-		t.Fatalf("Expected API URL: %s\nGot: %s", conf.Global.SlackAppURL.String(), firstConfig.APIURL.String())
-	}
-	if firstConfig.HTTPConfig == nil || firstConfig.HTTPConfig.Authorization == nil {
-		t.Fatalf("Error configuring Slack App authorization: %s", firstConfig.HTTPConfig)
-	}
-	if firstConfig.HTTPConfig.Authorization.Type != firstAuth.Type {
-		t.Fatalf("Error configuring Slack App authorization type: %s\nExpected: %s", firstConfig.HTTPConfig.Authorization.Type, firstAuth.Type)
-	}
-	if firstConfig.HTTPConfig.Authorization.Credentials != firstAuth.Credentials {
-		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", firstConfig.HTTPConfig.Authorization.Credentials, firstAuth.Credentials)
-	}
+		Credentials: "xoxb-my-bot-token",
+	}, configs[3].HTTPConfig.Authorization)
 
-	// inline override
-	inlineToken := "xoxb-1234-xxxxxx"
-	secondAuth := commoncfg.Authorization{
-		Type:        "Bearer",
-		Credentials: commoncfg.Secret(inlineToken),
-	}
-	secondConfig := conf.Receivers[0].SlackConfigs[1]
-	if secondConfig.AppToken != commoncfg.Secret(inlineToken) {
-		t.Fatalf("Invalid Slack App token: %s\nExpected: %s", secondConfig.AppToken, inlineToken)
-	}
-	if secondConfig.HTTPConfig == nil || secondConfig.HTTPConfig.Authorization == nil {
-		t.Fatalf("Error configuring Slack App authorization: %s", secondConfig.HTTPConfig)
-	}
-	if secondConfig.HTTPConfig.Authorization.Type != secondAuth.Type {
-		t.Fatalf("Error configuring Slack App authorization type: %s\nExpected: %s", secondConfig.HTTPConfig.Authorization.Type, secondAuth.Type)
-	}
-	if secondConfig.HTTPConfig.Authorization.Credentials != secondAuth.Credentials {
-		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", secondConfig.HTTPConfig.Authorization.Credentials, secondAuth.Credentials)
-	}
-
-	// custom app url
-	thirdConfig := conf.Receivers[0].SlackConfigs[2]
-	if thirdConfig.AppURL.String() != "http://api.fakeslack.example/" {
-		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", thirdConfig.APIURL.String(), "http://mysecret.example.com/")
-	}
-
-	// workaround override
-	workaroundToken := "xoxb-my-bot-token"
-	fourthAuth := commoncfg.Authorization{
-		Type:        "Bearer",
-		Credentials: commoncfg.Secret(workaroundToken),
-	}
-	fourthConfig := conf.Receivers[0].SlackConfigs[3]
-	if fourthConfig.AppToken != "" {
-		t.Fatalf("Invalid Slack App token: %q\nExpected: %q", fourthConfig.AppToken, "")
-	}
-	if fourthConfig.HTTPConfig == nil || fourthConfig.HTTPConfig.Authorization == nil {
-		t.Fatalf("Error configuring Slack App authorization: %s", fourthConfig.HTTPConfig)
-	}
-	if fourthConfig.HTTPConfig.Authorization.Type != fourthAuth.Type {
-		t.Fatalf("Error configuring Slack App authorization type: %s\nExpected: %s", fourthConfig.HTTPConfig.Authorization.Type, fourthAuth.Type)
-	}
-	if fourthConfig.HTTPConfig.Authorization.Credentials != fourthAuth.Credentials {
-		t.Fatalf("Error configuring Slack App authorization credentials: %s\nExpected: %s", fourthConfig.HTTPConfig.Authorization.Credentials, fourthAuth.Credentials)
-	}
-
-	// override the global file with an inline webhook URL
-	apiURL := "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
-	fifthConfig := conf.Receivers[0].SlackConfigs[4]
-	if fifthConfig.APIURL.String() != apiURL || fifthConfig.APIURLFile != "" {
-		t.Fatalf("Invalid Slack URL: %s\nExpected: %s", fifthConfig.APIURL.String(), apiURL)
-	}
+	// An explicit webhook URL overrides the global Slack settings.
+	require.Empty(t, configs[4].AppToken)
+	require.Equal(t, "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX", configs[4].APIURL.String())
+	require.Empty(t, configs[4].APIURLFile)
 }
 
 func TestSlackNoAPIURL(t *testing.T) {
