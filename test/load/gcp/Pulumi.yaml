@@ -1,0 +1,3 @@
+name: alertmanager-loadtest
+runtime: go
+description: Infrastructure for Alertmanager load testing
