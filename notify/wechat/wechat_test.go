@@ -20,6 +20,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -185,4 +186,100 @@ func TestGetApiSecretFromMissingFile(t *testing.T) {
 	require.Equal(t, "/non/existent/wechat-secret.txt", pathErr.Path)
 	require.ErrorIs(t, err, os.ErrNotExist)
 	require.Empty(t, s)
+}
+
+func TestWechatNotifyConcurrently(t *testing.T) {
+	const workers = 8
+
+	var (
+		tokenRequests atomic.Int32
+		missed        atomic.Int32
+		allMissed     = make(chan struct{})
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/gettoken"):
+			tokenRequests.Add(1)
+			// Hold the first token request until every notification has
+			// missed the cache, so none of them can take the cache hit path.
+			select {
+			case <-allMissed:
+			case <-r.Context().Done():
+			}
+			fmt.Fprint(w, `{"access_token":"token"}`)
+		case r.URL.Query().Get("access_token") == "token":
+			fmt.Fprint(w, `{"errcode":0,"errmsg":"ok"}`)
+		default:
+			fmt.Fprint(w, `{"errcode":40014,"errmsg":"invalid access_token"}`)
+		}
+	}))
+	defer srv.Close()
+	u, err := url.Parse(srv.URL + "/")
+	require.NoError(t, err)
+
+	notifier, err := New(
+		&WechatConfig{
+			APIURL:     &amcommoncfg.URL{URL: u},
+			HTTPConfig: &commoncfg.HTTPClientConfig{},
+			CorpID:     "corpid",
+			APISecret:  commoncfg.Secret("secret"),
+		},
+		test.CreateTmpl(t),
+		promslog.NewNopLogger(),
+	)
+	require.NoError(t, err)
+	notifier.beforeRefresh = func() {
+		if missed.Add(1) == workers {
+			close(allMissed)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ctx = notify.WithGroupKey(ctx, "1")
+	testAlert := alert.New(model.Alert{Labels: model.LabelSet{"alertname": "test"}}, time.Time{}, false)
+
+	// Every aggregation group notifies through the same integration from its
+	// own goroutine, so Notify has to be safe to call concurrently. Run it
+	// under the race detector.
+	verdicts := make(chan notify.NotifyVerdict, workers)
+	for range workers {
+		go func() {
+			verdicts <- notifier.Notify(ctx, testAlert)
+		}()
+	}
+	for range workers {
+		verdict := <-verdicts
+		require.NoError(t, verdict.Err())
+	}
+
+	// The burst of notifications that all missed the cache shares one
+	// token request, and later notifications reuse the cached token.
+	require.Equal(t, int32(1), tokenRequests.Load())
+	require.NoError(t, notifier.Notify(ctx, testAlert).Err())
+	require.Equal(t, int32(1), tokenRequests.Load())
+}
+
+func TestWechatInvalidateToken(t *testing.T) {
+	n := &Notifier{}
+	n.storeToken("fresh")
+
+	// A notification that was sent with an older token must not throw away
+	// the token another notification has fetched in the meantime.
+	n.invalidateToken("stale")
+	require.Equal(t, "fresh", n.cachedToken())
+
+	n.invalidateToken("fresh")
+	require.Empty(t, n.cachedToken())
+}
+
+func TestWechatCachedTokenExpires(t *testing.T) {
+	n := &Notifier{}
+	n.storeToken("token")
+	require.Equal(t, "token", n.cachedToken())
+
+	n.mtx.Lock()
+	n.accessTokenAt = time.Now().Add(-3 * time.Hour)
+	n.mtx.Unlock()
+	require.Empty(t, n.cachedToken())
 }

@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	commoncfg "github.com/prometheus/common/config"
@@ -41,8 +42,20 @@ type Notifier struct {
 	logger *slog.Logger
 	client *http.Client
 
+	// Notify is called concurrently by the aggregation groups of a receiver,
+	// so the cached access token is guarded by a mutex.
+	mtx           sync.Mutex
 	accessToken   string
 	accessTokenAt time.Time
+
+	// refreshMtx serializes token requests so a burst of notifications that
+	// all find the cache empty only asks the API once. It is never held while
+	// sending a message.
+	refreshMtx sync.Mutex
+
+	// beforeRefresh, when set, is called by refreshToken before it waits for
+	// refreshMtx. Tests use it to see which notifications missed the cache.
+	beforeRefresh func()
 }
 
 // token is the AccessToken with corpid and corpsecret.
@@ -96,40 +109,14 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	tmpl := notify.TmplText(n.tmpl, data, &tmplErr)
 
 	// Refresh AccessToken over 2 hours
-	if n.accessToken == "" || time.Since(n.accessTokenAt) > 2*time.Hour {
-		parameters := url.Values{}
-		apiSecret, err := n.getApiSecret()
-		if err != nil {
-			return notify.Unrecoverable(err, notify.DefaultReason)
+	accessToken := n.cachedToken()
+	if accessToken == "" {
+		var verdict notify.NotifyVerdict
+		var ok bool
+		accessToken, verdict, ok = n.refreshToken(ctx, tmpl, &tmplErr)
+		if !ok {
+			return verdict
 		}
-		parameters.Add("corpsecret", tmpl(apiSecret))
-		parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
-		if tmplErr != nil {
-			return notify.Unrecoverable(fmt.Errorf("templating error: %w", tmplErr), notify.TemplateErrorReason)
-		}
-
-		u := n.conf.APIURL.Copy()
-		u.Path += "gettoken"
-		u.RawQuery = parameters.Encode()
-
-		resp, err := notify.Get(ctx, n.client, u.String())
-		if err != nil {
-			return notify.Retry(0, notify.RedactURL(err), notify.DefaultReason)
-		}
-		defer notify.Drain(resp)
-
-		var wechatToken token
-		if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
-			return notify.Unrecoverable(err, notify.DefaultReason)
-		}
-
-		if wechatToken.AccessToken == "" {
-			return notify.Unrecoverable(fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID), notify.DefaultReason)
-		}
-
-		// Cache accessToken
-		n.accessToken = wechatToken.AccessToken
-		n.accessTokenAt = time.Now()
 	}
 
 	msg := &weChatMessage{
@@ -162,7 +149,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 	postMessageURL := n.conf.APIURL.Copy()
 	postMessageURL.Path += "message/send"
 	q := postMessageURL.Query()
-	q.Set("access_token", n.accessToken)
+	q.Set("access_token", accessToken)
 	postMessageURL.RawQuery = q.Encode()
 
 	resp, err := notify.PostJSON(ctx, n.client, postMessageURL.String(), &buf)
@@ -193,11 +180,91 @@ func (n *Notifier) Notify(ctx context.Context, as ...*alert.Alert) notify.Notify
 
 	// AccessToken is expired
 	if weResp.Code == 42001 {
-		n.accessToken = ""
+		n.invalidateToken(accessToken)
 		return notify.Retry(0, errors.New(weResp.Error), notify.DefaultReason)
 	}
 
 	return notify.Unrecoverable(errors.New(weResp.Error), notify.DefaultReason)
+}
+
+// refreshToken fetches a new access token. Concurrent callers that all missed
+// the cache wait for each other, so only the first one asks the API and the
+// rest pick up the token it stored. On failure ok is false and verdict says why.
+func (n *Notifier) refreshToken(ctx context.Context, tmpl func(string) string, tmplErr *error) (accessToken string, verdict notify.NotifyVerdict, ok bool) {
+	if n.beforeRefresh != nil {
+		n.beforeRefresh()
+	}
+	n.refreshMtx.Lock()
+	defer n.refreshMtx.Unlock()
+
+	if t := n.cachedToken(); t != "" {
+		return t, notify.NotifyVerdict{}, true
+	}
+
+	parameters := url.Values{}
+	apiSecret, err := n.getApiSecret()
+	if err != nil {
+		return "", notify.Unrecoverable(err, notify.DefaultReason), false
+	}
+	parameters.Add("corpsecret", tmpl(apiSecret))
+	parameters.Add("corpid", tmpl(string(n.conf.CorpID)))
+	if *tmplErr != nil {
+		return "", notify.Unrecoverable(fmt.Errorf("templating error: %w", *tmplErr), notify.TemplateErrorReason), false
+	}
+
+	u := n.conf.APIURL.Copy()
+	u.Path += "gettoken"
+	u.RawQuery = parameters.Encode()
+
+	resp, err := notify.Get(ctx, n.client, u.String())
+	if err != nil {
+		return "", notify.Retry(0, notify.RedactURL(err), notify.DefaultReason), false
+	}
+	defer notify.Drain(resp)
+
+	var wechatToken token
+	if err := json.NewDecoder(resp.Body).Decode(&wechatToken); err != nil {
+		return "", notify.Unrecoverable(err, notify.DefaultReason), false
+	}
+
+	if wechatToken.AccessToken == "" {
+		return "", notify.Unrecoverable(fmt.Errorf("invalid APISecret for CorpID: %s", n.conf.CorpID), notify.DefaultReason), false
+	}
+
+	// Cache accessToken
+	n.storeToken(wechatToken.AccessToken)
+	return wechatToken.AccessToken, notify.NotifyVerdict{}, true
+}
+
+// cachedToken returns the cached access token, or an empty string if there is
+// none or it is older than 2 hours.
+func (n *Notifier) cachedToken() string {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	if time.Since(n.accessTokenAt) > 2*time.Hour {
+		return ""
+	}
+	return n.accessToken
+}
+
+func (n *Notifier) storeToken(token string) {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	n.accessToken = token
+	n.accessTokenAt = time.Now()
+}
+
+// invalidateToken drops the cached token if it is still the given one. Another
+// notification may already have replaced an expired token with a fresh one.
+func (n *Notifier) invalidateToken(token string) {
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
+
+	if n.accessToken == token {
+		n.accessToken = ""
+	}
 }
 
 func (n *Notifier) getApiSecret() (string, error) {
