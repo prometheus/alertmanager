@@ -117,6 +117,7 @@ type DayOfMonthRange struct {
 }
 
 // A MonthRange is an inclusive range between [1, 12] where 1 = January.
+// Begin may be greater than End to wrap around the end of the year, e.g. november:february.
 type MonthRange struct {
 	InclusiveRange
 }
@@ -212,21 +213,6 @@ var months = map[string]int{
 	"october":   10,
 	"november":  11,
 	"december":  12,
-}
-
-var monthsInv = map[int]string{
-	1:  "january",
-	2:  "february",
-	3:  "march",
-	4:  "april",
-	5:  "may",
-	6:  "june",
-	7:  "july",
-	8:  "august",
-	9:  "september",
-	10: "october",
-	11: "november",
-	12: "december",
 }
 
 // UnmarshalYAML implements the Unmarshaller interface for Location.
@@ -338,11 +324,6 @@ func (r *MonthRange) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 	if r.End < 1 || r.End > 12 {
 		return fmt.Errorf("%d is not a valid month: out of range", r.End)
-	}
-	if r.Begin > r.End {
-		begin := monthsInv[r.Begin]
-		end := monthsInv[r.End]
-		return fmt.Errorf("end month %s is before start month %s", end, begin)
 	}
 	return nil
 }
@@ -565,7 +546,13 @@ func (tp TimeInterval) ContainsTime(t time.Time) bool {
 	if tp.Months != nil {
 		in := false
 		for _, validMonths := range tp.Months {
-			if t.Month() >= time.Month(validMonths.Begin) && t.Month() <= time.Month(validMonths.End) {
+			// A range where Begin > End wraps around the end of the year, e.g. november:february.
+			if validMonths.Begin <= validMonths.End {
+				if t.Month() >= time.Month(validMonths.Begin) && t.Month() <= time.Month(validMonths.End) {
+					in = true
+					break
+				}
+			} else if t.Month() >= time.Month(validMonths.Begin) || t.Month() <= time.Month(validMonths.End) {
 				in = true
 				break
 			}
