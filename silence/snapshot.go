@@ -34,28 +34,30 @@ func (s *Silences) loadSnapshot(r io.Reader) error {
 	// Choose new version index capacity with some growth buffer.
 	vi := make(versionIndex, 0, max(len(st)*5/4, 1024))
 
-	for _, e := range st {
+	for id, e := range st {
 		// Comments list was moved to a single comment. Upgrade on loading the snapshot.
 		if len(e.Silence.Comments) > 0 {
 			e.Silence.Comment = e.Silence.Comments[0].Comment
 			e.Silence.CreatedBy = e.Silence.Comments[0].Author
 			e.Silence.Comments = nil
 		}
-		// Add to matcher index, and only if successful, to the new state.
+		// Add to matcher index, and only if successful, keep in the new state.
 		if _, err := mi.add(e.Silence); err != nil {
+			delete(st, id)
 			s.metrics.matcherCompileLoadSnapshotErrorsTotal.Inc()
 			s.logger.Error("Failed to compile silence matchers during snapshot load", "silence_id", e.Silence.Id, "err", err)
-		} else {
-			st[e.Silence.Id] = e
-
-			vi.add(s.version+1, e.Silence.Id)
+			continue
 		}
+		vi.add(0, e.Silence.Id)
 	}
 	s.mtx.Lock()
+	s.version++
+	for i := range vi {
+		vi[i].version = s.version
+	}
 	s.st = st
 	s.mi = mi
 	s.vi = vi
-	s.version++
 	s.updateSizeMetrics()
 	s.mtx.Unlock()
 
