@@ -54,6 +54,7 @@ func run() int {
 		dataDir                     = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention                   = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		maintenanceInterval         = kingpin.Flag("data.maintenance-interval", "Interval between garbage collection and snapshotting to disk of the silences and the notification logs.").Default("15m").Duration()
+		silenceRetention            = kingpin.Flag("silences.retention", "How long to keep expired silences before they are deleted. Defaults to --data.retention.").Duration()
 		maxSilences                 = kingpin.Flag("silences.max-silences", "Maximum number of silences, including expired silences. If negative or zero, no limit is set.").Default("0").Int()
 		maxSilenceSizeBytes         = kingpin.Flag("silences.max-silence-size-bytes", "Maximum silence size in bytes. If negative or zero, no limit is set.").Default("0").Int()
 		silenceLogging              = kingpin.Flag("log.silences", "Enable logging silences. If it is enabled, the status change of silence will be logged").Bool()
@@ -183,6 +184,7 @@ func run() int {
 		ConfigFile:                  *configFile,
 		DataDir:                     *dataDir,
 		Retention:                   *retention,
+		SilenceRetention:            *silenceRetention,
 		MaintenanceInterval:         *maintenanceInterval,
 		MaxSilences:                 *maxSilences,
 		MaxSilenceSizeBytes:         *maxSilenceSizeBytes,

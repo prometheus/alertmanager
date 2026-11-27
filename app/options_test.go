@@ -75,6 +75,7 @@ func TestOptions_Validate(t *testing.T) {
 		{name: "zero alert gc interval", mutate: func(o *Options) { o.AlertGCInterval = 0 }},
 		{name: "zero dispatch maintenance interval", mutate: func(o *Options) { o.DispatchMaintenanceInterval = 0 }},
 		{name: "negative retention", mutate: func(o *Options) { o.Retention = -time.Second }},
+		{name: "negative silence retention", mutate: func(o *Options) { o.SilenceRetention = -time.Second }},
 		{name: "missing web config", mutate: func(o *Options) { o.WebConfig = nil }},
 		{name: "nil listen addresses", mutate: func(o *Options) { o.WebConfig.WebListenAddresses = nil }},
 		{name: "empty listen addresses", mutate: func(o *Options) { o.WebConfig.WebListenAddresses = &emptyAddrs }},
@@ -123,4 +124,13 @@ func TestOptions_Validate(t *testing.T) {
 		o.ClusterBindAddr = DefaultClusterAddr
 		require.NoError(t, o.validate())
 	})
+}
+
+func TestOptions_SilenceRetention(t *testing.T) {
+	o := DefaultOptions()
+	require.Equal(t, DefaultRetention, o.silenceRetention(), "falls back to Retention")
+
+	o.SilenceRetention = 24 * time.Hour
+	require.Equal(t, 24*time.Hour, o.silenceRetention())
+	require.Equal(t, DefaultRetention, o.Retention, "notification log retention is unchanged")
 }
