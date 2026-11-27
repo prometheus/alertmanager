@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -55,6 +54,8 @@ type spanRecordCase struct {
 
 func spanRecordCases() []spanRecordCase {
 	startsAt := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	// Hoisted so the allocation-free test does not measure the slice literal.
+	inhibitors := []string{"000000000000002a"}
 	return []spanRecordCase{
 		{
 			name:        "RecordError",
@@ -172,9 +173,9 @@ func spanRecordCases() []spanRecordCase {
 			}}},
 		}, {
 			name:   "EventInhibited",
-			record: func(span trace.Span) { EventInhibited(span, model.Fingerprint(42)) },
+			record: func(span trace.Span) { EventInhibited(span, inhibitors) },
 			events: []spanEvent{{"alert inhibited", []attribute.KeyValue{
-				attribute.String("alerting.inhibit_rule.source.fingerprint", "000000000000002a"),
+				attribute.StringSlice("alerting.inhibit_rule.inhibitors", inhibitors),
 			}}},
 		}, {
 			name:   "EventNotInhibited",
