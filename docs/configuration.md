@@ -1960,6 +1960,13 @@ tags:
 # If the message exceeds Telegram's character limit, it will be truncated or replaced with a fallback message if parse_mode is set to HTML.
 [ parse_mode: <string> | default = "HTML" ]
 
+# Send the message with sendRichMessage (Telegram Bot API 10.1 or later), which renders tables,
+# headings, lists and collapsible <details> sections, and takes up to 32768 characters of text
+# instead of 4096. Requires parse_mode HTML.
+# Rich HTML collapses whitespace like a browser, so the default message renders as one line:
+# use a message template that breaks lines with <p>, <br>, lists or tables.
+[ rich_message: <boolean> | default = false ]
+
 # The HTTP client's configuration.
 [ http_config: <http_config> | default = global.http_config ]
 
