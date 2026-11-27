@@ -45,6 +45,21 @@ type ResolvedSender interface {
 	SendResolved() bool
 }
 
+// MuteActioner reports what a receiver asked to be told about an alert group
+// that muting has emptied. A ResolvedSender that does not implement it says
+// nothing about such a group, as Alertmanager always has.
+type MuteActioner interface {
+	// SendsResolvedWhenMuted reports whether a group the receiver was notified
+	// about is resolved to it even if muting hid its alerts before they
+	// resolved. The dedup stage decides whether there was a notification to
+	// close.
+	SendsResolvedWhenMuted() bool
+	// TreatsMuteAsResolved reports whether a group whose alerts are all muted is
+	// resolved to the receiver while they are still firing. It implies
+	// SendsResolvedWhenMuted.
+	TreatsMuteAsResolved() bool
+}
+
 // Peer represents the cluster node from where we are the sending the notification.
 type Peer interface {
 	// WaitReady waits until the node silences and notifications have settled before attempting to send a notification.
@@ -159,6 +174,20 @@ func (i *Integration) SendResolved() bool {
 	return i.rs.SendResolved()
 }
 
+// SendsResolvedWhenMuted implements the MuteActioner interface. It is false for an
+// integration whose config does not know the option.
+func (i *Integration) SendsResolvedWhenMuted() bool {
+	ma, ok := i.rs.(MuteActioner)
+	return ok && ma.SendsResolvedWhenMuted()
+}
+
+// TreatsMuteAsResolved implements the MuteActioner interface. It is false for an
+// integration whose config does not know the option.
+func (i *Integration) TreatsMuteAsResolved() bool {
+	ma, ok := i.rs.(MuteActioner)
+	return ok && ma.TreatsMuteAsResolved()
+}
+
 // Name returns the name of the integration.
 func (i *Integration) Name() string {
 	return i.name
@@ -225,12 +254,8 @@ func (pb *PipelineBuilder) New(
 	ss := NewMuteStage(silencer, pb.metrics)
 
 	for name := range receivers {
-		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder, pb.ff)
-		if pb.ff.EnableMutedAlertsInNflog() {
-			rs[name] = MutedMultiStage{ms, is, tas, tms, ss, st}
-			continue
-		}
-		rs[name] = MultiStage{ms, is, tas, tms, ss, st}
+		st := createReceiverStage(name, receivers[name], wait, notificationLog, pb.metrics, pb.recorder)
+		rs[name] = MutedMultiStage{ms, is, tas, tms, ss, st}
 	}
 
 	pb.metrics.InitializeFor(receivers)
@@ -246,7 +271,6 @@ func createReceiverStage(
 	notificationLog NotificationLog,
 	metrics *Metrics,
 	recorder eventrecorder.Recorder,
-	ff featurecontrol.Flagger,
 ) Stage {
 	var fs FanoutStage
 	for i := range integrations {
@@ -255,18 +279,12 @@ func createReceiverStage(
 			Integration: integrations[i].Name(),
 			Idx:         uint32(integrations[i].Index()),
 		}
-		stages := []Stage{
+		fs = append(fs, MutedMultiStage{
 			NewClusterWaitStage(wait),
 			NewDedupStage(&integrations[i], notificationLog, recv),
 			NewRetryStage(integrations[i], name, metrics, recorder),
-			NewSetNotifiesStage(notificationLog, recv, ff),
-		}
-
-		if ff.EnableMutedAlertsInNflog() {
-			fs = append(fs, MutedMultiStage(stages))
-			continue
-		}
-		fs = append(fs, MultiStage(stages))
+			NewSetNotifiesStage(notificationLog, recv),
+		})
 	}
 	return fs
 }
@@ -314,17 +332,13 @@ func (ms MutedMultiStage) Exec(ctx context.Context, l *slog.Logger, alerts ...*a
 }
 
 // execStages runs the given stages in order. It stops early once no alerts are
-// left, unless continueWhenMuted is set and a mute stage has recorded the
-// alerts it removed.
+// left, unless continueWhenMuted is set and the stages still to run have
+// something to do for a group with nothing in it.
 func execStages(ctx context.Context, l *slog.Logger, stages []Stage, continueWhenMuted bool, alerts ...*alert.Alert) (context.Context, []*alert.Alert, error) {
 	var err error
 	for _, s := range stages {
-		if len(alerts) == 0 {
-			// A group whose alerts were all muted still has to reach the
-			// stages that record its state.
-			if !continueWhenMuted || !hasMutedAlerts(ctx) {
-				return ctx, nil, nil
-			}
+		if len(alerts) == 0 && !continuePastEmptyGroup(ctx, continueWhenMuted) {
+			return ctx, nil, nil
 		}
 
 		ctx, alerts, err = s.Exec(ctx, l, alerts...)
@@ -333,6 +347,20 @@ func execStages(ctx context.Context, l *slog.Logger, stages []Stage, continueWhe
 		}
 	}
 	return ctx, alerts, nil
+}
+
+// continuePastEmptyGroup reports whether the stages after one that emptied the
+// group still have work to do. A muted group has state to record; the dedup
+// stage works out what, and its reason then says whether there is an entry to
+// write.
+func continuePastEmptyGroup(ctx context.Context, continueWhenMuted bool) bool {
+	if !continueWhenMuted {
+		return false
+	}
+	if reason, ok := NotificationReason(ctx); ok {
+		return reason.shouldNotify()
+	}
+	return hasMutedAlerts(ctx)
 }
 
 // hasMutedAlerts reports whether a mute stage has removed any alert from the
@@ -379,9 +407,24 @@ const (
 	ReasonNewResolvedAlerts
 	ReasonAllAlertsResolved
 	ReasonRepeatIntervalElapsed
+	// ReasonAlertsUnmuted is reported when muted alerts become visible again.
+	ReasonAlertsUnmuted
+	// ReasonAllAlertsMuted is reported when a group the receiver was notified
+	// about is still firing, but none of it can be shown any more.
+	ReasonAllAlertsMuted
+	// ReasonStillMuted is reported when a group that already went quiet is
+	// still fully muted and its log entry is due to be rewritten, so that the
+	// group's state outlives the entry's expiry.
+	ReasonStillMuted
 	ReasonUnknown
 )
 
+// shouldNotify reports whether this flush runs the rest of the pipeline and is
+// recorded in the notification log. The receiver is not shown something every
+// time: a flush of nothing but resolved alerts for a receiver that does not
+// send resolved notifications delivers nothing, and so does a fully muted
+// group, but both are recorded so that the next flush knows where the group
+// stands.
 func (r NotifyReason) shouldNotify() bool {
 	return r != ReasonDoNotNotify
 }
@@ -400,6 +443,12 @@ func (r NotifyReason) String() string {
 		return "all alerts resolved"
 	case ReasonRepeatIntervalElapsed:
 		return "repeat interval elapsed"
+	case ReasonAlertsUnmuted:
+		return "some alerts unmuted"
+	case ReasonAllAlertsMuted:
+		return "all alerts muted"
+	case ReasonStillMuted:
+		return "still muted"
 	default:
 		return "unknown"
 	}

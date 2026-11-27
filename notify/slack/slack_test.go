@@ -36,7 +36,6 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
 	"github.com/prometheus/alertmanager/alert"
-	"github.com/prometheus/alertmanager/featurecontrol"
 	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/notify"
@@ -532,7 +531,7 @@ func TestSlackPostUpdatesToThread(t *testing.T) {
 		require.NoError(t, err)
 		recv := &nflogpb.Receiver{GroupName: "test", Integration: "slack"}
 		dedup := notify.NewDedupStage(notifier.conf, nl, recv)
-		setNotifies := notify.NewSetNotifiesStage(nl, recv, featurecontrol.NoopFlags{})
+		setNotifies := notify.NewSetNotifiesStage(nl, recv)
 
 		notifyGroup := func(a *alert.Alert) []capturedRequest {
 			t.Helper()
