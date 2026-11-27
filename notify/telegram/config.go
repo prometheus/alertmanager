@@ -47,6 +47,10 @@ type TelegramConfig struct {
 	DisableNotifications bool             `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
 	ParseMode            string           `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
 
+	// UpdateMessage edits the existing Telegram message for an alert group
+	// instead of sending a new one. The message id and chat id are kept in the notification log.
+	UpdateMessage bool `yaml:"update_message" json:"update_message,omitempty"`
+
 	// Timeout is the maximum time allowed to invoke the telegram. Setting this to 0
 	// does not impose a timeout.
 	Timeout time.Duration `yaml:"timeout" json:"timeout"`

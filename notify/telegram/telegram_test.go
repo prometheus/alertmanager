@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
@@ -35,6 +36,9 @@ import (
 	amcommoncfg "github.com/prometheus/alertmanager/config/common"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/featurecontrol"
+	"github.com/prometheus/alertmanager/nflog"
+	"github.com/prometheus/alertmanager/nflog/nflogpb"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/notify/test"
 )
@@ -513,4 +517,336 @@ func TestTelegramTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTelegramUpdateMessage(t *testing.T) {
+	type capturedRequest struct {
+		path string
+		body map[string]string
+	}
+
+	newNotifier := func(t *testing.T, update bool, handler http.HandlerFunc) *Notifier {
+		t.Helper()
+		srv := httptest.NewServer(handler)
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		notifier, err := New(&TelegramConfig{
+			NotifierConfig:  amcommoncfg.NotifierConfig{VSendResolved: true},
+			HTTPConfig:      &commoncfg.HTTPClientConfig{},
+			APIUrl:          &amcommoncfg.URL{URL: u},
+			BotToken:        "secret",
+			ChatID:          42,
+			Message:         "{{ .Status }}",
+			ParseMode:       "HTML",
+			UpdateMessage:   update,
+			MessageThreadID: 99,
+		}, test.CreateTmpl(t), promslog.NewNopLogger())
+		require.NoError(t, err)
+		return notifier
+	}
+
+	record := func(t *testing.T, reqs *[]capturedRequest, respond func(http.ResponseWriter, capturedRequest)) http.HandlerFunc {
+		t.Helper()
+		return func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			decoded := map[string]string{}
+			require.NoError(t, json.Unmarshal(body, &decoded))
+			req := capturedRequest{path: r.URL.Path, body: decoded}
+			*reqs = append(*reqs, req)
+			respond(w, req)
+		}
+	}
+
+	okMessage := func(w http.ResponseWriter, id int) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"ok":true,"result":{"message_id":%d,"chat":{"id":42}}}`, id)
+	}
+
+	apiError := func(w http.ResponseWriter, description string) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `{"ok":false,"error_code":400,"description":%q}`, description)
+	}
+
+	ctxWithStore := func(store *nflog.Store) context.Context {
+		ctx := notify.WithGroupKey(context.Background(), "group")
+		return notify.WithNflogStore(ctx, store)
+	}
+
+	alertAt := func(resolved bool) *alert.Alert {
+		a := model.Alert{
+			Labels:   model.LabelSet{"alertname": "test"},
+			StartsAt: time.Now(),
+			EndsAt:   time.Now().Add(time.Hour),
+		}
+		if resolved {
+			a.EndsAt = time.Now().Add(-time.Minute)
+		}
+		return alert.New(a, time.Now(), false)
+	}
+
+	t.Run("disabled sends a new message and does not store an id", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, false, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			require.Contains(t, req.path, "/sendMessage")
+			okMessage(w, 1)
+		}))
+		store := nflog.NewStore(nil)
+
+		require.NoError(t, notifier.Notify(ctxWithStore(store), alertAt(false)).Err())
+
+		require.Len(t, reqs, 1)
+		require.Equal(t, "99", reqs[0].body["message_thread_id"])
+		_, found := store.GetStr(telegramMessageIDKey)
+		require.False(t, found)
+	})
+
+	t.Run("first notification stores the message id", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			require.Contains(t, req.path, "/sendMessage")
+			okMessage(w, 7)
+		}))
+		store := nflog.NewStore(nil)
+
+		require.NoError(t, notifier.Notify(ctxWithStore(store), alertAt(false)).Err())
+
+		require.Len(t, reqs, 1)
+		require.Equal(t, "HTML", reqs[0].body["parse_mode"])
+		stored, found := store.GetStr(telegramMessageIDKey)
+		require.True(t, found)
+		require.Equal(t, "7", stored)
+		storedChat, found := store.GetStr(telegramChatIDKey)
+		require.True(t, found)
+		require.Equal(t, "42", storedChat)
+	})
+
+	t.Run("subsequent notification edits the stored message", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			require.Contains(t, req.path, "/editMessageText")
+			okMessage(w, 7)
+		}))
+		store := nflog.NewStore(nil)
+		store.SetStr(telegramMessageIDKey, "7")
+		store.SetStr(telegramChatIDKey, "42")
+
+		require.NoError(t, notifier.Notify(ctxWithStore(store), alertAt(true)).Err())
+
+		require.Len(t, reqs, 1)
+		require.Equal(t, "7", reqs[0].body["message_id"])
+		require.Equal(t, "42", reqs[0].body["chat_id"])
+		require.Equal(t, "HTML", reqs[0].body["parse_mode"])
+		require.NotContains(t, reqs[0].body, "message_thread_id")
+		stored, _ := store.GetStr(telegramMessageIDKey)
+		require.Equal(t, "7", stored)
+	})
+
+	t.Run("unchanged message is a successful edit", func(t *testing.T) {
+		for _, description := range []string{
+			"Bad Request: message is not modified",
+			"Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message",
+		} {
+			t.Run(description, func(t *testing.T) {
+				var reqs []capturedRequest
+				notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+					apiError(w, description)
+				}))
+				store := nflog.NewStore(nil)
+				store.SetStr(telegramMessageIDKey, "7")
+				store.SetStr(telegramChatIDKey, "42")
+
+				verdict := notifier.Notify(ctxWithStore(store), alertAt(false))
+				require.NoError(t, verdict.Err())
+				require.False(t, verdict.ShouldRetry())
+				require.Len(t, reqs, 1)
+				require.Contains(t, reqs[0].path, "/editMessageText")
+				stored, _ := store.GetStr(telegramMessageIDKey)
+				require.Equal(t, "7", stored)
+			})
+		}
+	})
+
+	t.Run("deleted message is replaced", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			if strings.Contains(req.path, "/editMessageText") {
+				apiError(w, "Bad Request: message to edit not found")
+				return
+			}
+			require.Contains(t, req.path, "/sendMessage")
+			okMessage(w, 9)
+		}))
+		store := nflog.NewStore(nil)
+		store.SetStr(telegramMessageIDKey, "7")
+		store.SetStr(telegramChatIDKey, "42")
+
+		require.NoError(t, notifier.Notify(ctxWithStore(store), alertAt(false)).Err())
+
+		require.Len(t, reqs, 2)
+		require.Contains(t, reqs[0].path, "/editMessageText")
+		require.Contains(t, reqs[1].path, "/sendMessage")
+		require.Equal(t, "99", reqs[1].body["message_thread_id"])
+		stored, found := store.GetStr(telegramMessageIDKey)
+		require.True(t, found)
+		require.Equal(t, "9", stored)
+		storedChat, found := store.GetStr(telegramChatIDKey)
+		require.True(t, found)
+		require.Equal(t, "42", storedChat)
+	})
+
+	t.Run("chat id change sends a new message", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			require.Contains(t, req.path, "/sendMessage")
+			okMessage(w, 8)
+		}))
+		store := nflog.NewStore(nil)
+		store.SetStr(telegramMessageIDKey, "7")
+		store.SetStr(telegramChatIDKey, "100")
+
+		require.NoError(t, notifier.Notify(ctxWithStore(store), alertAt(false)).Err())
+
+		require.Len(t, reqs, 1)
+		require.Equal(t, "42", reqs[0].body["chat_id"])
+		stored, _ := store.GetStr(telegramMessageIDKey)
+		require.Equal(t, "8", stored)
+		storedChat, _ := store.GetStr(telegramChatIDKey)
+		require.Equal(t, "42", storedChat)
+	})
+
+	t.Run("message that cannot be edited is replaced", func(t *testing.T) {
+		for _, description := range []string{
+			"Bad Request: message can't be edited",
+			"Bad Request: MESSAGE_ID_INVALID",
+		} {
+			t.Run(description, func(t *testing.T) {
+				var reqs []capturedRequest
+				notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+					if strings.Contains(req.path, "/editMessageText") {
+						apiError(w, description)
+						return
+					}
+					require.Contains(t, req.path, "/sendMessage")
+					okMessage(w, 9)
+				}))
+				store := nflog.NewStore(nil)
+				store.SetStr(telegramMessageIDKey, "7")
+				store.SetStr(telegramChatIDKey, "42")
+
+				verdict := notifier.Notify(ctxWithStore(store), alertAt(false))
+				require.NoError(t, verdict.Err())
+				require.False(t, verdict.ShouldRetry())
+				require.Len(t, reqs, 2)
+				require.Contains(t, reqs[0].path, "/editMessageText")
+				require.Contains(t, reqs[1].path, "/sendMessage")
+				stored, _ := store.GetStr(telegramMessageIDKey)
+				require.Equal(t, "9", stored)
+			})
+		}
+	})
+
+	t.Run("temporary edit error is retried without a new message", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			require.Contains(t, req.path, "/editMessageText")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"ok":false,"error_code":500,"description":"Internal Server Error"}`)
+		}))
+		store := nflog.NewStore(nil)
+		store.SetStr(telegramMessageIDKey, "7")
+		store.SetStr(telegramChatIDKey, "42")
+
+		verdict := notifier.Notify(ctxWithStore(store), alertAt(false))
+		require.Error(t, verdict.Err())
+		require.True(t, verdict.ShouldRetry())
+		require.Len(t, reqs, 1)
+		stored, _ := store.GetStr(telegramMessageIDKey)
+		require.Equal(t, "7", stored)
+		storedChat, _ := store.GetStr(telegramChatIDKey)
+		require.Equal(t, "42", storedChat)
+	})
+
+	t.Run("missing notification log sends a new message", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			require.Contains(t, req.path, "/sendMessage")
+			okMessage(w, 1)
+		}))
+		ctx := notify.WithGroupKey(context.Background(), "group")
+
+		require.NoError(t, notifier.Notify(ctx, alertAt(false)).Err())
+		require.Len(t, reqs, 1)
+	})
+
+	t.Run("invalid stored id sends a new message", func(t *testing.T) {
+		var reqs []capturedRequest
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			require.Contains(t, req.path, "/sendMessage")
+			okMessage(w, 4)
+		}))
+		store := nflog.NewStore(nil)
+		store.SetStr(telegramMessageIDKey, "nope")
+
+		require.NoError(t, notifier.Notify(ctxWithStore(store), alertAt(false)).Err())
+
+		require.Len(t, reqs, 1)
+		stored, _ := store.GetStr(telegramMessageIDKey)
+		require.Equal(t, "4", stored)
+	})
+
+	t.Run("resolution edits and the next firing starts a new message", func(t *testing.T) {
+		var reqs []capturedRequest
+		var nextID int
+		notifier := newNotifier(t, true, record(t, &reqs, func(w http.ResponseWriter, req capturedRequest) {
+			if strings.Contains(req.path, "/sendMessage") {
+				nextID++
+				okMessage(w, nextID)
+				return
+			}
+			require.Contains(t, req.path, "/editMessageText")
+			okMessage(w, 0)
+		}))
+
+		nl, err := nflog.New(nflog.Options{Retention: time.Hour, Metrics: prometheus.NewRegistry()})
+		require.NoError(t, err)
+		recv := &nflogpb.Receiver{GroupName: "test", Integration: "telegram"}
+		dedup := notify.NewDedupStage(notifier.conf, nl, recv)
+		setNotifies := notify.NewSetNotifiesStage(nl, recv, featurecontrol.NoopFlags{})
+
+		notifyGroup := func(resolved bool) []capturedRequest {
+			t.Helper()
+			reqs = nil
+			ctx := notify.WithGroupKey(context.Background(), "group")
+			ctx = notify.WithRepeatInterval(ctx, time.Hour)
+			ctx, alerts, err := dedup.Exec(ctx, promslog.NewNopLogger(), alertAt(resolved))
+			require.NoError(t, err)
+			require.NoError(t, notifier.Notify(ctx, alerts...).Err())
+			_, _, err = setNotifies.Exec(ctx, promslog.NewNopLogger(), alerts...)
+			require.NoError(t, err)
+			return reqs
+		}
+
+		got := notifyGroup(false)
+		require.Len(t, got, 1)
+		require.Contains(t, got[0].path, "/sendMessage")
+
+		got = notifyGroup(true)
+		require.Len(t, got, 1)
+		require.Contains(t, got[0].path, "/editMessageText")
+		require.Equal(t, "1", got[0].body["message_id"])
+
+		got = notifyGroup(false)
+		require.Len(t, got, 1)
+		require.Contains(t, got[0].path, "/sendMessage")
+
+		got = notifyGroup(true)
+		require.Len(t, got, 1)
+		require.Contains(t, got[0].path, "/editMessageText")
+		require.Equal(t, "2", got[0].body["message_id"])
+	})
 }

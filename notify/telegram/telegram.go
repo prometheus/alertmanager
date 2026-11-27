@@ -29,11 +29,16 @@ import (
 	"gopkg.in/telebot.v3"
 
 	"github.com/prometheus/alertmanager/alert"
+	"github.com/prometheus/alertmanager/nflog"
 	"github.com/prometheus/alertmanager/notify"
 	"github.com/prometheus/alertmanager/template"
 )
 
 const (
+	// Message and chat identifiers for the Telegram message edited when update_message
+	// is enabled. Both are required, because message ids are only unique within a chat.
+	telegramMessageIDKey = "messageId"
+	telegramChatIDKey    = "chatId"
 	// Telegram rejects formatted input over 1 << 15 bytes before entity parsing.
 	maxMessageLenBytes = 1 << 15
 	// Telegram supports up to 4096 characters after entity parsing.
@@ -123,6 +128,44 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		return notify.Retry(0, err, notify.DefaultReason)
 	}
 
+	// update_message edits the initial message for this alert group. The message
+	// id and chat id are kept in the notification log so another Alertmanager
+	// replica can edit it. A different chat gets a new message: Telegram
+	// numbers messages separately in each chat.
+	var store *nflog.Store
+	var messageID int
+	if n.conf.UpdateMessage {
+		var ok bool
+		store, ok = notify.NflogStore(ctx)
+		if !ok {
+			logger.Warn("cannot create NflogStore, updatable messages will be disabled.")
+		} else {
+			messageID = storedTelegramMessageID(store, chatID, logger)
+		}
+	}
+
+	if messageID != 0 {
+		_, editErr := n.client.Edit(&telebot.Message{
+			ID:   messageID,
+			Chat: &telebot.Chat{ID: chatID},
+		}, messageText, &telebot.SendOptions{
+			DisableWebPagePreview: true,
+			ParseMode:             n.conf.ParseMode,
+		})
+		if editErr == nil {
+			logger.Debug("Telegram message successfully updated", "message_id", messageID, "chat_id", chatID)
+			return notify.Success()
+		}
+		if telegramMessageNotModified(editErr) {
+			logger.Debug("Telegram message unchanged", "message_id", messageID, "chat_id", chatID)
+			return notify.Success()
+		}
+		if !telegramMessageNotEditable(editErr) {
+			return n.notifyFailure(editErr)
+		}
+		logger.Warn("Telegram message could not be edited, sending a new one", "message_id", messageID, "chat_id", chatID, "err", editErr)
+	}
+
 	message, err := n.client.Send(telebot.ChatID(chatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
@@ -130,15 +173,64 @@ func (n *Notifier) Notify(ctx context.Context, alrt ...*alert.Alert) notify.Noti
 		ParseMode:             n.conf.ParseMode,
 	})
 	if err != nil {
-		if n.conf.Timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
-			err = fmt.Errorf("configured telegram timeout reached (%s)", n.conf.Timeout)
-		}
-		err = notify.RedactURL(err)
-		return notify.Retry(0, err, failureReason(err))
+		return n.notifyFailure(err)
 	}
 	logger.Debug("Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
+	if store != nil && message.ID != 0 {
+		store.SetStr(telegramMessageIDKey, strconv.Itoa(message.ID))
+		store.SetStr(telegramChatIDKey, strconv.FormatInt(chatID, 10))
+		logger.Debug("stored Telegram message id", "message_id", message.ID, "chat_id", chatID)
+	}
 
 	return notify.Success()
+}
+
+// notifyFailure classifies a Telegram request error as a retryable notification failure.
+func (n *Notifier) notifyFailure(err error) notify.NotifyVerdict {
+	if n.conf.Timeout > 0 && errors.Is(err, context.DeadlineExceeded) {
+		err = fmt.Errorf("configured telegram timeout reached (%s)", n.conf.Timeout)
+	}
+	err = notify.RedactURL(err)
+	return notify.Retry(0, err, failureReason(err))
+}
+
+// telegramMessageNotModified reports Telegram's refusal to edit a message
+// whose text is already the rendered notification.
+func telegramMessageNotModified(err error) bool {
+	return errors.Is(err, telebot.ErrMessageNotModified) || errors.Is(err, telebot.ErrSameMessageContent)
+}
+
+// storedTelegramMessageID returns the message to edit when the notification log
+// has an id for this chat. A missing, invalid, or different chat id means the
+// caller must send a new message.
+func storedTelegramMessageID(store *nflog.Store, chatID int64, logger *slog.Logger) int {
+	raw, found := store.GetStr(telegramMessageIDKey)
+	if !found || raw == "" {
+		return 0
+	}
+	messageID, err := strconv.Atoi(raw)
+	if err != nil || messageID <= 0 {
+		logger.Warn("ignoring invalid stored Telegram message id", "message_id", raw)
+		return 0
+	}
+
+	rawChat, found := store.GetStr(telegramChatIDKey)
+	storedChat, err := strconv.ParseInt(rawChat, 10, 64)
+	if !found || err != nil || storedChat != chatID {
+		logger.Debug("stored Telegram chat id missing or different, sending a new one", "message_id", messageID, "stored_chat_id", rawChat, "chat_id", chatID)
+		return 0
+	}
+	logger.Debug("recovered Telegram message id", "message_id", messageID, "chat_id", chatID)
+	return messageID
+}
+
+// telegramMessageNotEditable reports an edit that cannot succeed on a later
+// attempt. Telebot has no sentinels for the "not found" and "MESSAGE_ID_INVALID"
+// Bot API descriptions.
+func telegramMessageNotEditable(err error) bool {
+	return errors.Is(err, telebot.ErrCantEditMessage) ||
+		strings.Contains(err.Error(), "message to edit not found") ||
+		strings.Contains(err.Error(), "MESSAGE_ID_INVALID")
 }
 
 // failureReason classifies errors returned by the Telegram Bot API so that the
