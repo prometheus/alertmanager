@@ -14,6 +14,7 @@
 package sns
 
 import (
+	"strings"
 	"testing"
 
 	"go.yaml.in/yaml/v2"
@@ -83,6 +84,197 @@ sigv4:
 			in: `topic_arn: topic
 sigv4:
     secret_key: abc
+`,
+			err: true,
+		},
+		{
+			// Valid configuration with session_name and tags.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    session_name: test-session
+    tags:
+        team: observability
+        env: prod
+`,
+			err: false,
+		},
+		{
+			// session_name requires role_arn.
+			in: `topic_arn: topic
+sigv4:
+    session_name: test-session
+`,
+			err: true,
+		},
+		{
+			// tags require role_arn.
+			in: `topic_arn: topic
+sigv4:
+    tags:
+        team: observability
+`,
+			err: true,
+		},
+		{
+			// Maximum 50 tags allowed (AWS STS limit).
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        tag01: value
+        tag02: value
+        tag03: value
+        tag04: value
+        tag05: value
+        tag06: value
+        tag07: value
+        tag08: value
+        tag09: value
+        tag10: value
+        tag11: value
+        tag12: value
+        tag13: value
+        tag14: value
+        tag15: value
+        tag16: value
+        tag17: value
+        tag18: value
+        tag19: value
+        tag20: value
+        tag21: value
+        tag22: value
+        tag23: value
+        tag24: value
+        tag25: value
+        tag26: value
+        tag27: value
+        tag28: value
+        tag29: value
+        tag30: value
+        tag31: value
+        tag32: value
+        tag33: value
+        tag34: value
+        tag35: value
+        tag36: value
+        tag37: value
+        tag38: value
+        tag39: value
+        tag40: value
+        tag41: value
+        tag42: value
+        tag43: value
+        tag44: value
+        tag45: value
+        tag46: value
+        tag47: value
+        tag48: value
+        tag49: value
+        tag50: value
+        tag51: value
+`,
+			err: true,
+		},
+		{
+			// Reserved aws: prefix not allowed in tag keys.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        aws:cloudformation: value
+`,
+			err: true,
+		},
+		{
+			// Reserved aws: prefix not allowed in tag values.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        mykey: aws:value
+`,
+			err: true,
+		},
+		{
+			// Reserved aws: prefix is rejected case-insensitively.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        AWS:cloudformation: value
+`,
+			err: true,
+		},
+		{
+			// Invalid characters in tag keys.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        "my key!": value
+`,
+			err: true,
+		},
+		{
+			// Invalid characters in tag values.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        mykey: "value with !"
+`,
+			err: true,
+		},
+		{
+			// Valid Unicode characters in tag values.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        team: 团队
+        env: 開発
+`,
+			err: false,
+		},
+		{
+			// Empty tag values are allowed.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        mykey: ""
+`,
+			err: false,
+		},
+		{
+			// Tag keys longer than 128 bytes are still rejected (by sigv4.Validate).
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        ` + strings.Repeat("k", 129) + `: value
+`,
+			err: true,
+		},
+		{
+			// Tag values longer than 256 bytes are still rejected (by sigv4.Validate).
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        mykey: ` + strings.Repeat("v", 257) + `
+`,
+			err: true,
+		},
+		{
+			// AWS STS tag keys are case-insensitive; "team" and "Team" collide.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        team: observability
+        Team: platform
 `,
 			err: true,
 		},
