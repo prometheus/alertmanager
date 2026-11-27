@@ -15,6 +15,7 @@ import { Header } from './components/Header';
 import { apiTransport } from './data/connect';
 import { AlertsPage } from './pages/Alerts.page';
 import { ConfigPage } from './pages/Config.page';
+import { SilencePage } from './pages/Silence.page';
 import { SilencesPage } from './pages/Silences.page';
 import { StatusPage } from './pages/Status.page';
 import { theme } from './theme';
@@ -55,6 +56,7 @@ export default function App() {
                         <Route path="/" element={<Navigate to="/alerts" replace />} />
                         <Route path="/alerts" element={<AlertsPage />} />
                         <Route path="/silences" element={<SilencesPage />} />
+                        <Route path="/silences/:id" element={<SilencePage />} />
                         <Route path="/status" element={<StatusPage />} />
                         <Route path="/config" element={<ConfigPage />} />
                       </Routes>

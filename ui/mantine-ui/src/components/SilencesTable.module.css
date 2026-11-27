@@ -1,0 +1,113 @@
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.table :is(th, td) {
+  border-block-end: 1px solid var(--table-border-color);
+}
+
+.table th {
+  white-space: nowrap;
+}
+
+.table td {
+  height: var(--silence-row-height);
+  vertical-align: middle;
+}
+
+.table time {
+  font-size: var(--mantine-font-size-xs);
+  white-space: nowrap;
+}
+
+.more {
+  flex: none;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  padding-inline: 0.125rem;
+  color: var(--mantine-primary-color-filled);
+  font-size: var(--mantine-font-size-xs);
+  text-align: center;
+}
+
+.more:hover {
+  text-decoration: underline;
+}
+
+.tagToggleColumn {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.tagToggleColumn [aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.table .expandedCell {
+  height: auto;
+  padding: 0;
+  background-color: var(--mantine-color-default-hover);
+}
+
+.expandedTags {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.tagGroups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mantine-spacing-sm);
+  padding: var(--mantine-spacing-xs);
+}
+
+.stateColumn {
+  width: 6rem;
+}
+
+.silenceColumn {
+  width: 18rem;
+}
+
+.silenceID {
+  display: block;
+  line-height: 1.25;
+  word-break: break-all;
+}
+
+.creator {
+  width: 8rem;
+}
+
+.timestamp {
+  width: 7.75rem;
+}
+
+.inlineState {
+  display: flex;
+  flex: none;
+}
+
+@container (width < 42rem) {
+  .tagGroups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (width < 40rem) {
+  .silenceColumn {
+    width: 40%;
+  }
+}
+
+@container (width < 30rem) {
+  .table th {
+    font-size: var(--mantine-font-size-xs);
+  }
+
+  .silenceColumn {
+    width: 45%;
+  }
+}
