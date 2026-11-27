@@ -523,13 +523,51 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "junius is not a valid month",
 	},
 	{
-		// Start month after end month.
+		// Start month after end month wraps around the year.
 		in: `
 ---
-- months: ['december:january']
+- months: ['november:february']
 `,
-		expectError: true,
-		err:         "end month january is before start month december",
+		intervals: []TimeInterval{
+			{
+				Months: []MonthRange{{InclusiveRange{Begin: 11, End: 2}}},
+			},
+		},
+		contains: []string{
+			"01 Nov 20 00:00 +0000",
+			"31 Dec 20 23:59 +0000",
+			"01 Jan 21 00:00 +0000",
+			"28 Feb 21 23:59 +0000",
+		},
+		excludes: []string{
+			"31 Oct 20 23:59 +0000",
+			"01 Mar 21 00:00 +0000",
+			"15 Jul 20 12:00 +0000",
+		},
+	},
+	{
+		// A wrapping month range is matched against the month alone, so with
+		// a year range it covers both ends of the same year.
+		in: `
+---
+- months: ['12:1']
+  years: ['2020']
+`,
+		intervals: []TimeInterval{
+			{
+				Months: []MonthRange{{InclusiveRange{Begin: 12, End: 1}}},
+				Years:  []YearRange{{InclusiveRange{Begin: 2020, End: 2020}}},
+			},
+		},
+		contains: []string{
+			"15 Jan 20 12:00 +0000",
+			"15 Dec 20 12:00 +0000",
+		},
+		excludes: []string{
+			"15 Dec 19 12:00 +0000",
+			"15 Jan 21 12:00 +0000",
+			"15 Jun 20 12:00 +0000",
+		},
 	},
 	{
 		// Month number above 12.
@@ -568,7 +606,7 @@ var yamlUnmarshalTestCases = []struct {
 		err:         "14 is not a valid month: out of range",
 	},
 	{
-		// Out-of-range start month after end month.
+		// Out-of-range start month.
 		in: `
 ---
 - months: ['13:12']

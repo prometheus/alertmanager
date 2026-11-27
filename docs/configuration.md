@@ -485,7 +485,9 @@ Inclusive on both ends.
 
 `month_range`: A list of calendar months identified by a case-insensitive name (e.g. 'January') or by number,
 where January = 1. Ranges are also accepted. For example, `['1:3', 'may:august', 'december']`.
-Inclusive on both ends.
+Inclusive on both ends. The range may also wrap around the end of the year, e.g. `november:february`
+covers November, December, January, and February. Like the other fields, it is matched against the
+month alone, so together with `years: ['2026']` it covers January, February, November, and December of 2026.
 
 `year_range`: A numerical list of years. Ranges are accepted. For example, `['2020:2022', '2030']`.
 Inclusive on both ends.
