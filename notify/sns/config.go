@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"unicode/utf8"
 
 	commoncfg "github.com/prometheus/common/config"
 
@@ -102,14 +101,8 @@ func (c *SNSConfig) Validate() error {
 		if hasAWSPrefix(v) {
 			return fmt.Errorf("sigv4.tags value for key %q must not use the reserved 'aws:' prefix", k)
 		}
-		// AWS tag keys must be non-empty and ≤ 128 characters (rune-based).
-		if utf8.RuneCountInString(k) > 128 {
-			return fmt.Errorf("sigv4.tags key %q exceeds maximum length of 128", k)
-		}
-		// AWS tag values must be ≤ 256 characters (rune-based).
-		if utf8.RuneCountInString(v) > 256 {
-			return fmt.Errorf("sigv4.tags value for key %q exceeds maximum length of 256", k)
-		}
+		// Length limits (keys ≤128 bytes, values ≤256 bytes) are enforced
+		// by c.Sigv4.Validate() above.
 		// Validate allowed characters for both keys and values.
 		// See: https://docs.aws.amazon.com/STS/latest/APIReference/API_Tag.html
 		if !sessionTagPattern.MatchString(k) {
@@ -122,7 +115,8 @@ func (c *SNSConfig) Validate() error {
 	return nil
 }
 
-// hasAWSPrefix reports whether s begins with the reserved "aws:" prefix.
+// hasAWSPrefix reports whether s begins with the reserved "aws:" prefix,
+// which AWS treats case-insensitively.
 func hasAWSPrefix(s string) bool {
-	return len(s) >= 4 && s[:4] == "aws:"
+	return len(s) >= 4 && strings.EqualFold(s[:4], "aws:")
 }

@@ -14,6 +14,7 @@
 package sns
 
 import (
+	"strings"
 	"testing"
 
 	"go.yaml.in/yaml/v2"
@@ -196,6 +197,16 @@ sigv4:
 			err: true,
 		},
 		{
+			// Reserved aws: prefix is rejected case-insensitively.
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        AWS:cloudformation: value
+`,
+			err: true,
+		},
+		{
 			// Invalid characters in tag keys.
 			in: `topic_arn: topic
 sigv4:
@@ -235,6 +246,26 @@ sigv4:
         mykey: ""
 `,
 			err: false,
+		},
+		{
+			// Tag keys longer than 128 bytes are still rejected (by sigv4.Validate).
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        ` + strings.Repeat("k", 129) + `: value
+`,
+			err: true,
+		},
+		{
+			// Tag values longer than 256 bytes are still rejected (by sigv4.Validate).
+			in: `topic_arn: topic
+sigv4:
+    role_arn: arn:aws:iam::123456789012:role/test
+    tags:
+        mykey: ` + strings.Repeat("v", 257) + `
+`,
+			err: true,
 		},
 		{
 			// AWS STS tag keys are case-insensitive; "team" and "Team" collide.
