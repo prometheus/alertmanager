@@ -218,3 +218,29 @@ func TestUnmarshalRelativeURL(t *testing.T) {
 		t.Errorf("Expected an error parsing URL")
 	}
 }
+
+func TestHideSecretURLYAML(t *testing.T) {
+	b := []byte(`"://wrongurl/"`)
+	var u SecretURL
+
+	err := yaml.Unmarshal(b, &u)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "wrongurl")
+
+	var tu SecretTemplateURL
+	err = yaml.Unmarshal(b, &tu)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "wrongurl")
+}
+
+func TestShowMarshalSecretURLYAML(t *testing.T) {
+	commoncfg.MarshalSecretValue = true
+	defer func() { commoncfg.MarshalSecretValue = false }()
+
+	b := []byte(`"://wrongurl/"`)
+	var u SecretURL
+
+	err := yaml.Unmarshal(b, &u)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "wrongurl")
+}

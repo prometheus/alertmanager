@@ -2027,3 +2027,67 @@ receivers:
 		t.Errorf("expected local proxy_url %q, got %q", "http://local-proxy.example.com:8080", got)
 	}
 }
+
+// Secret URL fields must not be echoed back in the error returned for a
+// value that fails to parse.
+func TestLoadInvalidSecretURLDoesNotLeak(t *testing.T) {
+	const token = "SECRETTOKEN123"
+
+	for name, tc := range map[string]struct {
+		in      string
+		wantErr string
+	}{
+		"global slack_api_url": {
+			in: `
+global:
+  slack_api_url: "http://hooks.example.com/%zz/` + token + `"
+route:
+  receiver: r
+receivers:
+- name: r
+`,
+			wantErr: "invalid URL",
+		},
+		"slack api_url": {
+			in: `
+route:
+  receiver: r
+receivers:
+- name: r
+  slack_configs:
+  - api_url: "http://hooks.example.com:badport/` + token + `"
+`,
+			wantErr: "invalid URL",
+		},
+		"discord webhook_url": {
+			in: `
+route:
+  receiver: r
+receivers:
+- name: r
+  discord_configs:
+  - webhook_url: "` + token + `://hooks.example.com/x"
+`,
+			wantErr: "unsupported scheme",
+		},
+		"webhook url": {
+			in: `
+route:
+  receiver: r
+receivers:
+- name: r
+  webhook_configs:
+  - url: "http://hooks.example.com/%zz/` + token + `"
+`,
+			wantErr: "invalid URL",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Load(tc.in)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantErr)
+			// Schemes are lower-cased by net/url, so compare without case.
+			require.NotContains(t, strings.ToLower(err.Error()), strings.ToLower(token))
+		})
+	}
+}
