@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"runtime"
 	"slices"
 	"sort"
@@ -105,6 +106,8 @@ type slot struct {
 	key string
 	// opts are the routing options shared by the routes of the slot.
 	opts RouteOpts
+	// groupByNames are the keys of opts.GroupBy, sorted.
+	groupByNames []model.LabelName
 	// matchers are the matchers of the routes, the same for all of them.
 	matchers labels.Matchers
 	// routes are the routes feeding the slot, in Walk order.
@@ -117,10 +120,11 @@ type slot struct {
 // newSlot returns the slot of a route.
 func newSlot(r *Route) *slot {
 	return &slot{
-		key:      r.Key(),
-		opts:     r.RouteOpts,
-		matchers: r.Matchers,
-		routes:   []*Route{r},
+		key:          r.Key(),
+		opts:         r.RouteOpts,
+		groupByNames: slices.Sorted(maps.Keys(r.RouteOpts.GroupBy)),
+		matchers:     r.Matchers,
+		routes:       []*Route{r},
 	}
 }
 
@@ -212,17 +216,21 @@ func (d *Dispatcher) Run(dispatchStartTime time.Time) {
 	d.aggrGroupsNum.Store(0)
 	d.metrics.aggrGroups.Set(0)
 
-	initalAlerts, it := d.alerts.SlurpAndSubscribe("dispatcher")
+	initalAlerts, its := d.alerts.SlurpAndSubscribe("dispatcher", d.concurrency)
 	for _, alrt := range initalAlerts {
 		d.routeAlert(d.ctx, alrt)
 	}
 	close(d.loaded)
 
-	d.run(it)
+	d.run(its)
 }
 
-func (d *Dispatcher) run(it provider.AlertIterator) {
-	defer it.Close()
+func (d *Dispatcher) run(its []provider.AlertIterator) {
+	defer func() {
+		for _, it := range its {
+			it.Close()
+		}
+	}()
 
 	// Start maintenance goroutine
 	d.finished.Go(func() {
@@ -261,14 +269,13 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 		}
 	})
 
-	// Start multiple alert ingestion goroutines
-	alertCh := it.Next()
-	for i := 0; i < d.concurrency; i++ {
-		d.finished.Add(1)
-		go func(workerID int) {
-			defer d.finished.Done()
+	// One ingestion goroutine per shard: the provider delivers all updates to
+	// an alert on the same shard, so they are routed in order.
+	for workerID, it := range its {
+		d.finished.Go(func() {
 			d.logger.Debug("starting alert ingestion worker", "workerID", workerID)
 
+			alertCh := it.Next()
 			for {
 				select {
 				case alrt, ok := <-alertCh:
@@ -297,7 +304,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 					return
 				}
 			}
-		}(i)
+		})
 	}
 	<-d.ctx.Done()
 }
@@ -309,28 +316,25 @@ func (d *Dispatcher) routeAlert(ctx context.Context, alrt *alert.Alert) {
 	defer span.End()
 
 	now := time.Now()
-	for _, r := range d.matchRoutes(alrt.Labels) {
-		tracing.EventRouteMatched(span, r.RouteOpts.Receiver)
-		d.groupAlert(ctx, alrt, r)
-	}
+	d.matchSlots(alrt.Labels, func(s *slot) {
+		tracing.EventRouteMatched(span, s.opts.Receiver)
+		d.groupAlert(ctx, alrt, s)
+	})
 	d.metrics.processingDuration.Observe(time.Since(now).Seconds())
 }
 
-// matchRoutes returns the routes matching the labels, one per slot: routes
-// sharing a slot share their groups, so grouping the alert through a second
-// route of the slot would only repeat the work of the first. The matches are
-// deduplicated by slot as they are added, with a linear scan: an alert
-// matches one route nearly always and a handful at most, and comparing that
-// many pointers stays cheaper than a set, which allocates and hashes, up to
-// fanouts of over a hundred routes.
-func (d *Dispatcher) matchRoutes(lset model.LabelSet) []*Route {
-	var routes []*Route
+// matchSlots calls visit once for each slot the labels route to. Routes
+// sharing a slot share their groups, so an alert is grouped once per slot.
+func (d *Dispatcher) matchSlots(lset model.LabelSet, visit func(*slot)) {
+	var buf [16]*slot
+	seen := buf[:0]
 	d.route.match(lset, func(r *Route) {
-		if !slices.ContainsFunc(routes, func(m *Route) bool { return m.slot == r.slot }) {
-			routes = append(routes, r)
+		if slices.Contains(seen, r.slot) {
+			return
 		}
+		seen = append(seen, r.slot)
+		visit(r.slot)
 	})
-	return routes
 }
 
 func (d *Dispatcher) doMaintenance() {
@@ -533,17 +537,18 @@ func (d *Dispatcher) Stop() {
 // Returns false if notifying failed.
 type notifyFunc func(context.Context, ...*alert.Alert) bool
 
-// groupAlert determines in which aggregation group the alert falls
-// and inserts it.
-func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *Route) {
-	s := route.slot
+// groupAlert determines in which aggregation group of the slot the alert
+// falls and inserts it.
+func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, s *slot) {
 	_, span := tracer.StartGroupAlert(ctx, alrt, s.opts.Receiver)
 	defer span.End()
 
 	now := time.Now()
-	groupLabels := getGroupLabels(alrt, &s.opts)
-
-	fp := groupLabels.Fingerprint()
+	// The fingerprint of getGroupLabels(alrt, &s.opts), built only on a miss.
+	fp := alrt.Fingerprint()
+	if !s.opts.GroupByAll {
+		fp = alrt.Labels.FingerprintForLabels(s.groupByNames...)
+	}
 
 	el, loaded := s.groups.Load(fp)
 	if loaded {
@@ -571,7 +576,7 @@ func (d *Dispatcher) groupAlert(ctx context.Context, alrt *alert.Alert, route *R
 		return
 	}
 
-	ag := newAggrGroup(d.ctx, groupLabels, s, d.timeout, d.recorder, d.logger, d.tmpl)
+	ag := newAggrGroup(d.ctx, getGroupLabels(alrt, &s.opts), s, d.timeout, d.recorder, d.logger, d.tmpl)
 	// Insert the 1st alert in the group before starting the group's run()
 	// function, to make sure that when the run() will be executed the 1st
 	// alert is already there.

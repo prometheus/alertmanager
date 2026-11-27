@@ -139,16 +139,16 @@ func makeBenchAlertBatch(size, offset, numTeams, numClusters, numPriorities int)
 }
 
 // setupDispatcher creates a dispatcher with the given route for benchmarking.
-func setupDispatcher(b *testing.B, route *Route) (*Dispatcher, *mem.Alerts, *recordStage) {
+func setupDispatcher(tb testing.TB, route *Route) (*Dispatcher, *mem.Alerts, *recordStage) {
 	logger := promslog.NewNopLogger()
 	reg := prometheus.NewRegistry()
 
 	alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
-	require.NoError(b, err)
-	b.Cleanup(func() { alerts.Close() })
+	require.NoError(tb, err)
+	tb.Cleanup(func() { alerts.Close() })
 
 	tmpl, err := template.FromGlobs([]string{})
-	require.NoError(b, err)
+	require.NoError(tb, err)
 	tmpl.ExternalURL = &url.URL{Scheme: "http", Host: "example.com"}
 
 	recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
@@ -425,4 +425,29 @@ func benchmarkGroupsRouteLabels(b *testing.B, labels model.LabelSet) {
 	b.ReportMetric(float64(resendDur)/n, "ns/resend")
 	b.ReportMetric(float64(afterResendDur)/n, "ns/groups-after-resend")
 	b.ReportMetric(float64(warmDur)/n, "ns/groups-warm")
+}
+
+// BenchmarkRouteAlert routes a re-sent alert into its existing group, the
+// steady state of a firing alert.
+func BenchmarkRouteAlert(b *testing.B) {
+	b.Run("8 routes", func(b *testing.B) {
+		benchmarkRouteAlert(b, 2, 2, 2)
+	})
+	b.Run("500 routes", func(b *testing.B) {
+		benchmarkRouteAlert(b, 25, 4, 5)
+	})
+}
+
+func benchmarkRouteAlert(b *testing.B, numTeams, numClusters, numPriorities int) {
+	b.ReportAllocs()
+	d, _, _ := setupDispatcher(b, buildDeepRouteTree(numTeams, numClusters, numPriorities, nil))
+	// Keep new groups from starting their run loop.
+	d.state.Store(DispatcherStateWaitingToStart)
+	ctx := context.Background()
+	alrt := makeBenchAlertBatch(1, numTeams*numClusters*numPriorities-1, numTeams, numClusters, numPriorities)[0]
+	d.routeAlert(ctx, alrt)
+
+	for b.Loop() {
+		d.routeAlert(ctx, alrt)
+	}
 }

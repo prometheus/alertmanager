@@ -728,11 +728,11 @@ route:
 	require.Equal(t, route.Routes[0].Key(), same.key)
 }
 
-// TestMatchRoutes checks that the dispatcher groups an alert once per matched
+// TestMatchSlots checks that the dispatcher groups an alert once per matched
 // slot, and that a route is still matched when another route of its slot is
 // shadowed by a sibling: the deduplication must happen on the matches, not by
 // picking one route per slot up front.
-func TestMatchRoutes(t *testing.T) {
+func TestMatchSlots(t *testing.T) {
 	confData := `receivers:
 - name: 'default'
 - name: 'team'
@@ -763,15 +763,20 @@ route:
 	require.Same(t, team.slot, twin.slot)
 	require.NotSame(t, shadow.slot, team.slot)
 
+	slotsFor := func(lset model.LabelSet) []*slot {
+		var slots []*slot
+		d.matchSlots(lset, func(s *slot) { slots = append(slots, s) })
+		return slots
+	}
 	// The first team route is shadowed by its sibling, the second one is not:
 	// the alert is grouped in both slots, once each.
-	require.Equal(t, []*Route{shadow, twin}, d.matchRoutes(model.LabelSet{"env": "prod", "service": "api"}))
+	require.Equal(t, []*slot{shadow.slot, twin.slot}, slotsFor(model.LabelSet{"env": "prod", "service": "api"}))
 	// Nothing below the parents matches, so they are matched themselves. They
 	// have the same key and inherit the same options, so they share a slot and
-	// the alert is grouped once, through the first of them.
+	// the alert is grouped once.
 	require.Same(t, route.Routes[0].slot, route.Routes[1].slot)
-	require.Equal(t, []*Route{route.Routes[0]}, d.matchRoutes(model.LabelSet{"env": "prod"}))
-	require.Equal(t, []*Route{route}, d.matchRoutes(model.LabelSet{"service": "api"}))
+	require.Equal(t, []*slot{route.Routes[0].slot}, slotsFor(model.LabelSet{"env": "prod"}))
+	require.Equal(t, []*slot{route.slot}, slotsFor(model.LabelSet{"service": "api"}))
 }
 
 func TestGroupsWithLimits(t *testing.T) {
@@ -1192,7 +1197,7 @@ func TestGroupAlert_RecoversWhenCASFails(t *testing.T) {
 				})
 				ready.Done()
 				<-start
-				dispatcher.groupAlert(context.Background(), alrt, route)
+				dispatcher.groupAlert(context.Background(), alrt, route.slot)
 			}()
 		}
 		ready.Wait()
@@ -1266,7 +1271,7 @@ func TestGroupAlert_DisplacedAggrGroupGoroutineExits(t *testing.T) {
 	go displaced.run(func(context.Context, ...*alert.Alert) bool { return true })
 
 	// Trigger the CAS replacement.
-	dispatcher.groupAlert(context.Background(), newAlert(groupLabels), route)
+	dispatcher.groupAlert(context.Background(), newAlert(groupLabels), route.slot)
 
 	// The displaced group should have been swapped out for a fresh one.
 	el, ok := route.slot.groups.Load(displaced.fingerprint())
@@ -2046,4 +2051,106 @@ func TestRouteLabelsExtendedAlertsRefreshWithoutRender(t *testing.T) {
 		require.True(t, time.Now().Equal(rerendered.renderedAt), "a status flip must render again")
 		require.True(t, rerendered.validUntil.IsZero())
 	})
+}
+
+// TestConcurrentIngestionPreservesUpdateOrder sends bursts of updates per
+// fingerprint, interleaved across many fingerprints, and checks that no
+// aggregation group ends up holding an older update than the last one sent.
+func TestConcurrentIngestionPreservesUpdateOrder(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		confData := `receivers:
+- name: 'prod'
+
+route:
+  group_by: ['alertname']
+  group_wait: 1h
+  group_interval: 1h
+  receiver: 'prod'`
+		conf, err := config.Load(confData)
+		require.NoError(t, err)
+
+		logger := promslog.NewNopLogger()
+		route := NewRoute(conf.Route, nil)
+		reg := prometheus.NewRegistry()
+		alerts, err := mem.NewAlerts(context.Background(), time.Hour, 0, nil, logger, eventrecorder.NopRecorder(), reg, nil)
+		require.NoError(t, err)
+		defer alerts.Close()
+
+		timeout := func(time.Duration) time.Duration { return 0 }
+		recorder := &recordStage{alerts: make(map[string]map[model.Fingerprint]*alert.Alert)}
+		dispatcher := NewDispatcher(alerts, route, recorder, nil, timeout, testMaintenanceInterval, nil, logger, eventrecorder.NopRecorder(), NewDispatcherMetrics(false, reg, nil), nil)
+		go dispatcher.Run(time.Now())
+		defer dispatcher.Stop()
+		<-dispatcher.LoadingDone()
+
+		const (
+			nAlerts = 64 // distinct fingerprints
+			nRounds = 10 // passes over all fingerprints
+			nBurst  = 5  // consecutive updates per fingerprint per round
+		)
+		base := time.Now()
+		seq := 0
+		for round := range nRounds {
+			for i := range nAlerts {
+				for b := range nBurst {
+					seq++
+					version := round*nBurst + b
+					a := alert.New(model.Alert{
+						Labels:      model.LabelSet{"alertname": "Ordered", "instance": model.LabelValue(fmt.Sprint(i))},
+						Annotations: model.LabelSet{"version": model.LabelValue(fmt.Sprint(version))},
+						StartsAt:    base.Add(-time.Minute),
+						EndsAt:      base.Add(time.Duration(version+1) * time.Minute),
+					}, base.Add(time.Duration(seq)*time.Millisecond), false)
+					require.NoError(t, alerts.Put(context.Background(), a))
+				}
+			}
+		}
+		// Wait until the ingestion goroutines have drained the provider.
+		synctest.Wait()
+
+		groups, _, err := dispatcher.Groups(context.Background(),
+			func(*Route) bool { return true },
+			func(*alert.Alert, time.Time) (alert.AlertStatus, bool) { return alert.AlertStatus{}, true },
+		)
+		require.NoError(t, err)
+
+		want := fmt.Sprint(nRounds*nBurst - 1)
+		seen := 0
+		for _, g := range groups {
+			for _, a := range g.Alerts {
+				seen++
+				require.Equal(t, want, string(a.Annotations["version"]),
+					"alert %s holds a stale version", a.Labels["instance"])
+			}
+		}
+		require.Equal(t, nAlerts, seen)
+	})
+}
+
+// TestRoutingAllocations checks that matching routes and finding the group of
+// an alert do not allocate, as both run for every alert update.
+func TestRoutingAllocations(t *testing.T) {
+	// AllocsPerRun changes GOMAXPROCS, so keep allocation tests sequential.
+	route := NewRoute(&config.Route{
+		Receiver: "team",
+		GroupBy:  []model.LabelName{"alertname", "cluster"},
+		Routes:   []*config.Route{{Receiver: "team", Match: map[string]string{"env": "prod"}}},
+	}, nil)
+	d, _, _ := setupDispatcher(t, route)
+	d.state.Store(DispatcherStateWaitingToStart)
+	a := newAlert(model.LabelSet{"alertname": "A", "cluster": "c1", "env": "prod"})
+
+	require.Zero(t, testing.AllocsPerRun(100, func() {
+		n := 0
+		d.matchSlots(a.Labels, func(*slot) { n++ })
+		if n != 1 {
+			t.Fatal("expected one slot")
+		}
+	}))
+	ctx := context.Background()
+	d.routeAlert(ctx, a) // Creates the group.
+	require.Zero(t, testing.AllocsPerRun(100, func() {
+		d.routeAlert(ctx, a)
+	}))
 }
