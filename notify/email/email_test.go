@@ -30,14 +30,17 @@ package email
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -363,6 +366,159 @@ func TestEmailNotifyWithDoneContext(t *testing.T) {
 	)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "establish connection to server")
+}
+
+// TestEmailNotifyImplicitTLSWithDoneContext checks that the implicit TLS dial
+// honours the context when the server accepts the connection but never answers
+// the TLS handshake.
+func TestEmailNotifyImplicitTLSWithDoneContext(t *testing.T) {
+	t.Parallel()
+
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var conns []net.Conn
+	accepted := make(chan struct{})
+	go func() {
+		defer close(accepted)
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			// Keep the connection open without ever writing to it.
+			conns = append(conns, conn)
+		}
+	}()
+	t.Cleanup(func() {
+		l.Close()
+		<-accepted
+		for _, c := range conns {
+			c.Close()
+		}
+	})
+
+	host, port, err := net.SplitHostPort(l.Addr().String())
+	require.NoError(t, err)
+
+	forceImplicitTLS := true
+	cfg := &EmailConfig{
+		Smarthost:        amcommoncfg.HostPort{Host: host, Port: port},
+		To:               emailTo,
+		From:             emailFrom,
+		HTML:             "HTML body",
+		Text:             "Text body",
+		ForceImplicitTLS: &forceImplicitTLS,
+		TLSConfig:        &commoncfg.TLSConfig{},
+	}
+	tmpl, firingAlert, err := prepare(cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	done := make(chan notify.NotifyVerdict, 1)
+	go func() {
+		done <- New(cfg, tmpl, promslog.NewNopLogger()).Notify(ctx, firingAlert)
+	}()
+
+	select {
+	case verdict := <-done:
+		require.ErrorContains(t, verdict.Err(), "establish TLS connection to server")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Notify did not return after the context was done")
+	}
+}
+
+// TestEmailNotifySilentServerWithDoneContext checks that Notify honours the
+// context after the connection is up, when the server never sends its SMTP
+// greeting.
+func TestEmailNotifySilentServerWithDoneContext(t *testing.T) {
+	t.Parallel()
+
+	// httptest provides a self-signed certificate for the TLS case.
+	certSrv := httptest.NewUnstartedServer(nil)
+	certSrv.StartTLS()
+	cert := certSrv.TLS.Certificates[0]
+	certSrv.Close()
+
+	for _, tc := range []struct {
+		name        string
+		implicitTLS bool
+	}{
+		{name: "plain connection", implicitTLS: false},
+		{name: "implicit TLS after the handshake", implicitTLS: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			l, err := net.Listen("tcp", "localhost:0")
+			require.NoError(t, err)
+
+			var (
+				mu    sync.Mutex
+				conns []net.Conn
+			)
+			accepted := make(chan struct{})
+			go func() {
+				defer close(accepted)
+				for {
+					conn, err := l.Accept()
+					if err != nil {
+						return
+					}
+					mu.Lock()
+					conns = append(conns, conn)
+					mu.Unlock()
+					if tc.implicitTLS {
+						// Finish the handshake, then never write the greeting.
+						tlsConn := tls.Server(conn, &tls.Config{Certificates: []tls.Certificate{cert}})
+						go tlsConn.Handshake()
+					}
+				}
+			}()
+			t.Cleanup(func() {
+				l.Close()
+				<-accepted
+				mu.Lock()
+				defer mu.Unlock()
+				for _, c := range conns {
+					c.Close()
+				}
+			})
+
+			host, port, err := net.SplitHostPort(l.Addr().String())
+			require.NoError(t, err)
+
+			implicitTLS := tc.implicitTLS
+			cfg := &EmailConfig{
+				Smarthost:        amcommoncfg.HostPort{Host: host, Port: port},
+				To:               emailTo,
+				From:             emailFrom,
+				HTML:             "HTML body",
+				Text:             "Text body",
+				ForceImplicitTLS: &implicitTLS,
+				TLSConfig:        &commoncfg.TLSConfig{InsecureSkipVerify: true},
+			}
+			tmpl, firingAlert, err := prepare(cfg)
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
+			done := make(chan notify.NotifyVerdict, 1)
+			go func() {
+				done <- New(cfg, tmpl, promslog.NewNopLogger()).Notify(ctx, firingAlert)
+			}()
+
+			select {
+			case verdict := <-done:
+				require.ErrorContains(t, verdict.Err(), "create SMTP client")
+			case <-time.After(5 * time.Second):
+				t.Fatal("Notify did not return after the context was done")
+			}
+		})
+	}
 }
 
 // TestEmailNotifyWithoutAuthentication sends an email to an instance of
