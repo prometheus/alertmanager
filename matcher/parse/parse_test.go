@@ -219,6 +219,14 @@ func TestMatchers(t *testing.T) {
 		name:  "invalid unicode",
 		input: "{\"foo\"=\"\\xf0\\x9f\"}",
 		error: "7:17: \"\\xf0\\x9f\": invalid input",
+	}, {
+		name:  "empty label name",
+		input: "{\"\"=\"bar\"}",
+		error: "1:3: \"\": expected label name",
+	}, {
+		name:  "empty label name after a matcher",
+		input: "{foo=bar,\"\"!~\"baz\"}",
+		error: "9:11: \"\": expected label name",
 	}}
 
 	for _, test := range tests {
@@ -363,6 +371,10 @@ func TestMatcher(t *testing.T) {
 		name:  "invalid unicode",
 		input: "foo=\"\\xf0\\x9f\"",
 		error: "4:14: \"\\xf0\\x9f\": invalid input",
+	}, {
+		name:  "empty label name",
+		input: "\"\"=\"\"",
+		error: "0:2: \"\": expected label name",
 	}}
 
 	for _, test := range tests {
