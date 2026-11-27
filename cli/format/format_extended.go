@@ -112,6 +112,20 @@ func (formatter *ExtendedFormatter) FormatClusterStatus(status *models.ClusterSt
 	return w.Flush()
 }
 
+func (formatter *ExtendedFormatter) FormatAlertReceivers(receivers []string) error {
+	w := tabwriter.NewWriter(formatter.writer, 0, 0, 2, ' ', 0)
+	sort.Strings(receivers)
+	fmt.Fprintln(w, "Receiver\t")
+	for _, receiver := range receivers {
+		fmt.Fprintf(
+			w,
+			"%s\t\n",
+			receiver,
+		)
+	}
+	return w.Flush()
+}
+
 func extendedFormatLabels(labels models.LabelSet) string {
 	output := []string{}
 	for name, value := range labels {
