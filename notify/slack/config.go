@@ -172,6 +172,9 @@ type SlackConfig struct {
 	MrkdwnIn    []string       `yaml:"mrkdwn_in,omitempty" json:"mrkdwn_in,omitempty"`
 	Actions     []*SlackAction `yaml:"actions,omitempty" json:"actions,omitempty"`
 
+	// BlockKitPayload defines the custom Block Kit blocks sent in the Slack payload.
+	BlockKitPayload any `yaml:"block_kit_payload,omitempty" json:"block_kit_payload,omitempty"`
+
 	// UpdateMessage enables updating existing Slack messages instead of creating new ones.
 	// Requires bot token with chat:write scope. Webhook URLs do not support updates.
 
