@@ -187,14 +187,14 @@ func TestSearchExistingIssue(t *testing.T) {
 				return tmplText(tmpl), tmplTextErr
 			}
 
-			issue, retry, _, err := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
+			issue, verdict := pd.searchExistingIssue(ctx, logger, tc.groupKey, tc.firing, tmplTextFunc)
 			if tc.expectedErr {
-				require.Error(t, err)
+				require.Error(t, verdict.Err())
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, verdict.Err())
 			}
 			require.Equal(t, tc.expectedIssue, issue)
-			require.Equal(t, tc.expectedRetry, retry)
+			require.Equal(t, tc.expectedRetry, verdict.ShouldRetry())
 		})
 	}
 }
