@@ -20,13 +20,47 @@ is the recommended way of installing Alertmanager.
 
 ### Docker images
 
-Docker images are available on [Quay.io](https://quay.io/repository/prometheus/alertmanager) or [Docker Hub](https://hub.docker.com/r/prom/alertmanager/).
+Docker images are available as `quay.io/prometheus/alertmanager` on
+[Quay.io](https://quay.io/repository/prometheus/alertmanager),
+`prom/alertmanager` on [Docker Hub](https://hub.docker.com/r/prom/alertmanager/)
+and `ghcr.io/prometheus/alertmanager` on the
+[GitHub Container Registry](https://github.com/prometheus/alertmanager/pkgs/container/alertmanager).
+Since 0.35.0, every release is also published as a distroless image without a
+shell, tagged with a `-distroless` suffix such as `latest-distroless`.
 
 You can launch an Alertmanager container for trying it out with
 
     $ docker run --name alertmanager -d -p 127.0.0.1:9093:9093 quay.io/prometheus/alertmanager
 
 Alertmanager will now be reachable at http://localhost:9093/.
+
+The container runs `/bin/alertmanager` with
+`--config.file=/etc/alertmanager/alertmanager.yml` and
+`--storage.path=/alertmanager`. Arguments after the image name replace these
+flags, so repeat them when adding your own. Port 9093 serves the UI and the
+API. Port 9094 is used for clustering over TCP and UDP and is not exposed by
+the image, so publish both protocols when running a cluster (see
+[High Availability](#high-availability)).
+
+Silences and the notification log are stored in `/alertmanager`. The default
+image runs as `nobody` (UID 65534) and the distroless image as `nonroot`
+(UID 65532), so a host directory mounted there must be writable by that user.
+Otherwise Alertmanager fails to start or loses its silences on restart, with
+errors such as `open /alertmanager/nflog: permission denied`. For the default
+image, make UID 65534 the owner of the directory and keep it private to that
+user. The example also expects your configuration in `alertmanager.yml`, since
+Docker creates an empty directory in place of a bind-mounted file that does not
+exist:
+
+    $ mkdir -p -m 700 data && sudo chown 65534:65534 data
+    $ docker run --name alertmanager -d -p 127.0.0.1:9093:9093 \
+        -v "$PWD/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
+        -v "$PWD/data:/alertmanager" \
+        quay.io/prometheus/alertmanager
+
+Use `65532:65532` for the distroless image. Alternatively, skip the `chown` and
+add `--user "$(id -u):$(id -g)"` to the `docker run` command to run
+Alertmanager as yourself.
 
 ### Compiling the binary
 
