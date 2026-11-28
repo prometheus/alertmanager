@@ -47,9 +47,12 @@ image runs as `nobody` (UID 65534) and the distroless image as `nonroot`
 (UID 65532), so a host directory mounted there must be writable by that user.
 Otherwise Alertmanager fails to start or loses its silences on restart, with
 errors such as `open /alertmanager/nflog: permission denied`. For the default
-image, make UID 65534 the owner of the directory:
+image, make UID 65534 the owner of the directory and keep it private to that
+user. The example also expects your configuration in `alertmanager.yml`, since
+Docker creates an empty directory in place of a bind-mounted file that does not
+exist:
 
-    $ mkdir -p data && sudo chown 65534:65534 data
+    $ mkdir -p -m 700 data && sudo chown 65534:65534 data
     $ docker run --name alertmanager -d -p 127.0.0.1:9093:9093 \
         -v "$PWD/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
         -v "$PWD/data:/alertmanager" \
