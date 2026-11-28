@@ -63,11 +63,14 @@ func NewInhibitor(ap provider.Alerts, rs []amcommoncfg.InhibitRule, logger *slog
 	ih.loadingFinished.Add(1)
 	ruleNames := make(map[string]struct{})
 	for i, cr := range rs {
-		if _, ok := ruleNames[cr.Name]; ok {
+		if _, ok := ruleNames[cr.Name]; ok && ih.logger != nil {
 			ih.logger.Debug("duplicate inhibition rule name", "index", i, "name", cr.Name)
 		}
 
 		r := NewInhibitRule(cr)
+		if len(r.SourceMatchers) == 0 && ih.logger != nil {
+			ih.logger.Warn("inhibition rule has no source matchers and will never inhibit any alerts", "index", i, "name", cr.Name)
+		}
 		ih.rules = append(ih.rules, r)
 
 		if cr.Name != "" {
@@ -111,7 +114,7 @@ func (ih *Inhibitor) processAlert(ctx context.Context, a *alert.Alert) {
 
 	// Update the inhibition rules' cache.
 	for _, r := range ih.rules {
-		if r.SourceMatchers.Matches(a.Labels) {
+		if r.matchesSource(a.Labels) {
 			tracing.EventInhibitRuleSourceMatched(span, r.Name)
 			r.cache.set(a)
 		}
@@ -135,6 +138,9 @@ func (ih *Inhibitor) Run() {
 	runCtx, runCancel := context.WithCancel(ctx)
 
 	for _, rule := range ih.rules {
+		if len(rule.SourceMatchers) == 0 {
+			continue
+		}
 		go rule.cache.run(runCtx, 15*time.Minute)
 	}
 
@@ -182,6 +188,11 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 
 	now := time.Now()
 	for _, r := range ih.rules {
+		if len(r.SourceMatchers) == 0 {
+			// An inhibition rule without source matchers can never match any
+			// source alert and therefore never inhibits.
+			continue
+		}
 		if !r.TargetMatchers.Matches(lset.LabelSet) {
 			// If target side of rule doesn't match, we don't need to look any further.
 			continue
@@ -189,7 +200,7 @@ func (ih *Inhibitor) Mutes(ctx context.Context, lset labelset.LabelSet) bool {
 		tracing.EventInhibitRuleTargetMatched(span, r.Name)
 		// If we are here, the target side matches. If the source side matches, too, we
 		// need to exclude inhibiting alerts for which the same is true.
-		if inhibitedByFP, eq := r.hasEqual(lset.LabelSet, r.SourceMatchers.Matches(lset.LabelSet), now); eq {
+		if inhibitedByFP, eq := r.hasEqual(lset.LabelSet, r.matchesSource(lset.LabelSet), now); eq {
 			inhibitedBy = append(inhibitedBy, inhibitedByFP.String())
 			tracing.EventInhibited(span, inhibitedByFP)
 			ih.recorder.RecordEvent(ctx, func() eventrecorder.EventData {
@@ -216,7 +227,8 @@ type InhibitRule struct {
 	// Name is an optional name for the inhibition rule.
 	Name string
 	// The set of Filters which define the group of source alerts (which inhibit
-	// the target alerts).
+	// the target alerts). If empty, the rule matches no source alerts and never
+	// inhibits.
 	SourceMatchers labels.Matchers
 	// The set of Filters which define the group of target alerts (which are
 	// inhibited by the source alerts).
@@ -290,6 +302,13 @@ func NewInhibitRule(cr amcommoncfg.InhibitRule) *InhibitRule {
 		Equal:          equal,
 		cache:          newCache(equal),
 	}
+}
+
+// matchesSource reports whether the rule has at least one source matcher and
+// all of them match lset. An inhibition rule without source matchers matches no
+// source alerts.
+func (r *InhibitRule) matchesSource(lset model.LabelSet) bool {
+	return len(r.SourceMatchers) > 0 && r.SourceMatchers.Matches(lset)
 }
 
 // hasEqual checks whether the source cache contains alerts matching the equal
