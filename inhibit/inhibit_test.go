@@ -14,8 +14,10 @@
 package inhibit
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -209,6 +211,7 @@ func TestInhibitRuleHasEqualKeepsSourceOnlyAlertAfterGCSameEqual(t *testing.T) {
 	}, time.Time{}, false)
 
 	ih := runInhibitor(t, []amcommoncfg.InhibitRule{{
+		SourceMatch: map[string]string{"s": "1"},
 		TargetMatch: map[string]string{"t": "1"},
 		Equal:       []string{"e"},
 	}}, sourceOnly, expiredSameEqual)
@@ -239,7 +242,10 @@ func TestInhibitRuleGCCallbackDoesNotRemoveRefreshedSameFingerprintSourceAlert(t
 		EndsAt:   now.Add(time.Hour),
 	}, now, false)
 
-	ih := runInhibitor(t, []amcommoncfg.InhibitRule{{Equal: []string{"e"}}}, oldSource, refreshedSource)
+	ih := runInhibitor(t, []amcommoncfg.InhibitRule{{
+		SourceMatch: map[string]string{"s": "1"},
+		Equal:       []string{"e"},
+	}}, oldSource, refreshedSource)
 	r := ih.rules[0]
 
 	r.cache.gc()
@@ -712,6 +718,188 @@ func TestInhibitRuleTwoSidedDoesNotShadow(t *testing.T) {
 	fp, ok := r.hasEqual(target, true, now)
 	require.True(t, ok)
 	require.Equal(t, sourceOnly.Fingerprint(), fp)
+}
+
+func TestInhibitRuleEmptySourceMatchersNeverInhibits(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	newActiveAlert := func(lset model.LabelSet) *alert.Alert {
+		return alert.New(model.Alert{
+			Labels:   lset,
+			StartsAt: now.Add(-time.Minute),
+			EndsAt:   now.Add(time.Hour),
+		}, time.Time{}, false)
+	}
+
+	t.Run("target-only rule without equal does not inhibit when unrelated alert fires", func(t *testing.T) {
+		t.Parallel()
+
+		rule := amcommoncfg.InhibitRule{
+			TargetMatchers: amcommoncfg.Matchers{
+				&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "notify"},
+			},
+		}
+		target := model.LabelSet{"alertname": "Trigger", "severity": "notify"}
+		unrelated := model.LabelSet{"alertname": "Unrelated", "severity": "critical"}
+
+		// Only the target alert is firing.
+		ihOnlyTarget := runInhibitor(t, []amcommoncfg.InhibitRule{rule}, newActiveAlert(target))
+		checkMutes(t, ihOnlyTarget, target, false, "target alert must not be inhibited when firing alone")
+		require.Empty(t, ihOnlyTarget.rules[0].cache.alerts)
+		require.Empty(t, ihOnlyTarget.rules[0].cache.index)
+
+		// Both target alert and an unrelated alert are firing.
+		ihWithUnrelated := runInhibitor(t, []amcommoncfg.InhibitRule{rule}, newActiveAlert(target), newActiveAlert(unrelated))
+		checkMutes(t, ihWithUnrelated, target, false, "target alert must not be inhibited by unrelated alert when source_matchers is empty")
+		checkMutes(t, ihWithUnrelated, unrelated, false, "unrelated alert must not be inhibited")
+		require.Empty(t, ihWithUnrelated.rules[0].cache.alerts)
+		require.Empty(t, ihWithUnrelated.rules[0].cache.index)
+	})
+
+	t.Run("target-only rule with equal labels does not inhibit when unrelated alert shares equal labels", func(t *testing.T) {
+		t.Parallel()
+
+		rule := amcommoncfg.InhibitRule{
+			TargetMatchers: amcommoncfg.Matchers{
+				&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+			},
+			Equal: []string{"cluster"},
+		}
+		target := model.LabelSet{"alertname": "DiskWarn", "severity": "warning", "cluster": "prod"}
+		unrelated := model.LabelSet{"alertname": "OtherAlert", "severity": "info", "cluster": "prod"}
+
+		ih := runInhibitor(t, []amcommoncfg.InhibitRule{rule}, newActiveAlert(target), newActiveAlert(unrelated))
+		checkMutes(t, ih, target, false, "target alert must not be inhibited by unrelated alert sharing equal labels")
+		require.Empty(t, ih.rules[0].cache.alerts)
+		require.Empty(t, ih.rules[0].cache.index)
+	})
+
+	t.Run("completely empty rule never caches or inhibits", func(t *testing.T) {
+		t.Parallel()
+
+		a1 := model.LabelSet{"alertname": "A1"}
+		a2 := model.LabelSet{"alertname": "A2"}
+
+		ih := runInhibitor(t, []amcommoncfg.InhibitRule{{}}, newActiveAlert(a1), newActiveAlert(a2))
+		checkMutes(t, ih, a1, false)
+		checkMutes(t, ih, a2, false)
+		require.Empty(t, ih.rules[0].cache.alerts)
+		require.Empty(t, ih.rules[0].cache.index)
+	})
+
+	t.Run("empty source matchers rule never inhibits even if cache has alerts", func(t *testing.T) {
+		t.Parallel()
+
+		rule := amcommoncfg.InhibitRule{
+			TargetMatchers: amcommoncfg.Matchers{
+				&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+			},
+		}
+		ih := NewInhibitor(nil, []amcommoncfg.InhibitRule{rule}, nopLogger, eventrecorder.NopRecorder())
+		ih.rules[0].cache.set(newActiveAlert(model.LabelSet{"alertname": "Other", "severity": "critical"}))
+
+		checkMutes(t, ih, model.LabelSet{"alertname": "Warn", "severity": "warning"}, false)
+	})
+
+	t.Run("valid sibling rule still inhibits alongside rule without source matchers", func(t *testing.T) {
+		t.Parallel()
+
+		rules := []amcommoncfg.InhibitRule{
+			{
+				Name: "no-source",
+				TargetMatchers: amcommoncfg.Matchers{
+					&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "notify"},
+				},
+			},
+			{
+				Name: "valid",
+				SourceMatchers: amcommoncfg.Matchers{
+					&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+				},
+				TargetMatchers: amcommoncfg.Matchers{
+					&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+				},
+				Equal: []string{"cluster"},
+			},
+		}
+		notifyAlert := model.LabelSet{"alertname": "Trigger", "severity": "notify", "cluster": "prod"}
+		critAlert := model.LabelSet{"alertname": "NodeDown", "severity": "critical", "cluster": "prod"}
+		warnAlert := model.LabelSet{"alertname": "DiskWarn", "severity": "warning", "cluster": "prod"}
+
+		ih := runInhibitor(t, rules, newActiveAlert(notifyAlert), newActiveAlert(critAlert), newActiveAlert(warnAlert))
+		checkMutes(t, ih, notifyAlert, false, "rule without source matchers must not inhibit")
+		checkMutes(t, ih, warnAlert, true, "valid sibling rule must still inhibit its target")
+		checkMutes(t, ih, critAlert, false, "source alert must not be inhibited")
+	})
+
+	t.Run("source-only rule without target matchers inhibits non-source alerts deterministically", func(t *testing.T) {
+		t.Parallel()
+
+		rule := amcommoncfg.InhibitRule{
+			SourceMatchers: amcommoncfg.Matchers{
+				&labels.Matcher{Type: labels.MatchEqual, Name: "alertname", Value: "Maintenance"},
+			},
+			Equal: []string{"cluster"},
+		}
+		maint := model.LabelSet{"alertname": "Maintenance", "cluster": "prod"}
+		prodAlert := model.LabelSet{"alertname": "DiskFull", "cluster": "prod"}
+		stagingAlert := model.LabelSet{"alertname": "DiskFull", "cluster": "staging"}
+
+		ih := runInhibitor(t, []amcommoncfg.InhibitRule{rule}, newActiveAlert(maint), newActiveAlert(prodAlert), newActiveAlert(stagingAlert))
+		checkMutes(t, ih, maint, false, "source alert must not inhibit itself")
+		checkMutes(t, ih, prodAlert, true, "non-source alert in same cluster must be inhibited")
+		checkMutes(t, ih, stagingAlert, false, "non-source alert in different cluster must not be inhibited")
+	})
+
+	t.Run("logs warning when rule has no source matchers", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		logger := promslog.New(&promslog.Config{Writer: &logs})
+
+		rules := []amcommoncfg.InhibitRule{
+			{
+				Name: "target-only",
+				TargetMatchers: amcommoncfg.Matchers{
+					&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "notify"},
+				},
+			},
+			{
+				Name: "with-source-matchers",
+				SourceMatchers: amcommoncfg.Matchers{
+					&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "critical"},
+				},
+				TargetMatchers: amcommoncfg.Matchers{
+					&labels.Matcher{Type: labels.MatchEqual, Name: "severity", Value: "warning"},
+				},
+			},
+			{
+				Name:        "with-deprecated-source-match",
+				SourceMatch: map[string]string{"severity": "critical"},
+				TargetMatch: map[string]string{"severity": "warning"},
+			},
+			{
+				Name: "with-deprecated-source-match-re",
+				SourceMatchRE: amcommoncfg.MatchRegexps{
+					"severity": {Regexp: regexp.MustCompile("^(?:critical)$"), Original: "critical"},
+				},
+				TargetMatch: map[string]string{"severity": "warning"},
+			},
+		}
+
+		_ = NewInhibitor(nil, rules, logger, eventrecorder.NopRecorder())
+		out := logs.String()
+		require.Contains(t, out, "level=WARN")
+		require.Contains(t, out, "no source matchers")
+		require.Contains(t, out, "name=target-only")
+		require.NotContains(t, out, "with-source-matchers")
+		require.NotContains(t, out, "with-deprecated-source-match")
+		require.NotContains(t, out, "with-deprecated-source-match-re")
+
+		// Ensure a nil logger does not panic.
+		_ = NewInhibitor(nil, rules[:1], nil, eventrecorder.NopRecorder())
+	})
 }
 
 func BenchmarkFingerprintEquals(b *testing.B) {
